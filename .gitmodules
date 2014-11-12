@@ -1,0 +1,9 @@
+[submodule "wmd_files/SageUtils"]
+	path = wmd_files/SageUtils
+	url = workingwiki::http://lalashan.mcmaster.ca/theobio/worden:SageUtils
+[submodule "wmd_files/SageDynamics"]
+	path = wmd_files/SageDynamics
+	url = workingwiki::http://lalashan.mcmaster.ca/theobio/worden:SageDynamics
+[submodule "wmd_files/SageAdaptiveDynamics"]
+	path = wmd_files/SageAdaptiveDynamics
+	url = workingwiki::http://lalashan.mcmaster.ca/theobio/worden:SageAdaptiveDynamics
