@@ -1,0 +1,280 @@
+---
+layout: page
+title: Adaptive Geometry of Resource Competition
+wmd_project: Selection_Gradients
+wmd_prerequisite_projects:
+  SageUtils: SageUtils
+  SageDynamics: SageDynamics
+  SageAdaptiveDynamics: SageAdaptiveDynamics
+---
+
+On these pages I am investigating the evolution of interactions in the MacArthur/Levins resource competition model.
+
+This page explains the adaptive dynamics concepts and questions I'm using, and includes Sage source code for the models.
+
+Child pages use this theory and code to investigate specific cases of the models: 
+
+* [Selection_Gradients/MacLev-1-1.html](/Selection_Gradients/MacLev-1-1.html)
+* [Selection_Gradients/MacLev-2-2.html](/Selection_Gradients/MacLev-2-2.html)
+
+## MacArthur-Levins population dynamics
+
+We start with a population-resource model:
+
+$$\[\frac{dX_i}{dt} = b_iX_i(\sum_\ell c_{i\ell}w_\ell R_\ell - m_i)\]$$
+
+$$\frac{dR_\ell}{dt} = r_\ell(K_\ell - R_\ell) - \sum_ic_{i\ell}X_i$$
+
+where $$X_i$$ is the density of population $$i$$, $$R_\ell$$ is the abundance of resource $$\ell$$ and the parameters are $$b_i$$, an intrinsic population growth rate, $$m_i$$, mortality rate, $$c_{i\ell}$$, the rate at which population $$i$$ captures resource $$\ell$$, $$w_\ell$$, the amount a unit of resource $$\ell$$ contributes to population growth, $$r_\ell$$, the resupply rate of resource $$\ell$$, and $$K_\ell$$ its maximum possible abundance.
+
+This is a fine model on its own, but I am interested in Lotka-Volterra models, which are models in which there is a simple number $$a_{ij}$$ describing how populations $$i$$ and $$j$$ interact with each other.  Using a Lotka-Volterra model will let us look at how these interaction terms $$a_{ij}$$ change, telling us how evolution drives these populations to become more competitive, antagonistic, or mutualistic.
+
+In the above model the populations $$i$$ interact indirectly by taking resources from each other, but we can make the interactions direct by making simplifying assumptions, and this is what MacArthur and Levins did.  
+
+We do this by assuming that the resources come to equilibrium very quickly compared to the populations.  Under this assumptions, we can hold the population sizes $$X_i$$ fixed and solve the second equation above for $$R_\ell$$ when $$\frac{dR_\ell}{dt}=0$$:
+
+$$\hat{R}_\ell = K_\ell - \frac1{r_\ell}\sum_ic_{i\ell}X_i$$.
+
+Then we simply use that value of $$R_\ell$$ in the first equation, and we have a system of population sizes only:
+
+$$\frac{dX_i}{dt} = b_iX_i(\sum_\ell c_{i\ell}w_\ell(K_\ell - \frac1{r_\ell}\sum_jc_{j\ell}X_j) - m_i)$$.
+
+We can rearrange the terms of this to have the standard Lotka-Volterra form:
+
+$$\frac{dX_i}{dt} = k_iX_i + \sum_j a_{ij}X_i X_j$$,
+
+where
+
+$$k_i = b_i (\sum_\ell c_{i\ell}w_\ell K_\ell - m_1)$$ (ordinarily I'd call this $$r_i$$, but the name is already in use),
+
+$$a_{ij} = - b_i \sum_\ell \sum_j \frac{c_{i\ell}c_{j\ell}w_\ell}{r_\ell}$$.
+
+I'll be interested in how the interaction terms $$a_{ij}$$ change as the populations coevolve, because this expresses whether competition becomes stronger or weaker.  When two coevolving populations compete for resources, we expect them to differentiate from each other and lessen the competition, but I'd like to look at both that and other cases, and do some detailed analysis about when it lessens and when it greatens.
+
+## Adaptive dynamics in the Macarthur-Levins model
+
+And now here's where we look at how that single population ''evolves'' in the Mac-Lev model.  I won't review the details of how [adaptive dynamics](http://en.wikipedia.org/w/Evolutionary_invation_analysis) is done, but in summary: suppose that certain aspects of the population dynamics depend on the characteristics of the population, and those characteristics are able to mutate.  Then over time, mutants will arise, and if they are better able to thrive in the environment they encounter than their forefathers, they will gradually replace them, and the characteristics of the population will slowly change.
+
+In this model, it's $$b_i$$, $$c_{i\ell}$$, and $$m_i$$ that have to do with the populations, so we introduce a ''phenotype'' variable $$u_i$$ representing the characteristics of the population and suppose that $$b_i$$, $$c_{i\ell}$$ and $$m_i$$ are determined by the value of $$u$$.  Then we can find out how $$u$$ changes in time in response to the conditions created by the population dynamics, and also how the other values such as $$X_i$$, $$R_\ell$$, $$a_{ij}$$, $$k_i$$, change as $$u$$ evolves.
+
+The change in $$u$$, to make a long story short, is driven by how the population growth rate of a rare mutant varies with the mutant's phenotype $$u$$.  That is, there's an "invasion speed" $$\mathcal I$$ that is closely related to the population growth rate $$\frac{dX_i}{dt}$$, and the change in $$u$$ (that is, $$\frac{du}{dt}$$) is in proportion to $$\frac{\partial\mathcal I}{\partial u}$$.
+
+To be precise:
+
+$$\mathcal I(u_i|E) = \lim_{X_i\to0} \frac1{X_i}\frac{dX_i}{dt}$$
+
+defines the invasion speed (where $$E$$ is the environment that an individual population $$i$$ experiences, including the rest of population $$i$$ and all other populations), and then
+
+$$\frac{du_i}{dt} = \left.\gamma \hat X_i \frac{\partial\mathcal I(v|u_1,\ldots,u_n)}{\partial v}\right|_{v=u_i}$$,
+
+where $$\gamma$$ is a coefficient accounting for the frequency and size of available mutations.  In simple cases, it's a constant, while when available mutations are not quite so simple and uniform, it may not be (as we will see).
+
+## Adaptive geometry of ecological parameters
+
+Now let's go deeper into what happens in that evolutionary change.  We're considering several different ways to describe the evolving population, and now I want to give them clearer notation:
+
+* $$\mathbf u_i$$, the "underlying phenotype".  I'm going to be using a scalar $$u_i$$, and in fact just one of them, so I can call it $$u$$, but in general it's a vector of numbers, which is what I mean by writing it in boldface.
+* $$\mathbf p(\mathbf u_i)=\begin{pmatrix}b_i(\mathbf u_i)\\m_i(\mathbf u_i)\\c_{i1}(\mathbf u_i)\\\vdots\\c_{im}(\mathbf u_i)\end{pmatrix}$$, the "ecological phenotype"
+* $$\mathbf A(\mathbf p(\mathbf u_i), \mathbf p(\mathbf u_1), \ldots, \mathbf p(\mathbf u_n)) = \begin{pmatrix}k_i(\mathbf p(\mathbf u_i))\\a_{i1}(\mathbf p(\mathbf u_i),\mathbf p(\mathbf u_1))\\\vdots\\a_{in}(\mathbf p(\mathbf u_i),\mathbf p(\mathbf u_n))\end{pmatrix}$$, the "interaction phenotype"
+
+These are vectors that are functions of one another.  Using a suitable vector notation in our calculus, we can write the adaptive dynamics of $$\mathbf u$$ directly, ignoring the intermediate variables $$\mathbf p$$ and $$\mathbf A$$ for the moment:
+
+$$\frac{d\mathbf u_i}{dt} = \left. \gamma \hat{X}_i \frac{\partial\mathcal I(\mathbf v|\mathbf u_1,\ldots,\mathbf u_n)}{\partial \mathbf v}\right|_{\mathbf v=\mathbf u_i} = \gamma \hat{X}_i \partial_1\mathcal I(\mathbf u_i)^T$$.
+
+The $$T$$ sign is for vector or matrix transposition: with the notation I'm using, $$\mathbf u_i$$ is a column vector - a point in a vector space of values - and $$\frac{\partial\mathcal I}{\partial\mathbf u_i}$$ is a row vector - a thing that operates on points.  Since $$\frac{d\mathbf u_i}{dt}$$ is a column, we need to transpose the derivative of $$\mathcal I$$ to make it match.  The $$\partial_1$$ sign is for the partial derivative with respect to the first argument.
+
+Now we can use the chain rule to see how $$\mathbf p$$ changes:
+
+$$\frac{d\mathbf p(\mathbf u_i)}{dt} = \frac{\partial\mathbf p}{\partial \mathbf u_i}\frac{d\mathbf u_i}{dt}$$
+$$= \gamma \hat{X}_i \frac{\partial\mathbf p}{\partial \mathbf u_i} \partial_1\mathcal I(\mathbf u_i)^T$$
+$$= \gamma \hat{X}_i \frac{\partial\mathbf p}{\partial \mathbf u_i}(\partial_1\mathcal I(\mathbf p(\mathbf u_i))\frac{d\mathbf p}{d\mathbf u_i})^T$$
+$$= \gamma \hat{X}_i \frac{\partial\mathbf p}{\partial \mathbf u_i} \frac{\partial\mathbf p}{\partial \mathbf u_i}^T\partial_1\mathcal I(\mathbf p(\mathbf u_i))^T$$.
+
+Here we see the usefulness of this row-and-column-vector notation, because it lets us use the chain rule in a natural way: when we write $$\frac{d\mathbf p(\mathbf u_i)}{dt} = \frac{\partial\mathbf p}{\partial \mathbf u_i}\frac{d\mathbf u_i}{dt}$$, we're multiplying a matrix by a column vector to get another column vector, in just the way we want.
+
+I like to write $$S(\mathbf u) = \partial_1\mathcal I(\mathbf u)^T$$ for the "selection gradient" of $$\mathbf u$$ -- the direction of increasing fitness in the space of possible $$\mathbf u$$ values.  I'm very interested in the role of this selection gradient in various spaces, as we'll see.  Notice that in the derivation above I switched from $$S(\mathbf u_i) = \left(\frac{\partial\mathcal I(\mathbf v|\mathbf u_1,\ldots,\mathbf u_n)}{\partial \mathbf v}\right)_{\mathbf v = \mathbf u_i} $$ to 
+
+{$S(\mathbf p(\mathbf u_i)) = \left(\begin{array}{c} \frac{\partial\mathcal I(\mathbf v|\mathbf u_1,\ldots,\mathbf u_n)}{\partial b(\mathbf v)}\\
+\vdots \\
+\frac{\partial\mathcal I(\mathbf v|\mathbf u_1,\ldots,\mathbf u_n)}{\partial c_{im}(\mathbf v)} \end{array}\right)_{\mathbf v=\mathbf u_i}$}.
+These different selection gradients are very different objects: they're vectors expressing the direction of selection in different spaces -- here, the space of $$\mathbf u$$ values ''vs.'' the space of $$\mathbf p$$ values.  Soon enough we'll also be looking at the selection gradient in $$\mathbf A$$ space.
+
+Using the above chain rule manipulations, we can write
+
+$$\frac{d\mathbf u_i}{dt} = \gamma \hat{X}_i S(\mathbf u_i)$$
+
+$$\frac{d\mathbf p(\mathbf u_i)}{dt} = \gamma \hat{X}_i \frac{\partial\mathbf p}{\partial \mathbf u} \frac{\partial\mathbf p}{\partial \mathbf u}^T S(\mathbf p)$$.
+
+Like $$\mathbf u$$ or whatever other vector, $$\mathbf p$$ would evolve in the direction of $$S(\mathbf p)$$ if it were to mutate in all directions equally.  However, it doesn't do that: since $$\mathbf p$$ is a function of $$\mathbf u$$, it only mutates in directions given by mutations in $$\mathbf u$$.  The matrix multiplying $$S(\mathbf p)$$ in the dynamics of $$\mathbf p$$ is a projection matrix, restricting the motion of $$\mathbf p$$ to directions allowed by the mapping between $$\mathbf u$$ and $$\mathbf p$$.  (To be precise, $$\frac{\partial\mathbf p}{\partial \mathbf u} \frac{\partial\mathbf p}{\partial \mathbf u}^T S(\mathbf p)$$ is not precisely the projection of $$S(\mathbf p)$$ onto the subspace parametrized by $$\mathbf u$$ unless the columns of $$\frac{\partial\mathbf p}{\partial \mathbf u}$$ are unit-length; otherwise there's some scaling by positive numbers involved.  But it definitely transforms the vector into a direction allowed by the restriction to points parametrized by $$\mathbf u$$.)
+
+The motion of $$\mathbf A$$ is the same way, except that it is influenced by all the populations in the system, not just one, because two phenotypes are involved in each $$a_{ij}$$ value.  For that reason, the dynamics of $$\mathbf A$$ has some extra terms...
+
+But before we go into that, let's look at the selection gradient and the dynamics of $$\mathbf p(\mathbf u)$$.
+
+## Adaptive geometry of interaction terms
+
+Now, let's get to how $$a_{ij}$$ and $$k_i$$ "would like to evolve" and why they move in the directions they do.
+
+Expanding out the dynamics of the $$\mathbf A$$ vector has more involved than doing it for the $$\mathbf p$$ vector, because $$\mathbf A$$ depends on all the different phenotypes $$\mathbf u_j$$, not just one we're concerned with.  Also, we have to keep careful track of $$\mathbf u_i$$, because it appears in $$\mathbf A$$ in two different ways: on the left-hand side of each $$\mathbf a_{ij}=a(\mathbf u_i, \mathbf u_j)$$ term, which describes how population $$i$$ (the "patient") is affected by an encounter with population $$j$$ (the "agent"); and also on the right-hand side of the $$a_{ii}=a(\mathbf u_i, \mathbf u_i)$$ term, as the "agent" in an encounter between $$i$$ and $$i$$.  This distinction is important because every encounter has two effects, the effect on oneself and the effect on the other, and we'll see that selection treats these two effects very differently.
+
+So to be clear, we'll work with the notation
+
+$$\mathbf A_i = \left.\mathbf A(\mathbf v, \mathbf u_1, \ldots, \mathbf u_n)\right|_{\mathbf v=\mathbf u_i}$$ $$= \left(\begin{array}{c}\mathbf a(\mathbf v, \mathbf u_1) \\ \vdots \\ \mathbf a(\mathbf v, \mathbf u_n) \\ k(\mathbf v) \end{array}\right)_{\mathbf v=\mathbf u_i}$$, 
+
+to distinguish the two different roles of $$\mathbf u_i$$ (suppressing the intermediate variable $$\mathbf p$$), and we'll refer to the two different partial derivatives that relate to $$\mathbf u_i$$ as $$\partial_1\mathbf A_i(\mathbf u_i) = \left.\frac{\partial\mathbf A_i}{\partial \mathbf v}\right|_{\mathbf v=\mathbf u_i}$$ and $$\partial_2 \mathbf A_i(\mathbf u_i) = \left.\frac{\partial \mathbf A_i}{\partial \mathbf u_i}\right|_{\mathbf v=\mathbf u_i}$$.
+
+So first of all, if we use $$\mathbf A_i$$ as an intermediate variable, the dynamics of $$\mathbf u_i$$ is
+
+$$\frac{d\mathbf u_i}{dt} = \gamma \hat{X}_i \partial_1\mathscr I(\mathbf u_i)^T$$
+
+$$ = \gamma \hat{X}_i (\partial_1\mathscr I(\mathbf A_i)\partial_1\mathbf A_i(\mathbf u_i))^T$$
+
+$$ = \gamma \hat{X}_i \partial_1\mathbf A_i(\mathbf u_i)^T\partial_1\mathscr I(\mathbf A_i)^T$$.
+
+Then
+
+$$\frac{d\mathbf A_i}{dt} = \partial_1\mathbf A_i(\mathbf u_i)\frac{d\mathbf u_i}{dt} + \sum_{j=1}^n\partial_2\mathbf A_i(\mathbf u_j)\frac{d\mathbf u_j}{dt}$$
+
+$$= \gamma \hat{X}_i \partial_1\mathbf A_i(\mathbf u_i)\partial_1\mathbf A_i(\mathbf u_i)^T\partial_1\mathcal I(\mathbf A_i)^T + \sum_{j=1}^n \gamma \hat{X}_j \partial_2\mathbf A_i(\mathbf u_j)\partial_1\mathbf A_j(\mathbf u_j)^T\partial_1\mathcal I(\mathbf A_j)^T$$
+
+$$= \gamma \hat{X}_i \partial_1\mathbf A_i(\mathbf u_i)\partial_1\mathbf A_i(\mathbf u_i)^T S(\mathbf A_i) + \sum_{j=1}^n \gamma \hat{X}_j \partial_2\mathbf A_i(\mathbf u_j)\partial_1\mathbf A_j(\mathbf u_j)^T S(\mathbf A_j)$$.
+
+This expression is made up of two somewhat complex terms.  The first term, the $$S(\mathbf A_i)$$ term, expresses the change in the interactions experienced by population $$i$$ due to change in population $$i$$ in its patient role.  I refer to this as the '''direct effect''' of selection on population $$i$$.  The second term, the sum of $$S(\mathbf A_j)$$ vectors, expresses the change in population $$i$$'s interactions due to change in all the different agents it encounters, including population $$i$$ itself in its agent role.  I refer to this as an '''indirect effect''' of selection on the various populations.
+
+What would happen if there were no constraints on $$\mathbf A_i$$?  That is, if all the terms just mutate independently without being constrained by dependence on $$\mathbf u$$ variables.  In this case, we would simply have
+
+$$\frac{d\mathbf A_i}{dt} = \gamma \hat{X}_i S(\mathbf A_i)$$.
+
+In the constrained case, as with $$\mathbf p$$, the motion due to $$S(\mathbf A_i)$$ is modified by a transformation matrix.  Here, though, there's also another term dealing with the effect of changing $$\mathbf u$$ values as the second argument to $$a(\mathbf u_i, \mathbf u_j)$$.  Let's expand that out one step further:
+
+$$\usepackage[usenames,dvipsnames,svgnames,table]{xcolor}{\color{blue}\frac{d\mathbf A_i}{dt}} = {\color{green!70!black}\gamma \hat{X}_i \partial_1\mathbf A_i(\mathbf u_i) \partial_1\mathbf A_i(\mathbf u_i)^T S(\mathbf A_i) + {\color{violet}\sum_{j=1}^n \gamma \hat{X}_j \partial_2\mathbf A_i(\mathbf u_j) \partial_1\mathbf A_j(\mathbf u_j)^T S(\mathbf A_j)}$$
+
+$$\usepackage[usenames,dvipsnames,svgnames,table]{xcolor} = {\color{green!70!black}D(\mathbf u_i)} + {\color{violet}I(\mathbf u_i|\mathbf u_1,\ldots,\mathbf u_n)}$$.
+
+Here I'm using colors to distinguish three different vector quantities, which I'll soon plot in the same colors:
+
+* <span style="color:blue">$$\frac{d\mathbf A_i}{dt}$$, the resultant change in $$\mathbf A_i$$</span>, blue.
+* <span style="color:green">$$D(\mathbf u_i)$$, the direct effect of change in $$\mathbf u_i$$ as patient</span>, green.
+* <span style="color:purple">$$I(\mathbf u_i|\mathbf u_1,\ldots,\mathbf u_n)$$, the indirect effect of change in all agents $$\mathbf u_j$$ including $$\mathbf u_i$$</span>, purple.
+
+## Supplementary materials
+
+Here are the Sage classes that do the work for the Mac-Lev models. above.  They use generalized Sage machinery that's stored at [[SageDynamics]].
+
+Now here's the MacArthur-Levins resource competition model.
+
+<source-file filename=maclevmodels.py.step lang=python>
+# requires: $(SageDynamics)/dynamicalsystems.py
+from sage.all import *
+import os
+import sys
+ 
+sys.path.append( os.environ['SageUtils'] )
+sys.path.append( os.environ['SageDynamics'] )
+from dynamicalsystems import *
+
+from sage.symbolic.relation import solve
+from sage.symbolic.function_factory import function
+
+class ResourceCompetitionModel(PopulationDynamicsSystem):
+    """The general resource competition model, with some number of
+    populations and some number of resources.  The various parameters
+    b_i, c_i_l, etc. may or may not be bound to numerical values.
+    """
+    def __init__(self, x_indices=None, r_indices=None,
+        X = indexer('X'),
+        R = indexer('R'),
+        b = indexer('b'),
+        m = indexer('m'),
+        w = indexer('w'),
+        r = indexer('r'),
+        K = indexer('K'),
+        c = indexer(lambda i: indexer(lambda l: SR.var('c_%s_%s'%(i,l), latex_name='c_{' '%s%s}'%(i,l)))),
+        bindings=Bindings()):
+        """How to specify an instance of this model?
+
+        x_indices: might, for instance, be [1, 2, 3], or might not.
+        r_indices: likewise.
+        X, R, b, etc: some kind of things that can implement operations
+            such as, for example, X[i] where i is in x_indices.  These
+            should return variables, functions, numbers, or other
+            things that can be used in an expression.
+        """
+        self._r_indices = r_indices
+        self._indexers = dict( X=X, R=R, b=b, m=m, c=c, w=w, r=r, K=K )
+        super(ResourceCompetitionModel, self).__init__(
+            [R[l] for l in r_indices], x_indices, X,
+            bindings = bindings )
+    def flow(self):
+        return self.make_flow(**self._indexers)
+    def make_flow(self, X, R, b, c, m, r, w, K):
+        X_flows = [ (X[i],
+            b[i]*X[i]*(sum(c[i][l]*w[l]*R[l] for l in self._r_indices) - m[i]))
+            for i in self._population_indices ]
+        R_flows = [ (R[l],
+            r[l]*(K[l] - R[l]) -
+              sum(c[i][l]*X[i] for i in self._population_indices))
+            for l in self._r_indices ]
+        return dict(X_flows + R_flows)
+
+class MacArthurLevinsModel(PopulationDynamicsSystem):
+    """The MacArthur-Levins model is constructed by separating timescales
+    to remove the R_l variables from the dynamics
+    """
+    def __init__(self, rescomp_model=None, **named_args):
+        """Give me a ResourceCompetitionModel with nx populations and
+        nr resources, I will crunch it down into a MacArthurLevinsModel
+        with nx populations.
+        """
+        #print 'MacArthurLevinsModel', (rescomp_model, named_args)
+        if rescomp_model is None:
+            rescomp_model = ResourceCompetitionModel(**named_args)
+        self._rescomp_model = rescomp_model
+        self._r_indices = rescomp_model._r_indices
+        super(MacArthurLevinsModel, self).__init__(
+          [],
+          rescomp_model._population_indices,
+          rescomp_model._population_indexer,
+          bindings = rescomp_model._bindings )
+    def flow(self):
+        # find the equilibrium values of R_l given the current values X_i
+        R = [self._rescomp_model._indexers['R'][l] for l in self._r_indices]
+        Rsolns = dict( (R_l, self.solve_for_R(R_l)) for R_l in R )
+        #print 'R solns:', Rsolns
+        # now substitute those values of R into the X equations
+        reduced_flow = dict( (X_i,
+              self._rescomp_model._flow[X_i].substitute_expression(Rsolns))
+            for X_i in self.population_vars() )
+        # that's the Macarthur-Levins model.
+        return reduced_flow
+    def solve_for_R(self, R_l):
+        """solve for the equilibrium value of one R_l given the X_i values"""
+        Rhat_soln = solve( 0 == self._rescomp_model._flow[R_l], R_l, solution_dict=True )
+        # there should be just one solution
+        assert len(Rhat_soln) == 1
+        #print "R-hat: %s" % Rhat_soln[0][R_l]
+        # put it in the bindings in case we want to plot R_l or something
+        self._bindings[R_l] = Rhat_soln[0][R_l]
+        return Rhat_soln[0][R_l]
+    def set_population_indices(self,xi):
+        # need to pass this through to the res-comp system
+        self._rescomp_model.set_population_indices(xi)
+        super(MacArthurLevinsModel, self).set_population_indices(xi)
+
+class GeneralizedLotkaVolterraModel(PopulationDynamicsSystem):
+    """The GLV model is dX_i/dt = (r_i + sum_j a_i_j X_j) X_i"""
+    def __init__(self, x_indices = [], X = indexer('X'), r = indexer('r'),
+      a = indexer(lambda i: indexer(lambda j: SR.var('a_%s_%s'%(i,j), latex_name='a_{' '%s%s}'%(i,j)))),
+      bindings = Bindings()):
+        self._indexers = {'r': r, 'a': a, 'X': X}
+        super(GeneralizedLotkaVolterraModel,self).__init__(
+            [ ], x_indices, X, bindings=bindings )
+    def flow(self):
+        return self.make_flow(**self._indexers)
+    def make_flow(self, X, r, a):
+        return dict( (X[i],
+          X[i]*(r[i] + sum( a[i][j]*X[j] for j in self._population_indices )))
+          for i in self._population_indices)
+
+</source-file>
+

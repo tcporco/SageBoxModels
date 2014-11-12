@@ -1,0 +1,349 @@
+---
+layout: page
+title: Adaptive Geometry and Resource Competition - Two Species, Two Resources
+wmd_project: Selection_Gradients
+---
+
+This page investigates the adaptive dynamics of [the Macarthur-Levins resource competition model](/Selection_Gradients/MacLev.html) in the case of two species and two resources.
+
+* See [Selection_Gradients/MacLev](/Selection_Gradients/MacLev.html) for the general model, and the adaptive dynamics formulation we're using here, including the specific questions about the $$a$$ and $$k$$ of the Lotka-Volterra framework.
+* See also [Adaptive Geometry and Resource Competition - One Species, One Resource](/Selection_Gradients/MacLev-1-1.html).
+
+We begin by creating and testing a 2-species, 2-resource model.  
+
+<source-file filename=maclev2_defs.py.step lang=py>
+# requires: maclevmodels.py
+from sage.all import *
+import os
+import sys
+sys.path.append( os.environ['SageDynamics'] )
+from dynamicalsystems import *
+
+from sage.symbolic.relation import solve
+from sage.symbolic.function_factory import function
+
+# this is the definition of c_j(u_i) I'm going to use below.
+# it needs to be defined in a .py module so it can be pickled :(
+#c_functional_form = indexer(lambda i: indexer(lambda l: SR('(u_%s-%s)^2'%(i,l))))
+class cff(indexer):
+    class cffi(indexer):
+        def __init__(self, _i):
+            self._i = _i
+        def __getitem__(self, l):
+            #return SR('(u_%s-%s)^2'%(self._i,l))
+            # try different functional form, from http://onlinelibrary.wiley.com/doi/10.1111/j.0014-3820.2004.tb01614.x/pdf
+            width = 0.1
+            ui = SR('u_%s'%self._i)
+            try:
+                ui - l
+            except:
+                l = SR(l)
+            return e**(-width)/(sqrt(2*pi)*width)*e**(-(ui-l)**2/(2*width**2))
+    def __init__(self):
+        pass
+    def __getitem__(self, i):
+        return self.cffi(i)
+c_functional_form = cff()
+
+class const_indexer(indexer):
+    def __init__(self, c):
+        self.c = c
+    def __getitem__(self, i):
+        return self.c
+</source-file>
+
+<source-file filename=maclev-2-2-test.sage.step lang=sage>
+# requires: maclevmodels.py $(SageDynamics)/dynamicalsystems.py
+# produces: maclev-2-2-test.sobj maclev-2-2-test.sage.out.tex maclev-2-2-test.png
+from sage.all import *
+from sage.misc.latex import _latex_file_
+
+import os
+import sys
+sys.path.append( os.environ['SageUtils'] )
+sys.path.append( os.environ['SageDynamics'] )
+from maclevmodels import *
+from latex_output import *
+
+ltx = latex_output( 'maclev-2-2-test.sage.out.tex' )
+
+# now that I've defined the general resource-competition model, let's
+# create a 1-resource, 1-population instantiation to work with
+rescomp = ResourceCompetitionModel(x_indices=[0, 1], r_indices=[0, 1])
+
+ltx.write( 'The original resource competition system:' )
+ltx.write_block( rescomp )
+
+#print 'rescomp bindings:', rescomp._bindings
+
+# now, we make the reduced system by putting the resources on a fast timescale
+maclev = MacArthurLevinsModel(rescomp)
+
+ltx.write( "And the Mac-Lev system derived from it: " )
+ltx.write_block( maclev )
+
+ltx.close()
+
+# create global variables for convenience
+r_0, r_1, K_0, K_1, w_0, w_1 = SR.var( 'r_0, r_1, K_0, K_1, w_0, w_1' )
+b_0, m_0, b_1, m_1 =  SR.var( 'b_0, m_0, b_1, m_1' )
+c_0_0, c_0_1, c_1_0, c_1_1 = ( SR.var( 'c_%s' % s, latex_name='c_{%s}' % s ) for s in ( '00', '01', '10', '11' ) )
+X_0, X_1, R_0, R_1 = SR.var( 'X_0, X_1, R_0, R_1' )
+test_bindings = Bindings(
+    r_0 = 1, r_1 = 1, K_0 = 2, K_1 = 2, w_0 = 1, w_1 = 1,
+    b_0 = 1, b_1 = 1, m_0 = 1, m_1 = 1,
+    c_0_0 = 1, c_0_1 = 1/2, c_1_0 = 2/3, c_1_1 = 1 )
+maclev_test = maclev.bind( test_bindings )
+
+p = maclev_test.plot_vector_field( (X_0, 0, 2), (X_1, 0, 2), color="gray", figsize=(5,5) )
+p += maclev_test.plot_ZNGIs( (X_0, 0, 2), (X_1, 0, 2), color="gray" )
+s = maclev_test.solve( [0, 0.05, 0.02] )
+p += s.plot( X_0, X_1, color='red' )
+p.save( 'maclev-2-2-test.png' )
+
+save_session('maclev-2-2-test')
+</source-file>
+
+The model equations, according to Sage:
+
+<project-file filename=maclev-2-2-test.sage.out.tex/>
+
+State space of this population dynamics model:
+
+<project-file filename="maclev-2-2-test.png"/>
+
+## Adaptive dynamics of $$u$$
+
+<source-file filename=maclev-2-2-adap.sage.step lang=sage>
+# requires: maclevmodels.py maclev2_defs.py $(SageAdaptiveDynamics)/adaptivedynamics.py maclev-2-2-test.sobj
+# produces: maclev-2-2-adap.sage.out.tex maclev-2-2-adap.sobj maclev-2-2-u-vs-t.png maclev-2-2-u-vs-u.png
+
+print "hey"
+sys.stdout.flush()
+
+from sage.all import *
+from sage.misc.latex import _latex_file_
+from sage.misc.latex import latex
+latex.add_to_preamble('\\usepackage{amsmath}')
+
+print "hey"
+sys.stdout.flush()
+
+import os
+import sys
+sys.path.append( os.environ['SageUtils'] )
+sys.path.append( os.environ['SageDynamics'] )
+sys.path.append( os.environ['SageAdaptiveDynamics'] )
+from maclevmodels import *
+from adaptivedynamics import *
+from latex_output import *
+from maclev2_defs import *
+
+print 'hi!'
+sys.stdout.flush()
+
+load_session('maclev-2-2-test')
+
+ltx = latex_output( 'maclev-2-2-adap.sage.out.tex' )
+
+# we have already created a Mac-Lev model.
+# now we recast b_i, m_i, c_ij to be functions of u, the phenotype
+u = SR.var('u')
+
+# Now we build almost the same mac-lev model, but instead of e.g. b_i
+# we have b(u_i).
+#maclev_u = MacArthurLevinsModel(
+#    x_indices = [0, 1], r_indices = [0, 1],
+#    b = indexer(lambda i: 'b(u_%s)'%i),
+#    m = indexer(lambda i: 'm(u_%s)'%i),
+#    c = indexer(lambda i: indexer(lambda l: 'c_%s(u_%s)'%(l,i))) )
+
+# that's not working due to some issue with limit(), so let's try it
+# the other way around
+
+print "about to make maclev_c"
+sys.stdout.flush()
+
+maclev_c = MacArthurLevinsModel(
+    x_indices = [0, 1], r_indices = [0, 1],
+    b = const_indexer(1),
+    m = const_indexer(1),
+    c = c_functional_form )
+
+print "made maclev_c"
+sys.stdout.flush()
+
+X_0 = maclev_c._population_indexer[maclev_c._population_indices[0]]
+X_1 = maclev_c._population_indexer[maclev_c._population_indices[1]]
+
+ltx.write( 'The Mac-Lev model with $b_i=m_i=1$ and $c_{ij} = %s$:' % latex( c_functional_form['i']['j'] ) )
+ltx.write_block( maclev_c )
+
+#stop there for now
+ltx.close()
+save_session('maclev-2-2-adap')
+sys.exit()
+
+print "about to do equilibria"
+sys.stdout.flush()
+
+nte = maclev_c.nontrivial_equilibria() 
+
+print "got nte"
+sys.stdout.flush()
+
+# the test for stability goes south here with the parameters unbound,
+# so bypass it
+maclev_c.set_stable_nontrivial_equilibria(
+        [ E for E in nte if E[X_0] != 0 and E[X_1] != 0 ] )
+
+print "did equilibria"
+sys.stdout.flush()
+
+#ltx.write( 'Stable nontrivial equilibria:' )
+#for e in maclev_c.stable_nontrivial_equilibria() :
+#    ltx.write_block( latex(Bindings( { X_0 : Bindings(e)[X_0], X_1 : Bindings(e)[X_1] } )) )
+
+try:
+    maclev_adap_c = AdaptiveDynamicsModel(maclev_c, 
+        [ indexer('u') ])
+    #ltx.write( maclev_adap_c._debug_output._output._str )
+    ltx.write( 'adaptive dynamics of $u_\cdot$ in that model:' )
+    ltx.write_block( maclev_adap_c )
+except AdaptiveDynamicsException, e:
+    print( r'%s\\Exception: %s' % (e._latex_str, e) )
+    ltx.write( e._latex_str, r'\\Exception: %s\\' % e )
+
+numeric_params = Bindings(
+  { SR.var('r_0'): 1, SR.var('r_1'): 1,
+    SR.var('w_0'): 1, SR.var('w_1'): 1,
+    SR.var('K_0'): 2, SR.var('K_1'): 2,
+    SR.var('gamma'): 1 } )
+maclev_adap_c_bound = maclev_adap_c.bind( bindings=numeric_params )
+
+ltx.write( 'and now with the parameters:', latex( numeric_params ) )
+ltx.write( 'the adaptive dynamics is:', latex( maclev_adap_c_bound ) )
+
+initial_u0 = 2/5
+initial_u1 = 2/3
+c_evolution = maclev_adap_c_bound.solve( [0, initial_u0, initial_u1], end_points=10 )
+
+# and plot. 
+t = maclev_adap_c.time_variable()
+c_evolution.plot( t, [SR('u_0'), SR('u_1')], 'maclev-2-2-u-vs-t.png', ylabel='$u$', figsize=(4,4) )
+c_phase_plane = c_evolution.plot( SR('u_0'), SR('u_1'), figsize=(4,4) )
+c_phase_plane += maclev_adap_c_bound.plot_vector_field( ('u_0',0,1), ('u_1',0,1), color='gray', plot_points=19 )
+c_phase_plane.axes_labels( [ '$u_0$', '$u_1$' ] )
+c_phase_plane.save( 'maclev-2-2-u-vs-u.png', xmin=0, xmax=1, ymin=0, ymax=1 )
+
+# Xhat increases.
+Xhat = SR.var('X_0', latex_name='\hat{X}_0')
+c_evolution.plot( t, Xhat, "X.png", ylabel=Xhat, figsize=(4,4) )
+Rhat = SR.var('R_0', latex_name='\hat{R}_0')
+c_evolution.plot( t, Rhat, "R.png", figsize=(4,4) )
+# and let's also plot k_0 vs. a_00.
+# these are the coefficients if you rewrite the maclev dynamics
+# as dX_0/dt = X_0(k_0 + a_00 X_0)
+# and why not get sage to do that, rather than type in the definitions
+rhsc = maclev_c._flow[X_0].collect(X_0)
+k_0 = rhsc.coeff(X_0,1)
+a_00 = rhsc.coeff(X_0,2)
+ltx.write( 'With and without these bindings, the Lotka-Volterra coefficients $k_0$ and $a_{00}$ are:' )
+ltx.write_equality( SR.var('k_0'), k_0, numeric_params(k_0) )
+ltx.write_equality( SR.var('a_00', latex_name='a_{00}' ), a_00, numeric_params(a_00) )
+
+ltx.write( 'And the equilibrium values $\\hat X$ and $\\hat R$:',
+    '\\begin{align*}\n  \\hat X_0 &\\to ',
+    latex( maclev_adap_c._bindings( Xhat ) ), ' = ',
+    latex( numeric_params( maclev_adap_c._bindings( Xhat ) ) ), '\\\\\n',
+    '  \\hat R_0 &\\to ',
+    latex( maclev_adap_c._bindings( Rhat ) ), ' = ',
+    latex( numeric_params( maclev_adap_c._bindings( Rhat ) ) ), '\n',
+    '\\end{align*}\n' )
+
+c_evolution.plot( a_00, k_0, "ak.png",
+  xlabel = SR.var('a_00'), ylabel = SR.var('k_0'), figsize=(4,4) )
+
+ltx.close()
+
+save_session('maclev-2-2-adap')
+</source-file>
+
+Here we derive the adaptive dynamics equations when it is the uptake rates $$c_{ij}$$ that is evolving -- that is, when $$c_{ij}=c_j(u_i)$$, $$b_0=1$$, and $$m_0=1$$; and then we bind the remaining parameters to get a realization of the system that we can integrate and plot.
+
+<project-file filename=maclev-2-2-adap.sage.out.tex/>
+
+With these parameters, what happens to the evolving traits $$u$$?
+
+<project-file filename=maclev-2-2-u-vs-t.png make=no/> <project-file filename=maclev-2-2-u-vs-u.png make=no/>
+
+Aha, excellent, they diverge, just as they were supposed to.
+
+They don't behave so well when $$u$$ starts between 0 and 1 though.  Need to fix the model because that's not good.
+
+## Lotka-Volterra version
+
+This part isn't working yet.
+
+<source-file filename=maclev-2-2-adap-ak.sage.step lang=sage>
+# requires: maclevmodels.py $(SageAdaptiveDynamics)/adaptivedynamics.py maclev-2-2-adap.sobj
+# produces: maclev-2-2-adap-ak.sage.out.tex maclev-2-2-adap-ak.sobj
+from sage.all import *
+from sage.misc.latex import _latex_file_
+from sage.misc.latex import latex
+latex.add_to_preamble('\\usepackage{amsmath}')
+
+import os
+import sys
+sys.path.append( os.environ['SageUtils'] )
+sys.path.append( os.environ['SageDynamics'] )
+sys.path.append( os.environ['SageAdaptiveDynamics'] )
+from maclevmodels import *
+from adaptivedynamics import *
+from latex_output import *
+
+load_session('maclev-2-2-adap')
+
+ltx = latex_output( 'maclev-2-2-adap-ak.sage.out.tex' )
+
+def get_coeff( expr, vars, power ):
+    for c, p in expr.coefficients( vars ):
+        if p == power:
+            return c
+
+from sage.symbolic.function_factory import function
+af = function('a')
+kf = function ('k')
+
+# this might work only for MacLevModels
+def LotkaVolterraModel( model ):
+    ij_model = deepcopy(model)
+    ij_model.set_population_indices( [ 'i', 'j' ] )
+    lvi = ij_model._flow[SR('X_i')].expand()
+    A_bindings = FunctionBindings(
+      { af: get_coeff( get_coeff( lvi, SR('X_i'), 1), SR('X_j'), 1).function(SR('u_i'), SR('u_j')),
+        kf: get_coeff( get_coeff( lvi, SR('X_i'), 1), SR('X_j'), 0).function(SR('u_i')) } )
+    return GeneralizedLotkaVolterraModel( model._population_indices,
+      r = indexer(lambda i: kf(SR('u_%s'%i))),
+      a = indexer(lambda i: indexer(lambda j: af(SR('u_%s'%i),SR('u_%s'%j)))) ).bind( A_bindings )
+
+# maclev_c not defined, though maclev_adap_c and maclev_adap_c_bound are?!
+#ltx.write_block( show_identifiers() )
+#sys.exit()
+
+maclev_lv = LotkaVolterraModel( maclev_c )
+
+ltx.write( "Original MacLev 2-2 model:\n" )
+ltx.write_block( maclev_c )
+
+ltx.write( "The L-V coefficients are" )
+ltx.write_equality( af(SR('i'),SR('j')), maclev_lv._bindings( maclev_lv._indexers['a']['i']['j'] ).maxima_methods().collectterms( [ SR('u_i'), SR('u_j') ] ) )
+ltx.write_equality( kf(SR('i')), maclev_lv._bindings( maclev_lv._indexers['r']['i'] ) )
+
+ltx.write( "MacLev 2-2 model as Lotka-Volterra model:\n" )
+ltx.write_block( maclev_lv )
+ltx.close()
+</source-file>
+
+<project-file filename=maclev-2-2-adap-ak.sage.out.tex/>
+

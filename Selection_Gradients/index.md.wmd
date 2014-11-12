@@ -1,0 +1,56 @@
+---
+layout: page
+title: The Selection Gradients Project
+wmd_project: Selection_Gradients
+---
+
+I'm working on a paper about selection gradients and interactions - I'm not ready to upload it here, but I think I'll do the simulation here.
+
+I'm using Sage to evaluate and analyze these models.
+
+* [Adaptive Geometry of Resource Competition](/Selection_Gradients/MacLev.html): introducing the MacArthur-Levins resource competition model, and Sage code for it
+    * [Adaptive Geometry of Resource Competition - One Species, One Resource](/Selection_Gradients/MacLev-1-1.html): analysis of the simple case
+    * [Adaptive Geometry of Resource Competition - Two Species, Two Resources](/Selection_Gradients/macLev-2-2.html): not so simple
+
+This project also uses Sage code that's stored on wiki pages:
+
+* [SageUtils](http://lalashan.mcmaster.ca/theobio/worden/index.php/SageUtils)
+* [SageDynamics](http://lalashan.mcmaster.ca/theobio/worden/index.php/SageDynamics)
+* [SageAdaptiveDynamics](http://lalashan.mcmaster.ca/theobio/worden/index.php/SageAdaptiveDynamics).
+
+## Code
+
+Here are some makefiles that are used by all the code on the various pages in this project.
+
+<source-file filename="sage.mk">
+# Makefile to connect the Sage code here with the code in SageDynamics and elsewhere
+ 
+# When we need something from the upstream projects, make it there
+$(SageDynamics)/% : /proc/uptime
+	$(MAKE) --no-print-directory -C $(SageDynamics) $*
+ 
+$(SageAdaptiveDynamics)/% : /proc/uptime
+	$(MAKE) --no-print-directory -C $(SageAdaptiveDynamics) $*
+ 
+# The good makefile stuff is upstream, just reuse it
+-include $(SageUtils)/sage.mk
+-include $(SageUtils)/step.mk
+</source-file>
+
+<source-file filename="sage-inline.mk">
+%.sage.step : %.sage-inline sage-inline.mk
+	echo '# produces: $*.sage.out.tex' > $@
+	echo 'import os' >> $@
+	echo 'import sys' >> $@
+	echo 'sys.path.append( os.environ["SageUtils"] )' >> $@
+	echo 'from latex_output import *' >> $@
+	echo 'ltx = latex_output( "$*.sage.out.tex" )' >> $@
+	cat $< >> $@
+	echo 'ltx.close()' >> $@
+
+WW_SI_SOURCE_FILES = $(filter %.sage-inline,$(WW_THIS_PROJECT_SOURCE_FILES))
+WW_SI_MK_FILES = $(patsubst %.sage-inline,%.sage.mk,$(WW_SI_SOURCE_FILES))
+$(info Including .mk files from .sage-inline files: $(WW_SI_MK_FILES))
+include $(WW_SI_MK_FILES)
+</source-file>
+
