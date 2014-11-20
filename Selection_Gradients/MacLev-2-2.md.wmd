@@ -1,6 +1,6 @@
 ---
 layout: page
-title: Adaptive Geometry and Resource Competition - Two Species, Two Resources
+title: "Adaptive Geometry and Resource Competition: Two Species, Two Resources"
 wmd_project: Selection_Gradients
 ---
 
@@ -38,7 +38,8 @@ class cff(indexer):
                 ui - l
             except:
                 l = SR(l)
-            return e**(-width)/(sqrt(2*pi)*width)*e**(-(ui-l)**2/(2*width**2))
+            #return e**(-width)/(sqrt(2*pi)*width)*e**(-(ui-l)**2/(2*width**2))
+            return 1/(1 + (ui-l)**2/width)
     def __init__(self):
         pass
     def __getitem__(self, i):
@@ -129,8 +130,7 @@ latex.add_to_preamble('\\usepackage{amsmath}')
 print "hey"
 sys.stdout.flush()
 
-import os
-import sys
+import os, sys
 sys.path.append( os.environ['SageUtils'] )
 sys.path.append( os.environ['SageDynamics'] )
 sys.path.append( os.environ['SageAdaptiveDynamics'] )
@@ -179,11 +179,6 @@ X_1 = maclev_c._population_indexer[maclev_c._population_indices[1]]
 ltx.write( 'The Mac-Lev model with $b_i=m_i=1$ and $c_{ij} = %s$:' % latex( c_functional_form['i']['j'] ) )
 ltx.write_block( maclev_c )
 
-#stop there for now
-ltx.close()
-save_session('maclev-2-2-adap')
-sys.exit()
-
 print "about to do equilibria"
 sys.stdout.flush()
 
@@ -200,9 +195,17 @@ maclev_c.set_stable_nontrivial_equilibria(
 print "did equilibria"
 sys.stdout.flush()
 
-#ltx.write( 'Stable nontrivial equilibria:' )
-#for e in maclev_c.stable_nontrivial_equilibria() :
-#    ltx.write_block( latex(Bindings( { X_0 : Bindings(e)[X_0], X_1 : Bindings(e)[X_1] } )) )
+ltx.write( 'Stable nontrivial equilibria:' )
+for e in maclev_c.stable_nontrivial_equilibria() :
+    ltx.write_block( latex(Bindings( { X_0 : Bindings(e)[X_0], X_1 : Bindings(e)[X_1] } )) )
+
+#stop there for now
+ltx.close()
+save_session('maclev-2-2-adap')
+sys.exit()
+
+print "starting adaptive dynamics"
+sys.stdout.flush()
 
 try:
     maclev_adap_c = AdaptiveDynamicsModel(maclev_c, 
@@ -212,7 +215,11 @@ try:
     ltx.write_block( maclev_adap_c )
 except AdaptiveDynamicsException, e:
     print( r'%s\\Exception: %s' % (e._latex_str, e) )
+    sys.stdout.flush()
     ltx.write( e._latex_str, r'\\Exception: %s\\' % e )
+
+print "did adaptive dynamics"
+sys.stdout.flush()
 
 numeric_params = Bindings(
   { SR.var('r_0'): 1, SR.var('r_1'): 1,

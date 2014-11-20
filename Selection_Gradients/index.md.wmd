@@ -1,6 +1,6 @@
 ---
 layout: page
-title: The Selection Gradients Project
+title: "The Selection Gradients Project: Adaptive Geometry of Antagonism and Cooperation"
 wmd_project: Selection_Gradients
 ---
 
@@ -9,8 +9,9 @@ I'm working on a paper about selection gradients and interactions - I'm not read
 I'm using Sage to evaluate and analyze these models.
 
 * [Adaptive Geometry of Resource Competition](/Selection_Gradients/MacLev.html): introducing the MacArthur-Levins resource competition model, and Sage code for it
-    * [Adaptive Geometry of Resource Competition - One Species, One Resource](/Selection_Gradients/MacLev-1-1.html): analysis of the simple case
-    * [Adaptive Geometry of Resource Competition - Two Species, Two Resources](/Selection_Gradients/macLev-2-2.html): not so simple
+    * [Adaptive Geometry of Resource Competition: One Species, One Resource](/Selection_Gradients/MacLev-1-1.html): analysis of the simple case
+    * [Adaptive Geometry of Resource Competition: Two Species, Two Resources](/Selection_Gradients/macLev-2-2.html): not so simple
+    * [Notes](notes.html)
 
 This project also uses Sage code that's stored on wiki pages:
 
