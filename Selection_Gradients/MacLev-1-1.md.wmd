@@ -2,6 +2,7 @@
 layout: page
 title: "Adaptive Geometry and Resource Competition: One Species, One Resource"
 wmd_project: Selection_Gradients
+wmd_enable_make: false
 ---
 
 This page investigates the adaptive dynamics of [the Macarthur-Levins resource competition model](/SelectionGradients/MacLev.html) in the special case of one species and one resource.

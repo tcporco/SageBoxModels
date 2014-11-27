@@ -63,12 +63,11 @@ p.save( 'test.png' )
 
 <source-file filename=test-ad.sage.step project=Selection_Gradients>
 # requires: $(SageUtils)/latex_output.py maclevmodels.py $(SageAdaptiveDynamics)/adaptivedynamics.py maclev-2-2-adap.sobj
-# produces: test-ad.sage.out.tex
+# produces: test-ad.sage.out.tex test-ad.png
 from sage.all import *
 from sage.misc.latex import _latex_file_
 from sage.misc.latex import latex
 latex.add_to_preamble('\\usepackage{amsmath}')
-from numpy import array
 
 import os, sys
 sys.path.append( os.environ['SageUtils'] )
@@ -81,100 +80,6 @@ from latex_output import *
 load_session('maclev-2-2-adap')
 
 ltx = latex_output_file( tee_to_stdout( open( 'test-ad.sage.out.tex', 'w' ) ) )
-
-def flow_fn( u, S, u_names, x_names, equil_eqns, gamma ):
-	print "u is ", u
-	print "u_names is ", u_names
-	u_subs = dict( zip( u_names, list(u) ) )
-	ltx.write( "u_subs: $%s$\n\n" % latex( u_subs ) )
-	solns = solve( [ e.subs( u_subs ) for e in equil_eqns ], x_names, solution_dict=true )
-	ltx.write( "solutions: $%s$\n\n" % latex(solns) )
-	# weed out non-interior solutions
-	solns = [ s for s in solns if prod( s[x] for x in x_names ) > 0 ]
-	ltx.write( "interior solutions: $%s$\n\n" % latex(solns) )
-	if len(solns) != 1:
-		raise AdaptiveDynamicsException( 'Population dynamics does not have a unique interior equilibrium', latex( solns ) )
-	soln = solns[0]
-	# flow(u_i) = gamma X_i dI_dui
-        flow = array( [ (gamma * xi * dI_dui).subs( soln ).subs(u_subs) for xi, dI_dui in zip( x_names, S.values() ) ] )
-	ltx.write( "flow: $%s$\n\n" % latex(column_vector(flow)) )
-	return flow
-
-import sympy
-class NumericalAdaptiveDynamicsModel(LambdaODESystem, AdaptiveDynamicsModel):
-    """Unlike the main AdaptiveDynamicsModel class, which solves
-    for the population dynamics model's equilibrium analytically, this one 
-    solves for it numerically."""
-    def __init__(self, popdyn_model, phenotype_indexers, phenotype_dependencies={}, bindings={}):
-	"""For this to work, we need the model to be fully bound so that
-	everything is numbers except the phenotypes and population size variables."""
-        # find internal equilibrium of original model
-        # assume an ODE_model, not a LambdaODESystem.
-        try:
-            bindings.substitute( 't' )
-        except AttributeError:
-             bindings = Bindings( bindings )
-        popdyn_flow = dict( (k,bindings(apply(v,[],phenotype_dependencies)))
-          for k,v in popdyn_model._flow.items() )
-	#popdyn_flow = bindings( popdyn_flow )
-        equilibrium_equations = [ 0 == rhs for rhs in popdyn_flow.values() ]
-	#ltx.write( "Equilibrium equations are:\n\n" )
-	#for e in equilibrium_equations:
-	#   ltx.write_block( e )
-	# postpone solving them for internal equilibrium
-	# make augmented model
-	extended_system = deepcopy( popdyn_model )
-        extended_system.set_population_indices(popdyn_model._population_indices + ['i'])
-	extended_system = extended_system.bind(popdyn_model._bindings)
-        X_i = extended_system._population_indexer['i']
-        dXi_dt = extended_system._flow[X_i]
-        # that's the general form of dXi_dt - it needs the equilibrium 
-        # substituted into it
-	ltx.write( "$\\frac{dX_i}{dt} = %s$\n\n" % latex( dXi_dt ) )
-        # get percapita growth rate of X_i at the equilibrium as X_i->0
-	I = dXi_dt / X_i
-	ltx.write( "$\\frac{dX_i}{X_idt} = %s$\n\n" % latex( I ) )
-        # get derivative of that wrt u_i
-	dI_du = [ diff( I, u['i'] ) for u in phenotype_indexers ]
-	ltx.write( "$\\frac{d\\mathscr{I}}{du}$ = $%s$\n\n" % latex(dI_du[0]) )
-	# rational_simplify() and limit() on that are unacceptably slow
-	# convert to sympy?
-	#dI_du = [ sympy.sympify( x ) for x in dI_du ]
-	#ltx.write( "$\\frac{d\\mathscr{I}}{du}$ = $%s$\n\n" % latex(dI_du[0]) )
-	#print "$\\frac{d\\mathscr{I}}{du}$ = %s\n\n" % (dI_du) 
-	#dI_du = [ sympy.expand( x ) for x in dI_du ]
-	#ltx.write( "and after expanding, $\\frac{d\\mathscr{I}}{du}$ = $%s$\n\n" % latex(dI_du[0]) ) 
-	#print "and after expanding, $\\frac{d\\mathscr{I}}{du}$ = %s\n\n" % (dI_du[0]) 
-	#for uu in phenotype_indexers:
-	#	dI_du = [ ( u[j], Xj, sympy.limit( dI_dui, uu['i'], uu[j] ) )
-	#    	    for j, Xj in zip( popdyn_model._population_indices,
-	#		popdyn_model.population_vars() )
-	#	    for u, dI_dui in zip(phenotype_indexers, dI_du) ]
-	#	print " with %s -> %s, dI_du = %s\n\n" % (uu['i'], uu[j], dI_du)
-	#return
-	dI_du = [ ( j, u[j], Xj, dI_dui )
-	    for j, Xj in zip( popdyn_model._population_indices,
-		popdyn_model.population_vars() )
-	    for u, dI_dui in zip(phenotype_indexers, dI_du) ]
-	ltx.write( "$\\frac{d\\mathscr{I}}{du}$ = $%s$\n\n" % latex(dI_du) )
-	dI_du = [ ( uj, Xj, limits( dI_dui, dict((uu['i'], uu[j]) for uu in phenotype_indexers) ) ) 
-		for j, uj, Xj, dI_dui in dI_du ]
-	ltx.write( "now with $u_i\\to u_j$, dI_du is $%s$\n\n" % latex(dI_du) )
-	print( 'after u limit but before X limit:', dI_du )
-	for uj, Xj, dj in dI_du:
-		ltx.write( "limit as $X_i\\to0$ of $%s$ is $%s$\n\n" % ( latex( dj ), latex( dj.limit( X_i = 0 ) ) ) )
-	dI_du = [ ( u_j, X_j, dI_duj.limit( X_i = 0 ) ) for u_j, X_j, dI_duj in dI_du ]
-	ltx.write( "and with $X_i\\to0$, it's $%s$\n\n" % latex(dI_du) )
-        # assemble those (for all characters u_i) into S vector
-	bindings = popdyn_model._bindings.merge( bindings )
-	self._S = dict( (u_j, bindings(dI_duj)) for u_j, X_j, dI_duj in dI_du )
-	ltx.write_equality( SR('S'), column_vector( [ s for s in self._S.values() ] ) )
-        # combine equilibrium, gamma, dI/du into flow of u
-	gamma = bindings( SR.var('gamma') )
-	ltx.write( "$\gamma$: $%s$\n\n" % latex(gamma) )
-	return
-	# flow(u_i) = gamma X_i dI_dui
-	flow_fn( array( [ 1.1 ] ), self._S, [ k for k in self._S.keys() ], popdyn_model.population_vars(), equilibrium_equations, gamma )
 
 maclev_cu = MacArthurLevinsModel(
     x_indices = [0, 1], r_indices = [0, 1],
@@ -193,6 +98,14 @@ mad = NumericalAdaptiveDynamicsModel( maclev_cu.bind( numeric_params ), [ indexe
 	function('c_0'): SR( '1/(1+u**2/10)' ).function(SR('u')),
 	function('c_1'): SR( '1/(1+(u-1)**2/10)' ).function(SR('u'))
 } ) ) 
+
+ms = mad.solve( [ 0.9333, 0.1 ] )
+
+P = reduce( lambda a, b: a+b, ( ms.plot( SR('t'), u, color=c, legend_label='$%s$'%latex(u) )
+	for u,c in zip( mad._u_names, ( 'blue', 'red', 'green', 'purple', 'orange' ) ) ) )
+P.axes_labels( [ '$t$', '$u$' ] )
+P.save( 'test-ad.png', figsize=(4,4) )
+
 ltx.close()
 sys.exit()
 
@@ -212,7 +125,7 @@ sys.exit()
 
 <project-file filename=test-ad.sage.out.latexml.html project=Selection_Gradients/>
 
-<project-file filename=test-ad.sage.out.latexml.html.make.log make=false project=Selection_Gradients/>
+<project-file filename=test-ad.png project=Selection_Gradients/>
 
 <source-file filename=sage.mk>
 # Makefile to connect the Sage code here with the code in SageDynamics and elsewhere
