@@ -276,5 +276,24 @@ class GeneralizedLotkaVolterraModel(PopulationDynamicsSystem):
           X[i]*(r[i] + sum( a[i][j]*X[j] for j in self._population_indices )))
           for i in self._population_indices)
 
+# make some model into a GLV model
+# this might work only for MacLevModels
+def LotkaVolterraModel( model ):
+    def get_coeff( expr, vars, power ):
+        for c, p in expr.coefficients( vars ):
+            if p == power:
+                return c
+    from sage.symbolic.function_factory import function
+    af = function('a')
+    kf = function('k')
+    ij_model = deepcopy(model)
+    ij_model.set_population_indices( [ 'i', 'j' ] )
+    lvi = ij_model._flow[SR('X_i')].expand()
+    A_bindings = FunctionBindings(
+      { af: get_coeff( get_coeff( lvi, SR('X_i'), 1), SR('X_j'), 1).function(SR('u_i'), SR('u_j')),
+        kf: get_coeff( get_coeff( lvi, SR('X_i'), 1), SR('X_j'), 0).function(SR('u_i')) } )
+    return GeneralizedLotkaVolterraModel( model._population_indices,
+      r = indexer(lambda i: kf(SR('u_%s'%i))),
+      a = indexer(lambda i: indexer(lambda j: af(SR('u_%s'%i),SR('u_%s'%j)))) ).bind( A_bindings )
 </source-file>
 
