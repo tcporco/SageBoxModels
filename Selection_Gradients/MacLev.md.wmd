@@ -278,22 +278,24 @@ class GeneralizedLotkaVolterraModel(PopulationDynamicsSystem):
 
 # make some model into a GLV model
 # this might work only for MacLevModels
-def LotkaVolterraModel( model ):
+def LotkaVolterraModel( model, lv_coefficient_names=('r','a') ):
     def get_coeff( expr, vars, power ):
         for c, p in expr.coefficients( vars ):
             if p == power:
                 return c
+    (r_name, a_name) = lv_coefficient_names
     from sage.symbolic.function_factory import function
-    af = function('a')
-    kf = function('k')
+    af = function(a_name)
+    rf = function(r_name)
     ij_model = deepcopy(model)
     ij_model.set_population_indices( [ 'i', 'j' ] )
     lvi = ij_model._flow[SR('X_i')].expand()
-    A_bindings = FunctionBindings(
-      { af: get_coeff( get_coeff( lvi, SR('X_i'), 1), SR('X_j'), 1).function(SR('u_i'), SR('u_j')),
-        kf: get_coeff( get_coeff( lvi, SR('X_i'), 1), SR('X_j'), 0).function(SR('u_i')) } )
+    A_bindings = FunctionBindings( {
+        rf: get_coeff( get_coeff( lvi, SR('X_i'), 1), SR('X_j'), 0).function(SR('u_i'))
+        af: get_coeff( get_coeff( lvi, SR('X_i'), 1), SR('X_j'), 1).function(SR('u_i'), SR('u_j')),
+    } )
     return GeneralizedLotkaVolterraModel( model._population_indices,
-      r = indexer(lambda i: kf(SR('u_%s'%i))),
+      r = indexer(lambda i: rf(SR('u_%s'%i))),
       a = indexer(lambda i: indexer(lambda j: af(SR('u_%s'%i),SR('u_%s'%j)))) ).bind( A_bindings )
 </source-file>
 

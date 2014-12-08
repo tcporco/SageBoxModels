@@ -46,10 +46,17 @@ b_m_bindings = FunctionBindings( {
 	function('m') : SR('1').function(SR('u'))
 } )
 
-c_bindings = FunctionBindings( {
+quadratic_c_bindings = FunctionBindings( {
         function('c_0'): SR( '1/(1+u**2*5)' ).function(SR('u')),
         function('c_1'): SR( '1/(1+(u-1)**2*5)' ).function(SR('u'))
 } )
+
+linear_c_bindings = FunctionBindings( {
+	function('c_0'): SR( '1 - u' ).function( SR('u') ),
+	function('c_1'): SR( 'u' ).function( SR('u') )
+} )
+
+c_bindings = linear_c_bindings
 
 # create global variables for convenience
 r_0, r_1, K_0, K_1, w_0, w_1 = SR.var( 'r_0, r_1, K_0, K_1, w_0, w_1' )
@@ -70,11 +77,13 @@ initial_conditions = Bindings( {
 	# in a .sage file, could just write u_0: 1/3
 	# in a .py, fractions need special care
 	u_0 : Rational('1/3'),
-	u_1 : Rational('1/2')
+	#u_1 : Rational('1/2')
+	u_1 : Rational('2/3')
 } )
 </source-file>
 
 <source-file filename=maclev-2-2-popdyn.sage.step lang=sage>
+# requires: maclev_2_2_defs.py
 # produces: maclev-2-2-popdyn.sage.out.tex maclev-2-2-popdyn.png
 from maclev_2_2_defs import *
 
@@ -89,7 +98,7 @@ ltx.write_block( maclev_u.bind( c_bindings + b_m_bindings ) )
 maclev_initial_system = maclev_u.bind( c_bindings + b_m_bindings + numeric_params + initial_conditions )
 p = maclev_initial_system.plot_vector_field( (X_0, 0, 2), (X_1, 0, 2), color="gray", figsize=(5,5) )
 p += maclev_initial_system.plot_ZNGIs( (X_0, 0, 2), (X_1, 0, 2), color="gray" )
-s = maclev_initial_system.solve( [0, 0.05, 0.02] )
+s = maclev_initial_system.solve( [0, 0.02, 0.05] )
 p += s.plot( X_0, X_1, color='red' )
 p.save( 'maclev-2-2-popdyn.png' )
 
@@ -171,11 +180,11 @@ ltx.close()
 
 The model equations, according to Sage:
 
-<project-file filename=maclev-2-2-defs.sage.out.tex/>
+<project-file filename=maclev-2-2-popdyn.sage.out.tex/>
 
 State space of this population dynamics model:
 
-<project-file filename="maclev-2-2-defs.png"/>
+<project-file filename="maclev-2-2-popdyn.png"/>
 
 ## Adaptive dynamics of $$u$$
 
@@ -213,7 +222,7 @@ sys.stdout.flush()
 #ltx.write( '\\texttt{initial\\_conditions} = %s' % latex( initial_conditions ) )
 #ltx.write( 'initial conditions: $%s$\n\n' % latex( [ 0, initial_conditions( 'u_0' ), initial_conditions( 'u_1' ) ] ) )
 
-c_evolution = maclev_adap_c.solve( [0, initial_conditions( 'u_0' ), initial_conditions( 'u_1' ) ], end_points=3, step=0.02 )
+c_evolution = maclev_adap_c.solve( [0, initial_conditions( 'u_0' ), initial_conditions( 'u_1' ) ], end_points=2, step=0.02 )
 
 # and plot u vs t 
 t = maclev_adap_c.time_variable()
@@ -285,6 +294,8 @@ And behold the motion of $$c_0(u)$$ and $$c_1(u)$$ as the two populations' trait
 # requires: $(SageAdaptiveDynamics)/adaptivedynamics.py maclevmodels.py 
 # requires: maclev_2_2_defs.py maclev-2-2-adap.sobj
 # produces: maclev-2-2-geom.sage.out.tex
+# produces: maclev-2-2-k-vs-t.png maclev-2-2-a-vs-a.png
+# produces: maclev-2-2-a-vs-k.png maclev-2-2-a-arrows.png
 from maclev_2_2_defs import *
 
 load_session( 'maclev-2-2-adap' )
@@ -299,9 +310,15 @@ kf = function('k')
 
 maclev_lv = LotkaVolterraModel( maclev_u )
 
+A_bindings = FunctionBindings( {
+    af : maclev_lv._bindings( maclev_lv._indexers['a']['i']['j'] ).function( SR('u_i'), SR('u_j' ) ),
+    kf : maclev_lv._bindings( maclev_lv._indexers['r']['i'] ).function( SR('u_i') )
+} )
+
 ltx.write( "The L-V coefficients are" )
-ltx.write_equality( kf(SR('i')), maclev_lv._bindings( maclev_lv._indexers['r']['i'] ) )
-ltx.write_equality( af(SR('i'),SR('j')), maclev_lv._bindings( maclev_lv._indexers['a']['i']['j'] ).maxima_methods().collectterms( [ SR('u_i'), SR('u_j') ] ) )
+ltx.write_equality( kf(SR('u_i')), A_bindings( kf(SR('u_i')) ) )
+ltx.write_equality( af(SR('u_i'),SR('u_j')), A_bindings( af(SR('u_i'),SR('u_j')) ) )
+#maclev_lv._bindings( maclev_lv._indexers['a']['i']['j'] ).maxima_methods().collectterms( [ SR('u_i'), SR('u_j') ] ) )
 
 #ltx.write( "MacLev 2-2 model as Lotka-Volterra model:\n" )
 #ltx.write_block( maclev_lv )
@@ -316,6 +333,16 @@ k_timeseries.axes_labels( [ '$t$', '$k(u)$' ] )
 k_timeseries.save( 'maclev-2-2-k-vs-t.png' )
 
 #print ( '$a_{00}$: ' + latex( (c_bindings + b_m_bindings + numeric_params + maclev_lv._bindings)( maclev_lv._indexers['a'][0][0] ) ) + '\n' )
+
+# plot interactions vs. time in Xmas colors
+a_timeseries = Graphics()
+for i in (0, 1):
+    for j in (0, 1):
+	a_timeseries += c_evolution.plot( t,
+	( c_bindings + b_m_bindings + numeric_params + maclev_lv._bindings )( maclev_lv._indexers['a'][i][j] ), 
+	color=(i == j and 'red' or 'lime'), figsize=(4,4) )
+a_timeseries.axes_labels( [ '$t$', '$a(\cdot,\cdot)$' ] )
+a_timeseries.save( 'maclev-2-2-a-vs-t.png' )
 
 # plot interactions in A space
 a_phase_plane = Graphics()
@@ -340,15 +367,16 @@ a_3d.save( 'maclev-2-2-a-vs-k.png' )
 glv_model = GeneralizedLotkaVolterraModel( maclev_lv._population_indices,
   r = indexer( 'k' ) )
 
-ltx.write( 'GLV model: ' + latex( glv_model ) )
+#ltx.write( 'GLV model: ' + latex( glv_model ) )
 
 try:
 	glv_adap = AdaptiveDynamicsModel( glv_model,
-	  [ indexer( 'k' ) ] + [ lambda_str_indexer( 'lambda i: "a_%s_%s"%(i,j)' ) for j in glv_model._population_indices ]  )
+	  [ indexer( 'k' ) ] + [ indexer( Lambda( 'i', '"a_"+str(i)+"_' + str(j) + '"' ) ) for j in glv_model._population_indices ],
+	  equilibrium_function = Lambda( 'ad,pd', 'pd.interior_equilibria()[0]' ) )
 except AdaptiveDynamicsException, e:
 	ltx.write( 'AdaptiveDynamicsException: ' + e._latex_str )
 
-ltx.write( 'GLV adaptive dynamics: ' + latex(glv_adap) )
+#ltx.write( 'GLV adaptive dynamics: ' + latex(glv_adap) )
 
 def A(i):
     return column_vector( 
@@ -359,16 +387,147 @@ def S(A):
     return column_vector( [ glv_adap._S[a] for a in A ] )
 
 # how we doing?
-ltx.write_equality( SR('A(0)'), A(0) )
-ltx.write_equality( SR('S(A(0))'), S(A(0)) )
 
-ltx.close()
+# so far so good!
+
+# now convert those to functions of u
+
+A_u_bindings = (
+	Bindings( dict( (SR('k_%s'%i), SR('k(u_%s)'%i)) for i in glv_model._population_indices ) ) +
+	Bindings( dict( (SR('a_%s_%s'%(i,j)), SR('a(u_%s,u_%s)'%(i,j))) for i in glv_model._population_indices for j in glv_model._population_indices ) ) )
+
+#ltx.write_equality( wrap_latex( '\\texttt{A\_u\_bindings}' ), A_u_bindings )
+
+A_to_u_bindings = c_bindings + b_m_bindings + numeric_params + maclev_lv._bindings + A_u_bindings + A_bindings
+
+ltx.write_equality( SR('A(0)'), A(0), initial_conditions( A_to_u_bindings(A(0)) ) )
+ltx.write_equality( SR('A(1)'), A(1), initial_conditions( A_to_u_bindings(A(1)) ) )
+ltx.write_equality( SR('S(A(0))'), S(A(0)), initial_conditions( A_to_u_bindings(S(A(0))) ) )
+ltx.write_equality( SR('S(A(1))'), S(A(1)), initial_conditions( A_to_u_bindings(S(A(1))) ) )
+
+X_bindings = maclev_adap_c.solve_for_x_bindings( initial_conditions )
+
+def d1A(i):
+    '''"Direct effect": derivative of A(u_i) wrt u_i with u_i in the "patient"
+    position, as the first argument of a(.,.).'''
+    A_ij = A_u_bindings( A(i) )
+    A_ij_hacked = A_ij.apply_map( lambda x: x.subs_expr( SR('a(u_%s,u_%s)'%(i,i)) == SR('a(u_%s,u_x)'%i) ) )
+    return A_ij_hacked.derivative( SR('u_%s'%i) ).subs( SR('u_x') == SR('u_%s'%i) )
+def direct_effect(i):
+    return d1A(i).apply_map( lambda x: x*dudt(i) )
+
+def dudt(i):
+    return (X_bindings + A_to_u_bindings)( SR('gamma*X_%s'%i) * d1A(i).transpose().dot_product( S(A(i)).transpose() ) )
+    return ( SR('gamma*X_%s'%i) * d1A(i).transpose().dot_product( S(A(i)).transpose() ) )
+    return diff( SR('u_%s(t)'%i), SR('t') )
+
+def d2A_component(i,j):
+    '''Component of "Indirect effects" on "patient" u_i, due to "agent" u_j.  
+    When j is i, this includes only the "agent" role of u_i, which is where
+    it appears as the second argument of a().'''
+    A_ij = A_u_bindings( A(i) )
+    if j == i:
+	agent_i = SR('u_x')
+        A_ij_hacked = A_ij.apply_map( lambda x: x.subs_expr( SR('a(u_%s,u_%s)'%(i,i)) == SR('a(u_%s,u_x)'%i) ) )
+	d2A_hacked = A_ij_hacked.derivative( agent_i )
+	d2A = d2A_hacked.subs( SR('u_x') == SR('u_%s'%i) )
+	#ltx.write( 'on diagonal: $\partial_2 A = %s$\n\n' % latex( d2A ) )
+    else:
+	d2A = A_ij.derivative( SR('u_%s'%j) )
+	#ltx.write( 'off diagonal: $\partial_2 A = %s$\n\n' % latex( d2A ) )
+    #ltx.write( 'multiply by dudt(%s)$ = %s$\n\n' % (j, latex( dudt(j) )) )
+    return d2A.apply_map( lambda x:x * dudt(j) )
+def indirect_effect(i):
+    '''Complete "indirect effect": sum of indirect effects of all agents'''
+    components = [d2A_component(i,j) for j in glv_model._population_indices]
+    #for c in components: ltx.write( 'component: $', latex( c ), '$\n\n' )
+    import operator
+    return reduce( operator.add, components )
+
+#ltx.write_equality( wrap_latex( 'D(u_0)' ), #direct_effect(0),
+#    initial_conditions( A_to_u_bindings( direct_effect(0) ) ) )
+#ltx.write_equality( wrap_latex( 'I(u_0)' ), #indirect_effect(0),
+#    initial_conditions( A_to_u_bindings( indirect_effect(0) ) ) )
+
+ltx.write_equality( wrap_latex( 'D(u_0)' ), direct_effect(0) )
+ltx.write_equality( wrap_latex( 'I(u_0)' ), indirect_effect(0) )
+
+# direct and indirect effects should add up to the actual tangent vector
+# dA/dt
+def dAdt(i):
+    Au = A_u_bindings( A(i) )
+    return reduce( lambda x,y: x+y, (diff( Au, SR('u_%s'%j) ) * dudt(j) for j in glv_model._population_indices) )
+    return A_u_bindings( A(i) ).subs(
+	dict( (SR('u_%i'%i), SR('u_%s(t)'%i)) for i in glv_model._population_indices )
+    ).derivative( t ).subs(
+	dict( (SR('u_%s(t)'%i), SR('u_%s'%i)) for i in glv_model._population_indices )
+    )
+
+def a_arrow( base, vec, scale=1, **args ):
+    #ltx.write( 'arrow: $%s \\to %s%s$\n\n' % (latex(base),latex(scale),latex(vec)) )
+    return arrow( (base[1], base[2]), (base[1] + scale*vec[1], base[2] + scale*vec[2]), **args )
+
+a_phase_plane_annotated = a_phase_plane
+
+last_t = -oo
+scale = 1/12
+for p in c_evolution._timeseries:
+    next_t = p[t]
+    pp = Bindings( p )
+    if next_t >= last_t + 0.2:
+	last_t = next_t
+	# What a hack!
+	X_bindings = maclev_adap_c.solve_for_x_bindings( pp )
+	for i in (0,1):
+	    # check equality
+	    Ai = A(i)
+	    SAi = S(A(i))
+	    Di = direct_effect(i)
+	    Ii = indirect_effect(i)
+	    dAdti = dAdt(i)
+	    #ltx.write( '$D(%s) + I(%s) = %s \\overset{?}{=} \\frac{dA(u)}{du} = %s$\n\n' % (
+	#	latex(i), latex(i), latex(
+	#	  pp( A_to_u_bindings( Di ) ) +
+	#	  pp( A_to_u_bindings( Ii ) )
+	#	), latex(
+	#	  pp( A_to_u_bindings( dAdti ) )
+	#	) ) )
+	    #ltx.write( ' \\\\\n'.join( str(s.parent()) for s in (Ai, SAi, Di, Ii, dAdti) ), '\n\n' )
+	    #continue
+	    S_A_arrow = a_arrow(
+		pp( A_to_u_bindings( Ai ) ),
+		pp( A_to_u_bindings( SAi ) ),
+		scale=scale, color='red' )
+	    D_arrow = a_arrow(
+		pp( A_to_u_bindings( Ai ) ),
+		pp( A_to_u_bindings( Di ) ),
+		scale=scale, color='green' )
+	    I_arrow = a_arrow(
+		pp( A_to_u_bindings( Ai + Di.apply_map( lambda x:x*scale ) ) ),
+		pp( A_to_u_bindings( Ii ) ),
+		scale=scale, color='purple' )
+	    dA_du_arrow = a_arrow(
+		pp( A_to_u_bindings( Ai ) ),
+		pp( A_to_u_bindings( dAdti ) ),
+		scale=scale, color='blue' )
+	    a_phase_plane_annotated += S_A_arrow + D_arrow + I_arrow + dA_du_arrow
+
+a_phase_plane_annotated.save( 'maclev-2-2-a-arrows.png', figsize=(10,10)
+    #, xmin=-0.6, xmax=-0.3, ymin=-0.6, ymax=-0.3
+)
+
+ltx.close() 
 </source-file>
 
 <project-file filename=maclev-2-2-geom.sage.out.html/>
 
 And the motion of the Lotka-Volterra coefficients $$k$$ and $$a$$:
 
-<project-file filename=maclev-2-2-k-vs-t.png make=no/> <project-file filename=maclev-2-2-a-vs-a.png make=no/>
+<project-file filename=maclev-2-2-k-vs-t.png make=no/> 
+<project-file filename=maclev-2-2-a-vs-t.png make=no/>
 
-<project-file filename=maclev-2-2-a-vs-k.png/>
+<project-file filename=maclev-2-2-a-vs-a.png make=no/>
+<project-file filename=maclev-2-2-a-arrows.png make=no/>
+
+<project-file filename=maclev-2-2-a-vs-k.png make=no/>
+
