@@ -1,0 +1,63 @@
+---
+layout: page
+title: "Adaptive Geometry and Resource Competition: Two Species Isoclines"
+wmd_project: Selection_Gradients
+---
+
+Tilman-style resource uptake isoclines for two species and two resources.
+
+* See also [Adaptive Geometry and Resource Competition - Two Species, Two Resource](/Selection_Gradients/MacLev-2-2.html).
+
+<source-file filename=maclev-2-2-zngi.sage.step lang=sage>
+# requires: maclev_2_2_defs.py maclev-2-2-adap.sobj
+# produces: maclev-2-2-zngi.sage.out.tex maclev-2-2-zngi-animation.gif
+from maclev_2_2_defs import *
+
+load_session( 'maclev-2-2-adap.sobj' )
+
+ltx = latex_output( 'maclev-2-2-zngi.sage.out.tex' )
+
+rescomp_abstract = rescomp_u.bind( b_m_bindings ).bind( c_bindings ).bind( numeric_params )
+rescomp_initial = rescomp_abstract.bind( c_bindings, numeric_params, initial_conditions )
+
+def zngi_R1( x ):
+    assume( R_0 > 0, R_1 > 0 )
+    zngi = solve( rescomp_abstract._flow[x] == 0, R_1, solution_dict=True )[0][R_1]
+    forget()
+    return numeric_params( c_bindings( b_m_bindings( zngi ) ) )
+
+print 'c\_bindings: ' + latex( c_bindings )
+zngis = [ zngi_R1( x ) for x in ( X_0, X_1 ) ]
+print zngis
+
+def plot_r_zngis( u_bindings ):
+	z_plot = Graphics()
+	for r in zngis:
+	    #print 'here is r', r
+	    #print 'here is c_bindings(r)', c_bindings(r)
+	    r1 = u_bindings( c_bindings( r ) )
+	    print u_bindings
+	    print r1
+	    rmax = solve( r1, R_0, solution_dict=True )[0][R_0]
+	    z_plot += plot( r1, (R_0, 0, rmax), ymin=0, ymax=4, xmax=4,
+		figsize=(5,5), color='gray', thickness=2,
+		fill=True, fillcolor='gray', fillalpha=0.3 )
+	z_plot.axes_labels( [ '$R_0$', '$R_1$' ] )
+	z_plot.save( 'maclev-2-2-zngi.png' )
+	return z_plot
+
+anima_list = [ plot_r_zngis( Bindings( pp ) ) for pp in c_evolution._timeseries ]
+animation = animate( anima_list, xmin=0, xmax=4, ymin=0, ymax=4, figsize=(5,5) )
+animation.save( 'maclev-2-2-zngi-animation.gif' )
+
+ltx.close()
+save_session('maclev-2-2-zngi')
+</source-file>
+
+<project-file filename=maclev-2-2-zngi.sage.out.tex/>
+
+<project-file filename=maclev-2-2-Rhat.png/>
+
+ZNGI diagram:
+
+<project-file filename="maclev-2-2-zngi-animation.gif"/>
