@@ -68,7 +68,7 @@ from maclevmodels import *
 from adaptivedynamics import *
 from latex_output import *
 
-load_session('maclev-1-1')
+#load_session('maclev-1-1')
 
 ltx = latex_output( 'maclev-1-1-adap.sage.out.tex' )
 
@@ -84,7 +84,7 @@ maclev_u = MacArthurLevinsModel(
     x_indices = [0], r_indices = [0],
     b = indexer(lambda i: 'b(u_%s)'%i),
     m = indexer(lambda i: 'm(u_%s)'%i),
-    c = indexer(lambda i: indexer(lambda l: 'c_%s(u_%s)'%(l,i))) )
+    c = indexer(lambda i: indexer(lambda l: c_func(i)(SR('u_%s'%l)) )) )
 X_0 = maclev_u._population_indexer[maclev_u._population_indices[0]]
 
 #print '(maclev_u: ', maclev_u, ')'
@@ -103,30 +103,20 @@ identity(x) = x
 # giving me errors, so I'll use this for now
 const_one(x) = 1
 
-# Now create a version of this model where u == c_0(u), and the other two
-# values b, m are constant
-b = function('b')
-m = function('m')
-c_0 = function('c_0')
-
-#u0_flow = maclev_adap_u._flow[SR.var('u_0')]
-
-#c00_bindings = Bindings(
-#  scalar_bindings = { SR.var('r_0'): 1, SR.var('w_0'): 1,
-#    SR.var('K_0'): 2, SR.var('gamma'): 1 },
-#  function_bindings = { c_0: identity, b: const_one, m: const_one } ) 
-
 #maclev_adap_c00 = maclev_adap_u.bind( c00_bindings )
 
 #print 'when c_00 == u, the adaptive dynamics is ', maclev_adap_c00
 
 # that's not working due to some issue with limit(), so let's try it
 # the other way around
+u_indexer = indexer('u')
+
 maclev_c00 = MacArthurLevinsModel(
     x_indices = [0], r_indices = [0],
-    b = indexer(lambda i: 1),
-    m = indexer(lambda i: 1),
-    c = indexer(lambda i: indexer(lambda l: 'u_%s'%i)) )
+    b = b_func_indexer( u_indexer ),
+    m = m_func_indexer( u_indexer ),
+    c = c_func_indexer( u_indexer ),
+    bindings = FunctionBindings( { c_func(0): SR('u').function(SR('u')) } ) )
 
 ltx.write( 'The Mac-Lev model with $b_i=m_i=1$ and $c_{i0} = u_i$:' )
 ltx.write_block( maclev_c00 )
@@ -140,7 +130,7 @@ ltx.write_block( maclev_adap_c00 )
 numeric_params = Bindings(
   { SR.var('r_0'): 1, SR.var('w_0'): 1,
     SR.var('K_0'): 2, SR.var('gamma'): 1 } )
-maclev_adap_c00_bound = maclev_adap_c00.bind( bindings=numeric_params )
+maclev_adap_c00_bound = maclev_adap_c00.bind( numeric_params )
 
 ltx.write( 'and now with the parameters:', latex( numeric_params ) )
 ltx.write( 'the adaptive dynamics is:', latex( maclev_adap_c00_bound ) )
@@ -249,7 +239,7 @@ S_symb = function( 'S', print_latex_func=lambda f, v : r'\mathbf S(%s)' % latex(
 # now we recast b_0, m_0, c_0_0 to be functions of u_0, the phenotype
 u_0 = SR.var('u_0')
 
-change_p_to_functions = Bindings( { 'c_0_0':'c_0(u_0)', 'm_0':'m(u_0)', 'b_0':'b(u_0)' } )
+change_p_to_functions = Bindings( { 'c_0_0':c_func(0)(SR('u_0')), 'm_0':m_func()(SR('u_0')), 'b_0':b_func()(SR('u_0')) } )
 
 flow_p_func = vector( change_p_to_functions(maclev_adap_p._flow[v]) for v in p )
 p_func = vector( change_p_to_functions(v) for v in p )
@@ -291,8 +281,8 @@ maclev_adap_c00_bound = maclev_adap_c00.bind( Bindings(
 
 c00_evolution = maclev_adap_c00_bound.solve( [0,2] )
 
-c00_bindings = c00_evolution._system._bindings.merge( {
-    'c_0(u_0)':'u_0', 'm(u_0)':1, 'b(u_0)':1 } )
+c00_bindings = c00_evolution._system._bindings.merge( FunctionBindings( {
+    c_func(0):SR('u_0').function(SR('u_0')), m_func():SR('1'), b_func():SR('1') } ) )
 
 flow_p_bound = vector( (c00_bindings(s_i) for s_i in flow_p_func) )
 
@@ -401,6 +391,7 @@ sys.path.append( os.environ['SageAdaptiveDynamics'] )
 
 from maclevmodels import *
 from adaptivedynamics import *
+from lotkavolterra import *
 from latex_output import *
 
 load_session("maclev-1-1-mc-adap-geom")
@@ -459,7 +450,7 @@ def get_coeff( expr, vars, power ):
 maclev_p_ij = MacArthurLevinsModel( x_indices = ['i','j'], r_indices = [0],
   b = indexer(lambda i:'b(u_%s)'%i),
   m = indexer(lambda i:'m(u_%s)'%i),
-  c = indexer(lambda i: indexer(lambda l: 'c_%s(u_%s)'%(l,i))) )
+  c = indexer(lambda i: indexer(lambda l: c_func(i)(SR('u_%s'%l)) ) ) )
 
 lvi = maclev_p_ij._flow[SR('X_i')].expand()
 #ltx.write( 'In the $i,j$ LV system\n\\[ \\frac{dX_i}{dt} = ', latex(lvi), ' \\]\n\n' );
@@ -498,10 +489,10 @@ maclev_lv = maclev_lv_u.bind( A_bindings )
 #  bindings = A_bindings ) )
 #ltx.write( ')... ' )
 
-maclev_lv_c00 = maclev_lv.bind( FunctionBindings(
-    c_0 = u_0.function(u_0),
-    b = symbolic_expression('1').function(u_0),
-    m = symbolic_expression('1').function(u_0) ) )
+maclev_lv_c00 = maclev_lv.bind( FunctionBindings( {
+    c_func(0): u_0.function(u_0),
+    b_func(): symbolic_expression('1').function(u_0),
+    m_func(): symbolic_expression('1').function(u_0) } ) )
 
 ltx.write( 'Now we bind $c, m, b$:' )
 ltx.write_block( maclev_lv_c00 )
@@ -567,7 +558,7 @@ maclev_u_ij = MacArthurLevinsModel(
   x_indices=['i','j'], r_indices=[0],
   b = indexer(lambda i:'b(u_%s)'%i),
   m = indexer(lambda i:'m(u_%s)'%i),
-  c = indexer(lambda i: indexer(lambda l: 'c_%s(u_%s)'%(l,i))) )
+  c = indexer(lambda i: indexer(lambda l: c_func(i)(SR('u_%s'%l)))) )
 X_i = SR.var('X_i')
 X_j = SR.var('X_j')
 f_j = maclev_u_ij._flow[X_j].collect(X_i)
@@ -803,22 +794,22 @@ Let's examine $$D$$ more closely in the Mac-Lev model.
 
 To review, the interaction vector (or whatever we call it) is
 <source-file filename="avec.sage-inline" display="avec.sage.out.latexml.html5">
+from maclevmodels import *
 def cvector( *args ):
     return matrix( *args ).transpose()
-c_00 = SR.var( 'c_00', latex_name='c_{00}' )
+c_00 = c_var(0,0)
 ltx.write_equality( wrap_latex('A'),
     cvector( [ SR.var('a_0_0', latex_name='a_{00}'), SR('k_0') ] ),
     cvector( [ - c_00^2*SR('b_0 w_0/r_0'), c_00 * SR('K_0 w_0 b_0') - SR('m_0 b_0') ] ) )
 </source-file>
 but to get the adaptive dynamics right we have to distinguish agents from patients: the terms of this are
 <source-file filename="a-careful.sage-inline" display="a-careful.sage.out.latexml.html5">
+from maclevmodels import *
 def cvector( *args ):
     return matrix( *args ).transpose()
-def c(i,j):
-    return SR.var( 'c_%s_%s'%(i,j), latex_name='c_{' '%s%s}'%(i,j) )
 ltx.write_equality( wrap_latex( 'A_i' ),
-    cvector( [ - c('i','0')*c('j',0)*SR('b_i w_0/r_0'),
-    c('i',0) * SR('K_0 w_0 b_i') - SR('m_i b_i') ] ) )
+    cvector( [ - c_var('i','0')*c_var('j',0)*SR('b_i w_0/r_0'),
+    c_var('i',0) * SR('K_0 w_0 b_i') - SR('m_i b_i') ] ) )
 </source-file>
 and indexes $$i$$ and $$j$$ are the patient and agent, respectively, even if they're both 0 in this simple example, and we need to keep them straight in order to get the first and second partial derivatives.
 

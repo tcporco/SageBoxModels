@@ -164,7 +164,7 @@ Here are the Sage classes that do the work for the Mac-Lev models. above.  They 
 Now here's the MacArthur-Levins resource competition model.
 
 <source-file filename=maclevmodels.py.step lang=python>
-# requires: $(SageDynamics)/dynamicalsystems.py
+# requires: $(SageDynamics)/dynamicalsystems.py $(SageAdaptiveDynamics)/adaptivedynamics.py
 from sage.all import *
 import os
 import sys
@@ -172,9 +172,29 @@ import sys
 sys.path.append( os.environ['SageUtils'] )
 sys.path.append( os.environ['SageDynamics'] )
 from dynamicalsystems import *
+sys.path.append( os.environ['SageAdaptiveDynamics'] )
+from adaptivedynamics import *
 
 from sage.symbolic.relation import solve
 from sage.symbolic.function_factory import function
+
+# functional forms used in the definitions of ResourceCompetitionModel
+# and MacArthurLevinsModel
+
+def c_var(i, l):
+    return SR.var( 'c_%s_%s'%(i,l), latex_name='c_{%s%s}'%(i,l) )
+
+def b_var(i):
+    return SR.var( 'b_%s'%i )
+
+def b_func(nargs=1):
+    key = ('b', nargs)
+    if not key in memoize:
+	memoize[key] = function( 'b', nargs=nargs )
+    return memoize[key]
+
+def m_var(i):
+    return SR.var( 'm_%s'%i )
 
 class ResourceCompetitionModel(PopulationDynamicsSystem):
     """The general resource competition model, with some number of
@@ -184,12 +204,12 @@ class ResourceCompetitionModel(PopulationDynamicsSystem):
     def __init__(self, x_indices=None, r_indices=None,
         X = indexer('X'),
         R = indexer('R'),
-        b = indexer('b'),
-        m = indexer('m'),
+        b = indexer(b_var),
+        m = indexer(m_var),
         w = indexer('w'),
         r = indexer('r'),
         K = indexer('K'),
-        c = indexer(lambda i: indexer(lambda l: SR.var('c_%s_%s'%(i,l), latex_name='c_{' '%s%s}'%(i,l)))),
+        c = indexer_2d('c'),
         bindings=Bindings()):
         """How to specify an instance of this model?
 
@@ -261,10 +281,28 @@ class MacArthurLevinsModel(PopulationDynamicsSystem):
         self._rescomp_model.set_population_indices(xi)
         super(MacArthurLevinsModel, self).set_population_indices(xi)
 
+</source-file>
+
+<source-file filename="lotkavolterra.py.step">
+# requires: $(SageDynamics)/dynamicalsystems.py
+# requires: $(SageAdaptiveDynamics)/adaptivedynamics.py
+from sage.all import *
+import os
+import sys
+ 
+sys.path.append( os.environ['SageUtils'] )
+sys.path.append( os.environ['SageDynamics'] )
+from dynamicalsystems import *
+sys.path.append( os.environ['SageAdaptiveDynamics'] )
+from adaptivedynamics import *
+
+from sage.symbolic.relation import solve
+#from sage.symbolic.function_factory import function
+
 class GeneralizedLotkaVolterraModel(PopulationDynamicsSystem):
     """The GLV model is dX_i/dt = (r_i + sum_j a_i_j X_j) X_i"""
     def __init__(self, x_indices = [], X = indexer('X'), r = indexer('r'),
-      a = indexer(lambda i: indexer(lambda j: SR.var('a_%s_%s'%(i,j), latex_name='a_{' '%s%s}'%(i,j)))),
+      a = indexer_2d('a'),
       bindings = Bindings()):
         self._indexers = {'r': r, 'a': a, 'X': X}
         super(GeneralizedLotkaVolterraModel,self).__init__(
@@ -278,24 +316,158 @@ class GeneralizedLotkaVolterraModel(PopulationDynamicsSystem):
 
 # make some model into a GLV model
 # this might work only for MacLevModels
-def LotkaVolterraModel( model, lv_coefficient_names=('r','a') ):
+def LotkaVolterraModel( model, u_indexer, lv_coefficient_names=('r','a') ):
     def get_coeff( expr, vars, power ):
         for c, p in expr.coefficients( vars ):
             if p == power:
                 return c
     (r_name, a_name) = lv_coefficient_names
-    from sage.symbolic.function_factory import function
-    af = function(a_name)
-    rf = function(r_name)
+    r_indexer = indexer(r_name)
+    a_indexer = indexer_2d(a_name)
     ij_model = deepcopy(model)
     ij_model.set_population_indices( [ 'i', 'j' ] )
-    lvi = ij_model._flow[SR('X_i')].expand()
-    A_bindings = FunctionBindings( {
-        rf: get_coeff( get_coeff( lvi, SR('X_i'), 1), SR('X_j'), 0).function(SR('u_i'))
-        af: get_coeff( get_coeff( lvi, SR('X_i'), 1), SR('X_j'), 1).function(SR('u_i'), SR('u_j')),
-    } )
-    return GeneralizedLotkaVolterraModel( model._population_indices,
-      r = indexer(lambda i: rf(SR('u_%s'%i))),
-      a = indexer(lambda i: indexer(lambda j: af(SR('u_%s'%i),SR('u_%s'%j)))) ).bind( A_bindings )
+    x_indexer = model._population_indexer
+    lvi = ij_model._flow[x_indexer['i']].expand()
+    ri = get_coeff( get_coeff( lvi, x_indexer['i'], 1), x_indexer['j'], 0 ).function( u_indexer['i'] )
+    aij = get_coeff( get_coeff( lvi, x_indexer['i'], 1), x_indexer['j'], 1).function(u_indexer['i'], u_indexer['j'])
+    A_bindings = Bindings( dict(
+	[ (r_indexer[i], ri( u_indexer[i] )) for i in model._population_indices ] +
+	[ (a_indexer[i][j], aij( u_indexer[i], u_indexer[j] ))
+	    for i in model._population_indices
+	    for j in model._population_indices ]
+    ) )
+    return GeneralizedLotkaVolterraModel(
+	model._population_indices,
+	r = indexer(r_name),
+	a = indexer_2d(a_name),
+	bindings = A_bindings )
+
+class LotkaVolterraAdaptiveDynamics( object ):
+    '''Not an AdaptiveDynamicsModel class, but a helper that works with one.'''
+    def __init__( self, ad, lv_model=None, lv_coefficient_names=('r','a') ):
+        self._adaptivedynamics = ad
+        (self._r_name, self._a_name) = lv_coefficient_names
+	if lv_model is None:
+	    print 'make LV model'
+	    lv_model = LotkaVolterraModel(
+		ad._popdyn_model,
+		ad._phenotype_indexers[0],
+		lv_coefficient_names=lv_coefficient_names )
+	print 'make GLV model'
+        self._glv_model = GeneralizedLotkaVolterraModel(
+	    lv_model._population_indices,
+	    a = indexer_2d( self._a_name ),
+	    r = indexer( self._r_name ) )
+	print 'make GLV adaptive dynamics'
+	self._glv_model._population_equilibrium_indexer = self._population_equilibrium_indexer = indexer( 'Xhat', latex_name="\hat{X}" )
+	class indexer_2d_backwards(indexer_2d):
+	    def __getitem__(self, j):
+		class subindexer(indexer):
+		    def __init__(self, name, j):
+			self._name = name
+			self._j = j
+		    def __getitem__(self, i):
+			return SR.var( '{0}_{1}_{2}'.format( self._name, i, self._j ),
+			    latex_name='%s_\{%s%s\}' % ( self._name, i, self._j ) )
+		return subindexer( self._f, j )
+	self._glv_adap = AdaptiveDynamicsModel(
+	    self._glv_model,
+	    [ self._glv_model._indexers['r'] ] + [ indexer_2d_backwards('a')[j] for j in self._glv_model._population_indices ],
+	    equilibrium_function = self.equilibrium_function )
+	# todo: what to do with multiple phenotype indexers?
+	print 'make LV evolution bindings'
+	ui = self._adaptivedynamics._phenotype_indexers[0]
+	self._lv_model = lv_model
+	# _A_to_fn_bindings: changes e.g. a_0_1 to k_0 z_1 or whatever
+	self._A_to_fn_bindings = self._lv_model._bindings
+	print '_A_to_fn_bindings:', self._A_to_fn_bindings
+	# _fn_bindings: changes e.g. k(u_i) to K b(u_i) - m(u_i) or whatever
+	self._fn_bindings = lv_model._bindings
+	print '_fn_bindings:', self._fn_bindings
+	# _phenotypes_to_fn_bindings: changes u_i to u_i(t)
+	# is used in all the below methods, so that du_i(t)/dt works
+	self._phenotypes_to_fn_bindings = Bindings( dict(
+	    ( u[i], function( str(u[i]), self._adaptivedynamics._time_variable
+		#latex_name = latex(u[i]) + '(%s)'%latex(self._adaptivedynamics._time_variable) 
+ 	    ) )
+	    for i in self._lv_model._population_indices
+	    for u in self._adaptivedynamics._phenotype_indexers ) )
+	# _phenotypes_from_fn_bindings: the inverse, change u_i(t) to u_i
+	self._phenotypes_from_fn_bindings = Bindings( dict(
+	    (v, k) for k, v in self._phenotypes_to_fn_bindings.items() ) )
+    @staticmethod
+    def equilibrium_function( ad, pd ):
+        return dict( ( pd._population_indexer[i], pd._population_equilibrium_indexer[i] ) for i in pd._population_indices )
+    def population_equilibrium_bindings( self, phenotype_bindings=Bindings() ):
+	# TODO: this really should be in the AD class, it's general
+	eq = self._lv_model.bind( phenotype_bindings ).interior_equilibria()[0]
+	eb = Bindings( dict( ( self._population_equilibrium_indexer[i], eq[ self._lv_model._population_indexer[i] ] ) for i in self._lv_model._population_indices ) )
+	print 'equilibrium bindings:', eb
+	return eb
+    def A( self, i ):
+        return column_vector(
+            [ self._glv_model._indexers['r'][i] ] +
+            [ self._glv_model._indexers['a'][i][j] for j in self._glv_model._population_indices ] )
+    def S( self, A ):
+        return column_vector( [ self._glv_adap._S[a] for a in A ] )
+    def d1A( self, i ):
+	'''"Direct effect": derivative of A(u_i) wrt u_i with u_i in the "patient"
+        position, as the first argument of a(.,.).'''
+        A_ij = self._A_to_fn_bindings( self.A(i) )
+	ui = self._adaptivedynamics._phenotype_indexers[0][i]
+	ux = self._adaptivedynamics._phenotype_indexers[0]['x']
+        A_ij_hacked = A_ij.apply_map( lambda x: x.subs_expr( function( self._a_name )(ui,ui) == function( self._a_name )(ui,ux) ) )
+	#print 'd1A: derivative of $%s$ wrt $%s$' % (latex(A_ij_hacked), latex(ui))
+        d1a = A_ij_hacked.derivative( ui )
+	#print 'is $%s$' % latex( d1a )
+	return d1a.subs( ux == ui )
+    def direct_effect( self, i ):
+	return self._phenotypes_to_fn_bindings( self.d1A(i) ).apply_map( lambda x: x * derivative(
+	        self._phenotypes_to_fn_bindings( self._adaptivedynamics._phenotype_indexers[0][i] ),
+	        self._adaptivedynamics._time_variable
+	    ) )
+    def d2A_component( self, i, j ):
+        '''Component of "Indirect effects" on "patient" u_i, due to "agent" u_j.
+        When j is i, this includes only the "agent" role of u_i, which is where
+        it appears as the second argument of a().'''
+        A_ij = self._A_to_fn_bindings( self.A(i) )
+	u = self._adaptivedynamics._phenotype_indexers[0]
+        if j == i:
+	    ui = u[i]
+            ux = u['x']
+            A_ij_hacked = A_ij.apply_map( lambda x: x.subs_expr( function( self._a_name )(ui,ui) == function( self._a_name )(ui,ux) ) )
+	    #print 'd2A: derivative of $%s$ wrt $%s$' %(latex(A_ij_hacked), latex(ux))
+            d2A_hacked = A_ij_hacked.derivative( ux )
+	    #print 'is $%s$' % latex(d2A_hacked)
+            d2A = d2A_hacked.subs( ux == ui )
+            #ltx.write( 'on diagonal: $\partial_2 A = %s$\n\n' % latex( d2A ) )
+        else:
+	    #print 'd2A: derivative of $%s$ wrt $%s$' %(latex(A_ij), latex(u[j]))
+            d2A = A_ij.derivative( u[j] )
+	    #print 'is $%s$'% latex(d2A)
+            #ltx.write( 'off diagonal: $\partial_2 A = %s$\n\n' % latex( d2A ) )
+        #ltx.write( 'multiply by dudt(%s)$ = %s$\n\n' % (j, latex( dudt(j) )) )
+	return d2A
+    def indirect_effect( self, i ):
+	components = [ self._phenotypes_to_fn_bindings( self.d2A_component( i, j ) ).apply_map( lambda x: x * derivative(
+	        self._phenotypes_to_fn_bindings( self._adaptivedynamics._phenotype_indexers[0][j] ),
+	        self._adaptivedynamics._time_variable
+	    ) ) for j in self._glv_model._population_indices ]
+	import operator
+	return reduce( operator.add, components )
+    def dudt_bindings( self ):
+	# TODO: AD class should provide one of these, and
+	# use it internally as well
+	return Bindings( dict(
+	    ( derivative( self._phenotypes_to_fn_bindings( self._adaptivedynamics._phenotype_indexers[0][i] ), self._adaptivedynamics._time_variable ),
+	      ( SR('gamma') * self._population_equilibrium_indexer[i] *
+		self.d1A(i).transpose().dot_product( self.S( self.A(i) ).transpose() ) )
+	    ) for i in self._lv_model._population_indices ) )
+    def dAdt( self, i ):
+	import operator
+	Au = self._A_to_fn_bindings( self.A(i) )
+	u = self._adaptivedynamics._phenotype_indexers[0]
+	return reduce( operator.add, (diff( Au, u[j] ) * diff( self._phenotypes_to_fn_bindings( u[j] ), self._adaptivedynamics._time_variable ) for j in self._lv_model._population_indices) )
+
 </source-file>
 
