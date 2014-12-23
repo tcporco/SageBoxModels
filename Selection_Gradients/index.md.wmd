@@ -19,6 +19,8 @@ This project also uses Sage code that's stored on wiki pages:
 * [SageDynamics](http://lalashan.mcmaster.ca/theobio/worden/index.php/SageDynamics)
 * [SageAdaptiveDynamics](http://lalashan.mcmaster.ca/theobio/worden/index.php/SageAdaptiveDynamics).
 
+I'm sorry to say I've made essential edits in these projects that hasn't been checked in currently.
+
 ## Code
 
 Here are some makefiles that are used by all the code on the various pages in this project.

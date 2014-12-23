@@ -6,7 +6,7 @@ wmd_project: Selection_Gradients
 
 Tilman-style resource uptake isoclines for two species and two resources.
 
-* See also [Adaptive Geometry and Resource Competition - Two Species, Two Resource](/Selection_Gradients/MacLev-2-2.html).
+* See also [Adaptive Geometry and Resource Competition - Two Species, Two Resources](/Selection_Gradients/MacLev-2-2.html).
 
 <source-file filename=maclev-2-2-zngi.sage.step lang=sage>
 # requires: maclev_2_2_defs.py maclev-2-2-adap.sobj
@@ -17,47 +17,172 @@ load_session( 'maclev-2-2-adap.sobj' )
 
 ltx = latex_output( 'maclev-2-2-zngi.sage.out.tex' )
 
-rescomp_abstract = rescomp_u.bind( b_m_bindings ).bind( c_bindings ).bind( numeric_params )
-rescomp_initial = rescomp_abstract.bind( c_bindings, numeric_params, initial_conditions )
+rescomp_abstract = rescomp.bind( numeric_params )
+rescomp_initial = rescomp_abstract.bind( bmc_bindings, initial_conditions )
 
 def zngi_R1( x ):
     assume( R_0 > 0, R_1 > 0 )
     zngi = solve( rescomp_abstract._flow[x] == 0, R_1, solution_dict=True )[0][R_1]
     forget()
-    return numeric_params( c_bindings( b_m_bindings( zngi ) ) )
+    return numeric_params( zngi )
 
-print 'c\_bindings: ' + latex( c_bindings )
-zngis = [ zngi_R1( x ) for x in ( X_0, X_1 ) ]
-print zngis
+zngi_generic_parametric = (rescomp_abstract._flow[X_0]/X_0) == 0
+u = SR('u')
+zngi_generic_parametric = bmc_bindings( zngi_generic_parametric ).subs( { u_0:u } )
 
-def plot_r_zngis( u_bindings ):
-	z_plot = Graphics()
-	for r in zngis:
-	    #print 'here is r', r
-	    #print 'here is c_bindings(r)', c_bindings(r)
-	    r1 = u_bindings( c_bindings( r ) )
-	    print u_bindings
-	    print r1
-	    rmax = solve( r1, R_0, solution_dict=True )[0][R_0]
-	    z_plot += plot( r1, (R_0, 0, rmax), ymin=0, ymax=4, xmax=4,
-		figsize=(5,5), color='gray', thickness=2,
-		fill=True, fillcolor='gray', fillalpha=0.3 )
-	z_plot.axes_labels( [ '$R_0$', '$R_1$' ] )
-	z_plot.save( 'maclev-2-2-zngi.png' )
-	return z_plot
+#print 'c\_bindings: ' + latex( c_bindings )
+zngis_generic = [ zngi_R1( x ) for x in ( X_0, X_1 ) ]
+ltx.write( "zngis:\n" )
+for z in zngis_generic:
+	ltx.write_block( R_1 == z )
+ltx.write( "R intercepts are:\n" )
+for z in zngis_generic:
+	R1int = solve( z, R_0, solution_dict=True )[0][R_0]
+	ltx.write_block( [ (R1int, 0), (0, z.subs( { R_0: 0 } )) ] )
 
-anima_list = [ plot_r_zngis( Bindings( pp ) ) for pp in c_evolution._timeseries ]
-animation = animate( anima_list, xmin=0, xmax=4, ymin=0, ymax=4, figsize=(5,5) )
-animation.save( 'maclev-2-2-zngi-animation.gif' )
+zngis_numeric = [
+    [ Bindings(p)( bmc_bindings( r ) ) for r in zngis_generic ]
+    for p in c_evolution._timeseries ]
+
+rmax = [
+    [ solve( r1, R_0, solution_dict=True )[0][R_0] for r1 in zs ]
+    for zs in zngis_numeric ]
+
+plot_line_args = dict( ymin=0, ymax=4, xmax=4, figsize=(5,5), color='gray' )
+plot_fill_args = dict( plot_line_args, fill=True, fillcolor='gray', fillalpha=0.3, thickness=2 )
+
+#ltx.write( 'generic ZNGI curve:' )
+#ltx.write_block( zngi_generic_parametric )
+
+envelope_condition = diff( zngi_generic_parametric, u )
+#ltx.write( 'envelope condition:' )
+#ltx.write_block( envelope_condition )
+
+envelope_curves = solve( [ zngi_generic_parametric, envelope_condition ], [ R_0, R_1 ], solution_dict=True )
+envelope_curve = [ envelope_curves[0][r] for r in (R_0,R_1) ]
+#ltx.write_block( envelope_curve )
+envelope_plot = parametric_plot( envelope_curve, (u,0.1,0.9) )
+
+def main():
+    zplot = Graphics()
+    anima = []
+
+    for zs, r0s in zip(zngis_numeric, rmax):
+    #for zs, r0s in [zip(zngis_numeric, rmax)[0]]:
+        frame = Graphics()
+        for r1, r0max in zip(zs, r0s):
+            print r1; sys.stdout.flush()
+            frame += plot( r1, (R_0, 0, r0max), **plot_fill_args )
+            zplot += plot( r1, (R_0, 0, r0max), **plot_line_args )
+        frame += envelope_plot
+        frame.axes_labels( [ '$%s$'%latex(r) for r in (R_0, R_1) ] )
+        anima += [ frame ]
+
+    animation = animate( anima, xmin=0, xmax=4, ymin=0, ymax=4, figsize=(5,5) )
+    animation.save( 'maclev-2-2-zngi-animation.gif' )
+    return 0
+
+if __name__ == '__main__':
+    status = main()
+else:
+    status = 0
 
 ltx.close()
 save_session('maclev-2-2-zngi')
+sys.exit(int(status))
 </source-file>
 
-<project-file filename=maclev-2-2-zngi.sage.out.tex/>
+<project-file filename=maclev-2-2-zngi.sage.out.html/>
 
-<project-file filename=maclev-2-2-Rhat.png/>
-
-ZNGI diagram:
+Here is an animation of the changing ZNGI curves of the
+two species.  For each species, its line is $$(R_0, R_1)$$
+combinations for which it is at equilibrium, and the gray
+region below is resource concentrations that are too low
+for it.
 
 <project-file filename="maclev-2-2-zngi-animation.gif"/>
+
+The $$R_0$$- and $$R_1$$-intercepts of the line are $$\frac{m}{c_j}$$
+for that species and that resource.  If the species's two $$c$$ values
+were allowed to vary independently, it would be able to try all diagonal
+lines.  But since they are constrained by a single, scalar phenotype $$u$$,
+a choice of $$c_0$$ compels the value of $$c_1$$ as well.
+
+The blue curve is the geometric face of that constraint: all ZNGI lines
+parametrized by the scalar $$u$$ are tangent to that curve (thank you, [Courant](http://www.amazon.com/Differential-Integral-Calculus-Volume-Set/product-reviews/0471588814/ref=cm_cr_dp_text?ie=UTF8&showViewpoints=0&sortBy=byRankDescending#R3LJKOYQ9TUWVZ)!).
+
+The current resource concentration $$(R_0, R_1)$$ is the point of 
+intersection of the two gray ZNGI lines.
+
+Evolution proceeds by invasion into the gray region: each line "rolls"
+along the blue (envelope) curve, in whichever direction places the current
+resources $$(R_0, R_1)$$ in the white region above the line.
+
+So to understand the dynamics of this evolution, and the conditions
+responsible for [character displacement](https://en.wikipedia.org/wiki/Character_displacement), we'll want to understand the shape of that envelope
+curve and how it relates to the form of the function $$c_j(u)$$.
+
+Here is the time evolution of the resource concentrations $$(R_0, R_1)$$:
+
+<project-file filename=maclev-2-2-Rhat-vs-t.png/>
+
+<source-file filename=maclev-2-2-zngi-invasion.sage.step display=none>
+# requires: maclev_2_2_defs.py maclev-2-2-adap.sobj $(SageUtils)/latex_output.py
+# produces: maclev-2-2-zngi-invasion.sage.out.tex maclev-2-2-zngi-invasion.png
+from maclev_2_2_defs import *
+
+load_session( 'maclev-2-2-zngi' )
+
+ltx = latex_output( 'maclev-2-2-zngi-invasion.sage.out.tex' )
+
+# invasion criteria for (c_i_0, c_i_1)
+
+# make a 3-species model where X_0, X_1 are resident, X_2 is potential guest
+
+rescomp_3 = ResourceCompetitionModel( r_indices=[0,1], x_indices=[0,1,2], bindings=numeric_params )
+
+ltx.write_block( rescomp_3 )
+
+X_2 = rescomp_3._population_indexer[2]
+resident_vars = [ v for v in rescomp_3._vars if v != X_2 ]
+
+# find the resident equilibrium - the one where all vars are nonzero except X_2
+
+resident_equil_eqns = [ rescomp_3._flow[v] == 0 for v in resident_vars ] + [ X_2 == 0 ]
+resident_equils = solve( resident_equil_eqns, rescomp_3._vars, solution_dict=True )
+for v in rescomp_3._vars:
+    if v is not X_2:
+        resident_equils = filter( lambda eq: eq[v] != 0, resident_equils )
+resident_equil = resident_equils[0]
+
+ltx.write_block( resident_equil )
+
+# so now the invasion speed of X_2 is _flow[X_2]/X_2
+
+X_2_invasion_speed = rescomp_3._flow[X_2] / X_2
+
+# make that somehow appear as a region on R_0-R_1 plane??
+
+# each species' ZNGI is a line of the form a R_0 + b R_1 = k
+# and the invasion criterion is a c_0 + b c_1 > k
+# not sure how to draw that, but basically, a pair (c_0,c_1)
+# corresponds to a ZNGI line, and the pairs that can invade are
+# those for which the equilibrium point (R_0, R_1) is above the
+# line.  The equilibrium point is the intersection of the two
+# resident species' ZNGI lines.
+
+invasion_criterion = bmc_bindings( X_2_invasion_speed.subs( resident_equil ) )
+
+ltx.write_equality( r'\mathcal{I}(X_2)', invasion_criterion )
+
+zplot = anima[0]
+#zplot += region_plot( X_2_invasion_speed
+
+status = 0
+ltx.close()
+save_session('maclev-2-2-zngi-invasion')
+sys.exit(int(status))
+</source-file>
+
+<project-file filename=maclev-2-2-zngi-invasion.sage.out.html make=no display=none/>
+

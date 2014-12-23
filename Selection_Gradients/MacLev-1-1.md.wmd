@@ -2,8 +2,8 @@
 layout: page
 title: "Adaptive Geometry and Resource Competition: One Species, One Resource"
 wmd_project: Selection_Gradients
-wmd_enable_make: false
 ---
+<!--- wmd_enable_make: false --->
 
 This page investigates the adaptive dynamics of [the Macarthur-Levins resource competition model](/SelectionGradients/MacLev.html) in the special case of one species and one resource.
 
@@ -14,7 +14,7 @@ Before we do evolution, we start by defining the basic population dynamics.  Her
 <source-file filename=maclev-1-1.sage.step lang=sage>
 # requires: maclevmodels.py $(SageDynamics)/dynamicalsystems.py
 # produces: maclev-1-1.sobj maclev-1-1.sage.out.tex
-from sage.all import *
+from sage.all import * 
 from sage.misc.latex import _latex_file_
 
 import os
@@ -47,7 +47,7 @@ save_session('maclev-1-1')
 </source-file>
 
 The model equations, according to Sage:
-<project-file filename=maclev-1-1.sage.out.tex/>
+<project-file filename=maclev-1-1.sage.out.html/>
 
 ## Adaptive dynamics of $$u$$
 
@@ -68,105 +68,69 @@ from maclevmodels import *
 from adaptivedynamics import *
 from latex_output import *
 
-#load_session('maclev-1-1')
+load_session('maclev-1-1')
 
 ltx = latex_output( 'maclev-1-1-adap.sage.out.tex' )
 
-#maclev = MacArthurLevinsModel(bindings=Bindings( x_indices = [0], r_indices = [0] ))
-
-# we have already created a Mac-Lev model.
-# now we recast b_0, m_0, c_00 to be functions of u, the phenotype
-u = SR.var('u')
-
-# Now we build almost the same mac-lev model, but instead of e.g. b_i
-# we have b(u_i).
-maclev_u = MacArthurLevinsModel(
-    x_indices = [0], r_indices = [0],
-    b = indexer(lambda i: 'b(u_%s)'%i),
-    m = indexer(lambda i: 'm(u_%s)'%i),
-    c = indexer(lambda i: indexer(lambda l: c_func(i)(SR('u_%s'%l)) )) )
-X_0 = maclev_u._population_indexer[maclev_u._population_indices[0]]
-
-#print '(maclev_u: ', maclev_u, ')'
-
-maclev_adap_u = AdaptiveDynamicsModel(maclev_u, 
-    [ indexer('u') ])
-
-#ltx.write( 'general adaptive dynamics of $u_0$ in the Mac-Lev model:' )
-#ltx.write_block( maclev_adap_u )
-
-# make function variables for our use
-from sage.symbolic.function_factory import function
-# Is there an identity function in sage?  Sometimes it's useful in bindings.
-identity(x) = x
-# There is a ConstantFunction s.t. ConstantFunction(3)(x) == 3 but it is
-# giving me errors, so I'll use this for now
-const_one(x) = 1
-
-#maclev_adap_c00 = maclev_adap_u.bind( c00_bindings )
-
-#print 'when c_00 == u, the adaptive dynamics is ', maclev_adap_c00
-
-# that's not working due to some issue with limit(), so let's try it
-# the other way around
 u_indexer = indexer('u')
+u_0 = u_indexer[0]
 
-maclev_c00 = MacArthurLevinsModel(
-    x_indices = [0], r_indices = [0],
-    b = b_func_indexer( u_indexer ),
-    m = m_func_indexer( u_indexer ),
-    c = c_func_indexer( u_indexer ),
-    bindings = FunctionBindings( { c_func(0): SR('u').function(SR('u')) } ) )
+import operator
+evol_c_bindings = Bindings( reduce( operator.add, (
+    [ ( rescomp._indexers['c'][i][0], u_indexer[i] ),
+      ( rescomp._indexers['b'][i], 1 ),
+      ( rescomp._indexers['m'][i], 1 )
+    ] for i in (0,'i') ) ) )
 
-ltx.write( 'The Mac-Lev model with $b_i=m_i=1$ and $c_{i0} = u_i$:' )
-ltx.write_block( maclev_c00 )
+maclev_adap = AdaptiveDynamicsModel(maclev,
+    [ indexer('u') ], parameters_to_functions_bindings=evol_c_bindings)
 
-maclev_adap_c00 = AdaptiveDynamicsModel(maclev_c00, 
-    [ indexer('u') ])
+print 'when c_00 == u, the adaptive dynamics is ', maclev_adap
 
-ltx.write( 'adaptive dynamics of $u_0$ in that model:' )
-ltx.write_block( maclev_adap_c00 )
+ltx.write( 'Adaptive dynamics of the Mac-Lev model with $b_i=m_i=1$ and $c_{i0} = u_i$:' )
+ltx.write_block( maclev_adap )
 
 numeric_params = Bindings(
   { SR.var('r_0'): 1, SR.var('w_0'): 1,
     SR.var('K_0'): 2, SR.var('gamma'): 1 } )
-maclev_adap_c00_bound = maclev_adap_c00.bind( numeric_params )
+maclev_adap_bound = maclev_adap.bind( numeric_params )
 
-ltx.write( 'and now with the parameters:', latex( numeric_params ) )
-ltx.write( 'the adaptive dynamics is:', latex( maclev_adap_c00_bound ) )
+ltx.write( 'and the bound adaptive dynamics is:', latex( maclev_adap_bound ) )
 
-initial_c00 = 2/3
-c00_evolution = maclev_adap_c00_bound.solve( [0, initial_c00], end_points=10 )
+ltx.write( 'its bindings:', latex(maclev_adap_bound._bindings) )
+initial_u = 2/3
+c_evolution = maclev_adap_bound.solve( [0, initial_u], end_points=10 )
 
 # and plot. 
-t = maclev_adap_c00.time_variable()
-c00_evolution.plot( t, SR.var('u_0'), 'maclev-1-1-c00.png', ylabel='$c_{00}$', figsize=(4,4) )
+t = maclev_adap.time_variable()
+c_evolution.plot( t, u_indexer[0], 'maclev-1-1-c00.png', ylabel='$c_{00}$', figsize=(4,4) )
 # Xhat increases.
 Xhat = SR.var('X_0', latex_name='\hat{X}_0')
-c00_evolution.plot( t, Xhat, "maclev-1-1-X.png", ylabel=Xhat, figsize=(4,4) )
+c_evolution.plot( t, maclev_adap_bound._parameters_to_functions_bindings( maclev_adap_bound._bindings( Xhat ) ), "maclev-1-1-X.png", ylabel=Xhat, figsize=(4,4) )
 Rhat = SR.var('R_0', latex_name='\hat{R}_0')
-c00_evolution.plot( t, Rhat, "maclev-1-1-R.png", figsize=(4,4) )
+c_evolution.plot( t, maclev_adap_bound._parameters_to_functions_bindings( maclev_adap_bound._bindings( Rhat ) ), "maclev-1-1-R.png", figsize=(4,4) )
 # and let's also plot k_0 vs. a_00.
 # these are the coefficients if you rewrite the maclev dynamics
 # as dX_0/dt = X_0(k_0 + a_00 X_0)
 # and why not get sage to do that, rather than type in the definitions
-rhsc = maclev_c00._flow[X_0].collect(X_0)
+X_0 = maclev._population_indexer[0]
+rhsc = maclev._flow[X_0].collect(X_0)
 k_0 = rhsc.coeff(X_0,1)
 a_00 = rhsc.coeff(X_0,2)
 ltx.write( 'With and without these bindings, the Lotka-Volterra coefficients $k_0$ and $a_{00}$ are:' )
-ltx.write_equality( SR.var('k_0'), k_0, numeric_params(k_0) )
-ltx.write_equality( SR.var('a_00', latex_name='a_{00}' ), a_00, numeric_params(a_00) )
+ltx.write_equality( SR.var('k_0'), k_0, numeric_params( maclev_adap_bound._parameters_to_functions_bindings(k_0)) )
+ltx.write_equality( SR.var('a_0_0', latex_name='a_{00}' ), a_00, numeric_params( maclev_adap_bound._parameters_to_functions_bindings(a_00) ) )
 
 ltx.write( 'And the equilibrium values $\\hat X$ and $\\hat R$:',
     '\\begin{align*}\n  \\hat X_0 &\\to ',
-    latex( maclev_adap_c00._bindings( Xhat ) ), ' = ',
-    latex( numeric_params( maclev_adap_c00._bindings( Xhat ) ) ), '\\\\\n',
+    latex( maclev_adap_bound._bindings( Xhat ) ), ' = ',
+    latex( numeric_params( maclev_adap_bound._bindings( Xhat ) ) ), '\\\\\n',
     '  \\hat R_0 &\\to ',
-    latex( maclev_adap_c00._bindings( Rhat ) ), ' = ',
-    latex( numeric_params( maclev_adap_c00._bindings( Rhat ) ) ), '\n',
+    latex( maclev_adap_bound._bindings( Rhat ) ), ' = ',
+    latex( numeric_params( maclev_adap_bound._bindings( Rhat ) ) ), '\n',
     '\\end{align*}\n' )
 
-c00_evolution.plot( a_00, k_0, "maclev-1-1-ak.png",
+c_evolution.plot( maclev_adap_bound._parameters_to_functions_bindings( a_00 ), maclev_adap_bound._parameters_to_functions_bindings( k_0 ), "maclev-1-1-ak.png",
   xlabel = SR.var('a_00'), ylabel = SR.var('k_0'), figsize=(4,4) )
 
 ltx.close()
@@ -176,7 +140,7 @@ save_session('maclev-1-1-adap')
 
 Here we derive the adaptive dynamics equations when it is the uptake rate $$c_{00}$$ that is evolving -- that is, when $$c_{00}(u)=u$$, $$b_0=1$$, and $$m_0=1$$; and then we bind the remaining parameters to get a realization of the system that we can integrate and plot.
 
-<project-file filename=maclev-1-1-adap.sage.out.tex/>
+<project-file filename=maclev-1-1-adap.sage.out.html/>
 
 With these parameters, the uptake rate $$c_{00}$$ ($$=u_0$$) increases as long as it starts above $$\frac12$$.  This is the only relevant range, because it has to be above $$\frac12$$ in order for the population to be viable ($$\hat X_0 > 0$$).
 
@@ -200,7 +164,6 @@ And the Lotka-Volterra coefficients $$k_0$$, $$a_{00}$$ both move away from zero
 # requires: maclevmodels.py $(SageAdaptiveDynamics)/adaptivedynamics.py maclev-1-1-adap.sobj
 # produces: maclev-1-1-mc-adap-geom.sobj maclev-1-1-mc.png maclev-1-1-mc-adap-geom.sage.out.tex
 from sage.all import *
-from sage.symbolic.function_factory import function
 
 import os
 import sys
@@ -211,6 +174,8 @@ sys.path.append( os.environ['SageAdaptiveDynamics'] )
 from maclevmodels import *
 from adaptivedynamics import *
 from latex_output import *
+
+from sage.symbolic.function_factory import function
 
 load_session("maclev-1-1-adap")
 
@@ -237,16 +202,15 @@ p_symb = SR.var( 'p', latex_name='\mathbf p' )
 S_symb = function( 'S', print_latex_func=lambda f, v : r'\mathbf S(%s)' % latex(v) )
 
 # now we recast b_0, m_0, c_0_0 to be functions of u_0, the phenotype
-u_0 = SR.var('u_0')
 
-change_p_to_functions = Bindings( { 'c_0_0':c_func(0)(SR('u_0')), 'm_0':m_func()(SR('u_0')), 'b_0':b_func()(SR('u_0')) } )
+change_p_to_functions = Bindings( { 'c_0_0':function('c_0')(u_0), 'm_0':function('m')(u_0), 'b_0':function('b')(u_0) } )
 
 flow_p_func = vector( change_p_to_functions(maclev_adap_p._flow[v]) for v in p )
 p_func = vector( change_p_to_functions(v) for v in p )
 #dp_du = diff(p_func, u_0)
 #print 'dp/du =', dp_du
 
-pf_symb = sage.symbolic.function_factory.function( 'p', print_latex_func=lambda f, v : r'\mathbf p(%s)' % latex(v) )
+pf_symb = function( 'p', print_latex_func=lambda f, v : r'\mathbf p(%s)' % latex(v) )
 #ltx.write( 'Now we change these 3 characters to be functions of $u$:\n\\[ ',
 #  latex( pf_symb( u_0 ) ), ' = ',
 #  latex( column_vector( p_func ) ), ', \\]\n',
@@ -282,7 +246,7 @@ maclev_adap_c00_bound = maclev_adap_c00.bind( Bindings(
 c00_evolution = maclev_adap_c00_bound.solve( [0,2] )
 
 c00_bindings = c00_evolution._system._bindings.merge( FunctionBindings( {
-    c_func(0):SR('u_0').function(SR('u_0')), m_func():SR('1'), b_func():SR('1') } ) )
+    function('c_0'):u_0.function(u_0), function('m'):SR('1'), function('b'):SR('1') } ) )
 
 flow_p_bound = vector( (c00_bindings(s_i) for s_i in flow_p_func) )
 
@@ -326,12 +290,12 @@ ltx.write_equality( wrap_latex( '\\frac{d\\mathbf p(u_0)}{dt}' ),
  
 #mc_points = c00_evolution.plot( c00_bindings(p_func[1]), c00_bindings(p_func[2]),
 #  xlabel='m_0', ylabel='c_{00}' )
-initcond_bindings = Bindings( {u_0: initial_c00} )
+initcond_bindings = Bindings( {u_0: initial_u} )
 p_0 = vector( (initcond_bindings(c00_bindings(p_i)) for p_i in p_func) )
 flow_p_0 = vector( (initcond_bindings(f_i) for f_i in flow_p_bound) )
 
 ltx.write( 'So now we can get a look at the geometry of $%s$.' % latex( p_symb ),
-  '  At $u_0=', latex(initial_c00), '$,\n\\[ ',
+  '  At $u_0=', latex(initial_u), '$,\n\\[ ',
   latex( p_symb ), ' = ', latex( column_vector( p_0 ) ), ', \\]\n\\[ ',
   latex( S_symb( p_symb ) ), ' = ', latex( column_vector( initcond_bindings( c00_bindings( change_p_to_functions( si ) ) ) for si in S_p ) ), ' \\]\n' )
 
@@ -343,19 +307,19 @@ if 1:
       ' is \n\\[ ', latex( column_vector( p_func ) ), ' = ',
        latex( column_vector( p_func_bound ) ), ' \\]\n' )
     mc_constraint = parametric_plot( (p_func_bound[1], p_func_bound[2]),
-      (u_0, initial_c00 - 0.25, initial_c00 + 1.5) )
+      (u_0, initial_u - 0.25, initial_u + 1.5) )
     dp_du_0 = vector( (initcond_bindings(d_i) for d_i in dp_du_bound) )
     du_dt_0 = initcond_bindings(c00_bindings( maclev_adap_c00._flow[u_0] ) )
     dp_dt_0 = vector( (initcond_bindings(c00_bindings(
       d_i*du_dt_0 )) for d_i in dp_du_0) )
     ltx.write( 'And on that curve, \n\\[ ',
-      '\\left.\\frac{d%s}{dt}\\right|_{u_0=%s} = ' % ( latex( pf_symb( u_0 ) ), latex( initial_c00 ) ),
+      '\\left.\\frac{d%s}{dt}\\right|_{u_0=%s} = ' % ( latex( pf_symb( u_0 ) ), latex( initial_u ) ),
       latex( column_vector( dp_dt_0 ) ), ' \\]\n' )
     dp_dt_arrow = arrow( (p_0[1], p_0[2]), (p_0[1]+dp_dt_0[1], p_0[2]+dp_dt_0[2]),
       width=1 )
     # The arrow heads may not look like they're at the same y position but they are
     mc_geom = flow_p_arrow + mc_constraint + dp_dt_arrow # + mc_points
-    mc_geom.set_axes_range( 0, 2, initial_c00 - 0.25, initial_c00 + 1.75 )
+    mc_geom.set_axes_range( 0, 2, initial_u - 0.25, initial_u + 1.75 )
     mc_geom.axes_labels( ['$m_0$', '$c_{00}$'] )
     save(mc_geom, filename="maclev-1-1-mc.png", figsize=(4,4))
 
@@ -364,7 +328,7 @@ ltx.close()
 save_session("maclev-1-1-mc-adap-geom")
 </source-file>
 
-<project-file filename=maclev-1-1-mc-adap-geom.sage.out.tex/>
+<project-file filename=maclev-1-1-mc-adap-geom.sage.out.html/>
 
 And here in the graphics is the part I really care about: the geometry of $$\mathbf p$$ and $$\mathbf A$$.  Starting with $$\mathbf p$$.
 
@@ -403,21 +367,24 @@ ltx = latex_output( 'maclev-1-1-ak-adap-geom.sage.out.tex' )
 # motion, which is not generally restricted to the curve because of the
 # indirect component.
 
-# this code is pretty convoluted.  We basically have to do the transformation
-# from population dynamics to adaptive dynamics a bunch of times in a row,
-# with different mappings from parameters to phenotypes.
+maclev_adap_lv = LotkaVolterraAdaptiveDynamics( maclev_adap_bound, r_name='k' )
 
-# vectors are a pain because they don't reliably behave like columns.
-# this constructs actual n-by-1 matrices.
-def cvector( *args ):
-    return matrix( *args ).transpose()
+ltx.write( 'As before, the adaptive dynamics of $u$ is' )
+ltx.write_equality( wrap_latex('\\mathbf S' + latex( maclev_adap_lv.A(0) )),
+    maclev_adap_lv.S( maclev_adap_lv.A(0) ),
+    maclev_adap_lv._lv_model.interior_equilibrium_bindings()( maclev_adap_lv.S( maclev_adap_lv.A(0) ) ) )
+ltx.write_block( maclev_adap_lv._adaptivedynamics )
+
+save_session( 'maclev-1-1-ak-adap-geom' )
+ltx.close()
+exit()
 
 # Here is the Lotka-Volterra population model we will use, with one population,
 # with simple parameters a_ij, k_i
 maclev_lv = GeneralizedLotkaVolterraModel( [0], r = indexer('k') )
 
 ltx.write( "Abstract Lotka-Volterra model corresponding to the 1-population Mac-Lev model:" )
-ltx.write_block( maclev_lv )
+ltx.write_block( maclev_adap_lv )
 
 # Here is the adaptive dynamics of the Lotka-Volterra model
 # We get the general S(A) using this unparametrized lv system; we'll add
@@ -450,7 +417,7 @@ def get_coeff( expr, vars, power ):
 maclev_p_ij = MacArthurLevinsModel( x_indices = ['i','j'], r_indices = [0],
   b = indexer(lambda i:'b(u_%s)'%i),
   m = indexer(lambda i:'m(u_%s)'%i),
-  c = indexer(lambda i: indexer(lambda l: c_func(i)(SR('u_%s'%l)) ) ) )
+  c = indexer(lambda i: indexer(lambda l: function('c_%s'%l)(SR('u_%s'%i)) ) ) )
 
 lvi = maclev_p_ij._flow[SR('X_i')].expand()
 #ltx.write( 'In the $i,j$ LV system\n\\[ \\frac{dX_i}{dt} = ', latex(lvi), ' \\]\n\n' );
@@ -490,9 +457,9 @@ maclev_lv = maclev_lv_u.bind( A_bindings )
 #ltx.write( ')... ' )
 
 maclev_lv_c00 = maclev_lv.bind( FunctionBindings( {
-    c_func(0): u_0.function(u_0),
-    b_func(): symbolic_expression('1').function(u_0),
-    m_func(): symbolic_expression('1').function(u_0) } ) )
+    function('c_0'): u_0.function(u_0),
+    function('b'): symbolic_expression('1').function(u_0),
+    function('m'): symbolic_expression('1').function(u_0) } ) )
 
 ltx.write( 'Now we bind $c, m, b$:' )
 ltx.write_block( maclev_lv_c00 )
@@ -524,7 +491,7 @@ ltx.write( 'and' )
 ltx.write_equality( X_0, maclev_adap_lv_c00_bound._bindings( X_0 ) )
 
 # Initial condition for the adaptive dynamics of u_0
-initcond_bindings = Bindings({u_0: initial_c00})
+initcond_bindings = Bindings({u_0: initial_u})
 
 # integrate the adaptive dynamics and get a numeric trajectory
 lv_c00_evolution = maclev_adap_lv_c00_bound.solve( [0,initcond_bindings(u_0)] )
@@ -558,7 +525,7 @@ maclev_u_ij = MacArthurLevinsModel(
   x_indices=['i','j'], r_indices=[0],
   b = indexer(lambda i:'b(u_%s)'%i),
   m = indexer(lambda i:'m(u_%s)'%i),
-  c = indexer(lambda i: indexer(lambda l: c_func(i)(SR('u_%s'%l)))) )
+  c = indexer(lambda i: indexer(lambda l: function('c_%s'%l)(SR('u_%s'%i)))) )
 X_i = SR.var('X_i')
 X_j = SR.var('X_j')
 f_j = maclev_u_ij._flow[X_j].collect(X_i)
@@ -598,14 +565,14 @@ ltx.write( 'so' )
 
 ltx.write_equality( wrap_latex('\\partial_1\mathbf A\\partial_1\mathbf A^T S(\mathbf A)'), d1A * d1ATS )
 
-d1A_curve = A_j.substitute( { u_j : initial_c00 } )
-#ltx.write( 'and the mysterious curve (for $v\in[%s,%s]$) is' %(initial_c00-2,initial_c00+2) )
+d1A_curve = A_j.substitute( { u_j : initial_u } )
+#ltx.write( 'and the mysterious curve (for $v\in[%s,%s]$) is' %(initial_u-2,initial_u+2) )
 #ltx.write_block( d1A_curve )
  
 d1A_constraint = parametric_plot( (d1A_curve[0], d1A_curve[1]),
-  (u_i, initial_c00-2, initial_c00+2), color='green' )
-#dAdv   = dAdv.substitute({u_0: initial_c00, v: initial_c00})
-#dAdu_0 = dAdu_0.substitute({u_0: initial_c00, v: initial_c00})
+  (u_i, initial_u-2, initial_u+2), color='green' )
+#dAdv   = dAdv.substitute({u_0: initial_u, v: initial_u})
+#dAdu_0 = dAdu_0.substitute({u_0: initial_u, v: initial_u})
 
 #ltx.write( 'dA(v,u_0)/dv:\n' )
 #ltx.write_block( dAdv )
@@ -624,7 +591,7 @@ ltx.write_equality( SR('D'), wrap_latex('\\gamma X_0 \\partial_1 \mathbf A \\par
 
 #I_circle = gX * dAdv * dAdu_0.transpose() * S_A_bound
 
-#ltx.write( 'I_circle(%g) ='%initial_c00 )
+#ltx.write( 'I_circle(%g) ='%initial_u )
 #ltx.write_equality( wrap_latex('I^\circ'), wrap_latex('\\gamma X_0 \\frac{\\partial A}{\\partial v}\\frac{\\partial A}{\\partial u_0}^T S(A)'), I_circle )
 
 I = gX * d2A * d1ATS
@@ -667,7 +634,7 @@ if 1:
     S_A_arrow = arrow_from_cvectors( A_0, dAdt_unconstrained,
       color='red', width=1 )
     ak_constraint = plot( (A_c00[0][0], A_c00[1][0]),
-      (u_0,initial_c00-0.5,initial_c00+0.5), color='light blue' )
+      (u_0,initial_u-0.5,initial_u+0.5), color='light blue' )
     D_arrow = arrow_from_cvectors( initcond_bindings( c00_bindings( A_0 ) ), initcond_bindings( c00_bindings( D ) ), color='green', width=1 )
     I_arrow = arrow_from_cvectors( initcond_bindings( c00_bindings( A_0 + D ) ), initcond_bindings( c00_bindings( I ) ), color='purple', width=1 )
     dA_du_arrow = arrow_from_cvectors( A_0, initcond_bindings( c00_bindings( dA_du_bound * dudt ) ), color='blue', width=1 )
@@ -681,7 +648,7 @@ ltx.close()
 
 </source-file>
 
-<project-file filename=maclev-1-1-ak-adap-geom.sage.out.tex/>
+<project-file filename=maclev-1-1-ak-adap-geom.sage.out.html/>
 
 This is a work in progress.
 
@@ -793,7 +760,7 @@ is the selection gradient vector projected on to the constrained available direc
 Let's examine $$D$$ more closely in the Mac-Lev model.
 
 To review, the interaction vector (or whatever we call it) is
-<source-file filename="avec.sage-inline" display="avec.sage.out.latexml.html5">
+<source-file filename="avec.sage-inline" display="avec.sage.out.html">
 from maclevmodels import *
 def cvector( *args ):
     return matrix( *args ).transpose()
@@ -803,7 +770,7 @@ ltx.write_equality( wrap_latex('A'),
     cvector( [ - c_00^2*SR('b_0 w_0/r_0'), c_00 * SR('K_0 w_0 b_0') - SR('m_0 b_0') ] ) )
 </source-file>
 but to get the adaptive dynamics right we have to distinguish agents from patients: the terms of this are
-<source-file filename="a-careful.sage-inline" display="a-careful.sage.out.latexml.html5">
+<source-file filename="a-careful.sage-inline" display="a-careful.sage.out.html">
 from maclevmodels import *
 def cvector( *args ):
     return matrix( *args ).transpose()

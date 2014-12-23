@@ -51,9 +51,9 @@ gamma = SR.var( 'gamma' )
 
 def quadratic_c_func(i,j):
     if j == 0:
-	return 1/(1 + u_indexer[i]**2*5)
+        return 1/(1 + u_indexer[i]**2*5)
     if j == 1:
-	return 1/(1 + (u_indexer[i]-1)**2*5)
+        return 1/(1 + (u_indexer[i]-1)**2*5)
     return -inf
 
 def quadratic_bindings(indices):
@@ -61,11 +61,11 @@ def quadratic_bindings(indices):
         [ (rescomp._indexers['c'][i][0], quadratic_c_func(i,0))
           for i in indices
         ] +
-        [ (rescomp._indexers['c'][i][1], quadratic_c_func(1,1))
+        [ (rescomp._indexers['c'][i][1], quadratic_c_func(i,1))
           for i in indices
         ] +
-	[ (rescomp._indexers['b'][i], 1) for i in indices ] +
-	[ (rescomp._indexers['m'][i], 1) for i in indices ]
+        [ (rescomp._indexers['b'][i], 1) for i in indices ] +
+        [ (rescomp._indexers['m'][i], 1) for i in indices ]
     ) )
 
 def linear_c_func(i,j):
@@ -73,33 +73,33 @@ def linear_c_func(i,j):
 
 def linear_bindings(indices):
     return Bindings( dict(
-	(rescomp._indexers['c'][i][j], linear_c_func(i,j))
-	for i in indices for j in (0,1) ) )
+        (rescomp._indexers['c'][i][j], linear_c_func(i,j))
+        for i in indices for j in (0,1) ) )
 
 which_model = 'quadratic'
 
 if which_model == 'quadratic':
-	c_func = quadratic_c_func
-	bindings_func = quadratic_bindings
-	bmc_bindings = bindings_func( (0,1,'i') )
+    c_func = quadratic_c_func
+    bindings_func = quadratic_bindings
+    bmc_bindings = bindings_func( (0,1,'i') )
 
-	initial_conditions = Bindings( {
-		# in a .sage file, could just write u_0: 1/3
-		# in a .py, fractions need special care
-		u_0 : Rational('1/3'),
-		u_1 : Rational('2/3')
-	} )
+    initial_conditions = Bindings( {
+        # in a .sage file, could just write u_0: 1/3
+        # in a .py, fractions need special care
+        u_0 : Rational('1/3'),
+        u_1 : Rational('4/9')
+    } )
 else:
-	c_func = linear_c_func
-	bindings_func = linear_bindings
-	bmc_bindings = bindings_func( (0,1,'i') )
+    c_func = linear_c_func
+    bindings_func = linear_bindings
+    bmc_bindings = bindings_func( (0,1,'i') )
 
-	initial_conditions = Bindings( {
-		# in a .sage file, could just write u_0: 1/3
-		# in a .py, fractions need special care
-		u_0 : Rational('1/3'),
-		u_1 : Rational('5/11')
-	} )
+    initial_conditions = Bindings( {
+        # in a .sage file, could just write u_0: 1/3
+        # in a .py, fractions need special care
+        u_0 : Rational('1/3'),
+        u_1 : Rational('5/11')
+    } )
 
 gamma_bindings = Bindings( { gamma: 1 } )
 
@@ -130,56 +130,54 @@ p.save( 'maclev-2-2-popdyn.png' )
 
 # analysis
 
-maclev_abstract = maclev.bind( bmc_bindings ).bind( numeric_params )
-int_eq = maclev_abstract.interior_equilibria()
-int_eq = int_eq[0]
+maclev_abstract = maclev.bind( numeric_params )
 
 ltx.write( "The coexistence criteria depend on the invasion rates at the boundary equilibria.\n\n" )
 
 for x_inv, x_res in ( (X_0, X_1), (X_1, X_0) ):
-	assume( x_res > 0 )
-	assume( x_inv == 0 )
-	boundary_solutions = solve( maclev_abstract._flow[x_res] == 0, x_res, solution_dict=True )
-	forget()
-	if ( len( boundary_solutions ) != 1 ):
-		raise Exception( 'wrong number of boundary solutions' )
-	boundary_solution = boundary_solutions[0]
-	#ltx.write_block( x_res.subs( boundary_solution ) )
-	ltx.write( "Invasion of $%s$:\n" % latex( x_inv ) )
-	inv_rate_abstract = maclev_abstract._flow[x_inv] / x_inv
-	#ltx.write_block( inv_rate_abstract > 0 )
-	inv_rate = inv_rate_abstract.subs( boundary_solution ).subs( { x_inv: 0 } )
-	ltx.write_block( inv_rate.full_simplify() > 0 )
+    assume( x_res > 0 )
+    assume( x_inv == 0 )
+    boundary_solutions = solve( maclev_abstract._flow[x_res] == 0, x_res, solution_dict=True )
+    forget()
+    if ( len( boundary_solutions ) != 1 ):
+        raise Exception( 'wrong number of boundary solutions' )
+    boundary_solution = boundary_solutions[0]
+    #ltx.write_block( x_res.subs( boundary_solution ) )
+    ltx.write( "Invasion of $%s$:\n" % latex( x_inv ) )
+    inv_rate_abstract = maclev_abstract._flow[x_inv] / x_inv
+    #ltx.write_block( inv_rate_abstract > 0 )
+    inv_rate = inv_rate_abstract.subs( boundary_solution ).subs( { x_inv: 0 } )
+    ltx.write_block( inv_rate.full_simplify() > 0 )
 
-rescomp_abstract = rescomp.bind( bmc_bindings ).bind( numeric_params )
+rescomp_abstract = rescomp.bind( numeric_params )
 
 ltx.write( "But those invasion criteria are really about the resources.\n" ) # The resource levels are:\n" )
 ltx.write( latex( rescomp_abstract ) )
 
 for x_inv, x_res in ( (X_0, X_1), (X_1, X_0) ):
-	#assume( x_res > 0 )
-	#assume( x_inv == 0 )
-	assume( R_0 > 0, R_1 > 0 )
-	boundary_solutions = solve( [ rescomp_abstract._flow[v] == 0 for v in (x_res, R_0, R_1) ] + [ x_inv == 0 ], [ x_res, x_inv, R_0, R_1 ], solution_dict=True )
-	forget()
-	#ltx.write( "boundary solutions: $%s$\n" % latex(boundary_solutions) )
-	boundary_solutions = [ s for s in boundary_solutions if s[x_res] != 0 ]
-	if ( len( boundary_solutions ) != 1 ):
-		raise Exception( 'wrong number of boundary solutions' )
-	boundary_solution = boundary_solutions[0]
-	ltx.write( "Here's a boundary solution: %s\n\n" % latex( Bindings( boundary_solution ) ) )
-	#ltx.write_block( x_res.subs( boundary_solution ) )
-	ltx.write( "Invasion condition for $%s$:\n" % latex( x_inv ) )
-	inv_rate_abstract = rescomp_abstract._flow[x_inv] / x_inv
-	#ltx.write_block( inv_rate_abstract > 0 )
-	inv_rate = inv_rate_abstract.subs( { x_inv: 0 } )
-	ltx.write_block( inv_rate.full_simplify() > 0 )
+    #assume( x_res > 0 )
+    #assume( x_inv == 0 )
+    assume( R_0 > 0, R_1 > 0 )
+    boundary_solutions = solve( [ rescomp_abstract._flow[v] == 0 for v in (x_res, R_0, R_1) ] + [ x_inv == 0 ], [ x_res, x_inv, R_0, R_1 ], solution_dict=True )
+    forget()
+    #ltx.write( "boundary solutions: $%s$\n" % latex(boundary_solutions) )
+    boundary_solutions = [ s for s in boundary_solutions if s[x_res] != 0 ]
+    if ( len( boundary_solutions ) != 1 ):
+        raise Exception( 'wrong number of boundary solutions' )
+    boundary_solution = boundary_solutions[0]
+    ltx.write( "Here's a boundary solution: %s\n\n" % latex( Bindings( boundary_solution ) ) )
+    #ltx.write_block( x_res.subs( boundary_solution ) )
+    ltx.write( "Invasion condition for $%s$:\n" % latex( x_inv ) )
+    inv_rate_abstract = rescomp_abstract._flow[x_inv] / x_inv
+    #ltx.write_block( inv_rate_abstract > 0 )
+    inv_rate = inv_rate_abstract.subs( { x_inv: 0 } )
+    ltx.write_block( inv_rate.full_simplify() > 0 )
 
 ltx.write( "In our initial model, $c$ values are" )
 for i in ( 0, 1 ):
     for j in ( 0, 1 ):
-	cij = rescomp_abstract._indexers['c'][i][j]
-	ltx.write_block( cij == (initial_conditions + bmc_bindings)( cij ) )
+        cij = rescomp_abstract._indexers['c'][i][j]
+        ltx.write_block( cij == (initial_conditions + bmc_bindings)( cij ) )
 
 ltx.close()
 
@@ -188,7 +186,7 @@ ltx.close()
 
 The model equations, according to Sage:
 
-<project-file filename=maclev-2-2-popdyn.sage.out.tex/>
+<project-file filename=maclev-2-2-popdyn.sage.out.html/>
 
 State space of this population dynamics model:
 
@@ -212,24 +210,32 @@ ltx.write_block( maclev.bind( ad_bindings + numeric_params ) )
 
 # I don't trust FunctionBindings any more, but I need to use it briefly
 # to get tractable adaptive dynamics here.
-c_to_fn_bindings = Bindings( dict(
-    ( maclev._rescomp_model._indexers['c'][i][j],
-      sage.symbolic.function_factory.function( 'c_%s'%j )( u_indexer[i] ) )
-    for i in (0,1,'i') for j in (0,1) ) )
-c_from_fn_bindings = FunctionBindings( dict(
-    ( sage.symbolic.function_factory.function( 'c_%s'%j ),
-      c_func(0,j).function( u_indexer[0] ) )
-    for j in (0,1) ) )
+# (see http://trac.sagemath.org/ticket/17503 and
+# http://trac.sagemath.org/ticket/17504)
+bmc_to_fn_bindings = Bindings( dict(
+    [ ( maclev._rescomp_model._indexers['c'][i][j],
+        function( 'c_%s'%j )( u_indexer[i] ) )
+      for i in (0,1,'i') for j in (0,1) ] +
+    [ ( maclev._rescomp_model._indexers['b'][i], function('b')( u_indexer[i] ) ) for i in (0,1,'i') ] +
+    [ ( maclev._rescomp_model._indexers['m'][i], function('m')( u_indexer[i] ) ) for i in (0,1,'i') ]
+    ) )
+bmc_from_fn_bindings = Bindings( FunctionBindings( dict(
+    [ ( function( 'c_%s'%j ), c_func(0,j).function( u_indexer[0] ) )
+        for j in (0,1) ] +
+    [ ( function( 'b' ), SR(1) ), ( function('m'), SR(1) ) ]
+    ) ) )
 
-print 'c_to_fn_bindings:', c_to_fn_bindings
-print 'c_from_fn_bindings:', c_from_fn_bindings
+#print 'bmc_to_fn_bindings:', bmc_to_fn_bindings
+#print 'bmc_from_fn_bindings:', bmc_from_fn_bindings
 
 print "starting adaptive dynamics"
 sys.stdout.flush()
 
 try:
-    maclev_adap_c = NumericalAdaptiveDynamicsModel( maclev.bind( c_to_fn_bindings ), 
-        [ u_indexer ], bindings=c_from_fn_bindings + ad_bindings + numeric_params )
+    maclev_adap_c = NumericalAdaptiveDynamicsModel( maclev,
+        [ u_indexer ],
+        parameters_to_functions_bindings=bmc_to_fn_bindings,
+        parameters_function_expansion_bindings=bmc_from_fn_bindings + ad_bindings + numeric_params )
     #ltx.write( maclev_adap_c._debug_output._output._str )
     ltx.write( 'adaptive dynamics of $u_\cdot$ in that model:' )
     ltx.write_block( maclev_adap_c )
@@ -261,46 +267,227 @@ u_phase_plane = c_evolution.plot( u_0, u_1 )
 u_phase_plane += maclev_adap_c.plot_vector_field( (u_0,0,1), (u_1,0,1), color='gray', plot_points=19 )
 u_phase_plane.axes_labels( [ '$u_0$', '$u_1$' ] )
 u_phase_plane.save( 'maclev-2-2-u-vs-u.png', xmin=0, xmax=1, ymin=0, ymax=1,
-	figsize=(4,4) )
-
-# plot c_0 vs c_1
-c_phase_plane = c_evolution.plot( rescomp._indexers['c'][0][0], rescomp._indexers['c'][0][1] )
-c_phase_plane += c_evolution.plot( rescomp._indexers['c'][1][0], rescomp._indexers['c'][1][1], color='red' )
-c_phase_plane.axes_labels( [ '$c_0$', '$c_1$' ] )
-c_phase_plane.save( 'maclev-2-2-c-vs-c.png', figsize=(4,4) )
+    figsize=(4,4) )
 
 #stop there for now
 ltx.close()
 save_session( 'maclev-2-2-adap' )
 sys.exit()
-
-ltx.write( 'And the equilibrium values $\\hat X$ and $\\hat R$:',
-    '\\begin{align*}\n  \\hat X_0 &\\to ',
-    latex( maclev_adap_c._bindings( Xhat ) ), ' = ',
-    latex( numeric_params( maclev_adap_c._bindings( Xhat ) ) ), '\\\\\n',
-    '  \\hat R_0 &\\to ',
-    latex( maclev_adap_c._bindings( Rhat ) ), ' = ',
-    latex( numeric_params( maclev_adap_c._bindings( Rhat ) ) ), '\n',
-    '\\end{align*}\n' )
-
-ltx.close()
-
-save_session('maclev-2-2-adap', verbose=True)
 </source-file>
 
 Here we derive the adaptive dynamics equations when it is the uptake rates $$c_{ij}$$ that is evolving -- that is, when $$c_{ij}=c_j(u_i)$$, $$b_0=1$$, and $$m_0=1$$; and then we bind the remaining parameters to get a realization of the system that we can integrate and plot.
 
-<project-file filename=maclev-2-2-adap.sage.out.tex/>
+<project-file filename=maclev-2-2-adap.sage.out.html/>
 
 With these parameters, what happens to the evolving traits $$u$$?
 
 <project-file filename=maclev-2-2-u-vs-t.png make=no/> <project-file filename=maclev-2-2-u-vs-u.png make=no/>
 
-And behold the motion of $$c_0(u)$$ and $$c_1(u)$$ as the two populations' trait values $$u_i$$ change:
+## Adaptive Geometry: Ecological quantities $$m$$, $$b$$, and particularly $$c$$
+
+<source-file filename=maclev-2-2-p.sage.step>
+# requires: $(SageDynamics)/dynamicalsystems.py $(SageUtils)/latex_output.py
+# requires: $(SageAdaptiveDynamics)/adaptivedynamics.py maclevmodels.py 
+# requires: maclev_2_2_defs.py maclev-2-2-adap.sobj
+# produces: maclev-2-2-p.sage.out.tex
+from maclev_2_2_defs import *
+
+load_session( 'maclev-2-2-adap' )
+
+ltx = latex_output( 'maclev-2-2-p.sage.out.tex' )
+
+p_indexers = [ indexer('b'), indexer('m') ] + [ indexer_2d_reverse('c')[j] for j in maclev._rescomp_model._r_indices ]
+
+maclev_adap_p = AdaptiveDynamicsModel(
+    maclev.bind( numeric_params ),
+    p_indexers,
+    equilibrium_function=find_interior_equilibria )
+
+print 'adaptive dynamics of b, m, c:', maclev_adap_p
+
+ltx.write('adaptive dynamics of $b$, $m$, $c$:')
+for i in maclev._population_indices:
+    ltx.write_block(
+        column_vector( [ pi[i] for pi in p_indexers ] ),
+        wrap_latex( r'\to' ),
+        column_vector( [ maclev_adap_p._S[pi[i]] for pi in p_indexers ] ) )
+
+def make_arrow( base, vec, scale=1, **args ):
+    print 'arrow: $%s \\to %s%s$' % (latex(base),latex(scale),latex(vec))
+    arr = arrow( (base[0], base[1]), (base[0] + scale*vec[0], base[1] + scale*vec[1]), **args )
+    print [ aa for aa in arr ]
+    return arr
+
+# plot c_0 vs c_1, with arrows
+
+# first put in the curves in the c_0-c_1 plane
+c_phase_plane = Graphics()
+for i in maclev._population_indices:
+    ci = [ rescomp._indexers['c'][i][0], rescomp._indexers['c'][i][1] ]
+    c_phase_plane += c_evolution.plot( ci[0], ci[1], color=[ 'blue', 'red' ][i] )
+# then add the arrows at intervals of 0.1 time step
+last_t = -oo
+for p in c_evolution._timeseries:
+    pp = Bindings(p)
+    t = N( pp( c_evolution._system._time_variable ) )
+    if t >= last_t + 0.1:
+        last_t = t
+        dudt = maclev_adap_c.compute_flow(
+            [ pp( ui ) for ui in maclev_adap_c._vars ],
+            t )
+        for i in maclev._population_indices:
+            ci = [ rescomp._indexers['c'][i][0], rescomp._indexers['c'][i][1] ]
+            # the vector S(c)
+            c_phase_plane += make_arrow(
+                [ pp( ad_bindings( cij ) ) for cij in ci ],
+                [ pp( ad_bindings( maclev_adap_p._S[ cij ] ) ) for cij in ci ],
+                0.05, color=[ 'blue', 'red' ][i] )
+            # the vector dc/dt
+            dci = [ diff( ad_bindings( cij ), u_indexer[i] ) for cij in ci ]
+            print dudt, dci
+            print [ pp( dcij * dudt[i] ) for dcij in dci ]
+            c_phase_plane += make_arrow(
+                [ pp( ad_bindings( cij ) ) for cij in ci ],
+                [ pp( dcij * dudt[i] ) for dcij in dci ],
+                0.05, color='green' )
+
+c_phase_plane.axes_labels( [ '$c_0$', '$c_1$' ] )
+c_phase_plane.save( 'maclev-2-2-c-vs-c.png', figsize=(6,6) )
+
+ltx.close()
+save_session( 'maclev-2-2-p' )
+</source-file>
+
+<project-file filename=maclev-2-2-p.sage.out.html/>
+
+Here is the motion of $$c_0(u)$$ and $$c_1(u)$$ as the two
+populations' trait values $$u_i$$ change.
+The velocity of this $$\mathbf{c}=(c_0, c_1)$$ vector is given by the
+chain rule:
+
+$$ \frac{d\mathbf{c}}{dt} = \frac{d\mathbf{c}}{du}\frac{du}{dt} $$, etc.
 
 <project-file filename=maclev-2-2-c-vs-c.png make=no/>
 
-## Adaptive Geometry
+<source-file filename=maclev-2-2-zngi.sage.step lang=sage>
+# requires: maclev_2_2_defs.py maclev-2-2-adap.sobj
+# produces: maclev-2-2-zngi.sage.out.tex maclev-2-2-zngi-animation.gif
+from maclev_2_2_defs import *
+
+load_session( 'maclev-2-2-adap.sobj' )
+
+ltx = latex_output( 'maclev-2-2-zngi.sage.out.tex' )
+
+rescomp_abstract = rescomp.bind( numeric_params )
+rescomp_initial = rescomp_abstract.bind( bmc_bindings, initial_conditions )
+
+def zngi_R1( x ):
+    assume( R_0 > 0, R_1 > 0 )
+    zngi = solve( rescomp_abstract._flow[x] == 0, R_1, solution_dict=True )[0][R_1]
+    forget()
+    return numeric_params( zngi )
+
+zngi_generic_parametric = (rescomp_abstract._flow[X_0]/X_0) == 0
+u = SR('u')
+zngi_generic_parametric = bmc_bindings( zngi_generic_parametric ).subs( { u_0:u } )
+
+#print 'c\_bindings: ' + latex( c_bindings )
+zngis_generic = [ zngi_R1( x ) for x in ( X_0, X_1 ) ]
+ltx.write( "zngis:\n" )
+for z in zngis_generic:
+	ltx.write_block( R_1 == z )
+ltx.write( "R intercepts are:\n" )
+for z in zngis_generic:
+	R1int = solve( z, R_0, solution_dict=True )[0][R_0]
+	ltx.write_block( [ (R1int, 0), (0, z.subs( { R_0: 0 } )) ] )
+
+zngis_numeric = [
+    [ Bindings(p)( bmc_bindings( r ) ) for r in zngis_generic ]
+    for p in c_evolution._timeseries ]
+
+rmax = [
+    [ solve( r1, R_0, solution_dict=True )[0][R_0] for r1 in zs ]
+    for zs in zngis_numeric ]
+
+plot_line_args = dict( ymin=0, ymax=4, xmax=4, figsize=(5,5), color='gray' )
+plot_fill_args = dict( plot_line_args, fill=True, fillcolor='gray', fillalpha=0.3, thickness=2 )
+
+#ltx.write( 'generic ZNGI curve:' )
+#ltx.write_block( zngi_generic_parametric )
+
+envelope_condition = diff( zngi_generic_parametric, u )
+#ltx.write( 'envelope condition:' )
+#ltx.write_block( envelope_condition )
+
+envelope_curves = solve( [ zngi_generic_parametric, envelope_condition ], [ R_0, R_1 ], solution_dict=True )
+envelope_curve = [ envelope_curves[0][r] for r in (R_0,R_1) ]
+#ltx.write_block( envelope_curve )
+envelope_plot = parametric_plot( envelope_curve, (u,0.03,0.97) )
+
+def main():
+    zplot = Graphics()
+    anima = []
+
+    for zs, r0s in zip(zngis_numeric, rmax):
+    #for zs, r0s in [zip(zngis_numeric, rmax)[0]]:
+        frame = Graphics()
+        for r1, r0max in zip(zs, r0s):
+            print r1; sys.stdout.flush()
+            frame += plot( r1, (R_0, 0, r0max), **plot_fill_args )
+            zplot += plot( r1, (R_0, 0, r0max), **plot_line_args )
+        frame += envelope_plot
+        frame.axes_labels( [ '$%s$'%latex(r) for r in (R_0, R_1) ] )
+        anima += [ frame ]
+
+    animation = animate( anima, xmin=0, xmax=4, ymin=0, ymax=4, figsize=(5,5) )
+    animation.save( 'maclev-2-2-zngi-animation.gif' )
+    return 0
+
+if __name__ == '__main__':
+    status = main()
+else:
+    status = 0
+
+ltx.close()
+save_session('maclev-2-2-zngi')
+sys.exit(int(status))
+</source-file>
+
+<project-file filename=maclev-2-2-zngi.sage.out.html/>
+
+Here is an animation of the changing ZNGI curves of the
+two species.  For each species, its line is $$(R_0, R_1)$$
+combinations for which it is at equilibrium, and the gray
+region below is resource concentrations that are too low
+for it.
+
+<project-file filename="maclev-2-2-zngi-animation.gif"/>
+
+The $$R_0$$- and $$R_1$$-intercepts of the line are $$\frac{m}{c_j}$$
+for that species and that resource.  If the species's two $$c$$ values
+were allowed to vary independently, it would be able to try all diagonal
+lines.  But since they are constrained by a single, scalar phenotype $$u$$,
+a choice of $$c_0$$ compels the value of $$c_1$$ as well.
+
+The blue curve is the geometric face of that constraint: all ZNGI lines
+parametrized by the scalar $$u$$ are tangent to that curve (thank you, [Courant](http://www.amazon.com/Differential-Integral-Calculus-Volume-Set/product-reviews/0471588814/ref=cm_cr_dp_text?ie=UTF8&showViewpoints=0&sortBy=byRankDescending#R3LJKOYQ9TUWVZ)!).
+
+The current resource concentration $$(R_0, R_1)$$ is the point of 
+intersection of the two gray ZNGI lines.
+
+Evolution proceeds by invasion into the gray region: each line "rolls"
+along the blue (envelope) curve, in whichever direction places the current
+resources $$(R_0, R_1)$$ in the white region above the line.
+
+So to understand the dynamics of this evolution, and the conditions
+responsible for [character displacement](https://en.wikipedia.org/wiki/Character_displacement), we'll want to understand the shape of that envelope
+curve and how it relates to the form of the function $$c_j(u)$$.
+
+Here is the time evolution of the resource concentrations $$(R_0, R_1)$$:
+
+<project-file filename=maclev-2-2-Rhat-vs-t.png/>
+
+## Adaptive Geometry: Community-structure measures $$a$$ and $$k$$
 
 <source-file filename=maclev-2-2-geom.sage.step lang=sage>
 # requires: $(SageDynamics)/dynamicalsystems.py $(SageUtils)/latex_output.py
@@ -309,7 +496,8 @@ And behold the motion of $$c_0(u)$$ and $$c_1(u)$$ as the two populations' trait
 # requires: maclev_2_2_defs.py maclev-2-2-adap.sobj
 # produces: maclev-2-2-geom.sage.out.tex
 # produces: maclev-2-2-k-vs-t.png maclev-2-2-a-vs-t.png
-# produces: maclev-2-2-Xhat-vs-t.png maclev-2-2-a-vs-a.png
+# produces: maclev-2-2-Xhat-vs-t.png maclev-2-2-Rhat-vs-t.png
+# produces: maclev-2-2-a-vs-a.png
 # produces: maclev-2-2-a-vs-k.png maclev-2-2-a-arrows.png
 from maclev_2_2_defs import *
 from lotkavolterra import *
@@ -318,44 +506,61 @@ load_session( 'maclev-2-2-adap' )
 
 ltx = latex_output( 'maclev-2-2-geom.sage.out.tex' )
 
-lv_adap_c = LotkaVolterraAdaptiveDynamics( maclev_adap_c, lv_coefficient_names=('k','a') )
+# I don't trust FunctionBindings any more, but I need to use it briefly
+# to get tractable adaptive dynamics here.
+bmc_to_fn_bindings = Bindings( dict(
+    [ ( maclev._rescomp_model._indexers['c'][i][j],
+        function( 'c_%s'%j )( u_indexer[i] ) )
+      for i in (0,1,'i') for j in (0,1) ] +
+    [ ( maclev._rescomp_model._indexers['b'][i], function('b')( u_indexer[i] ) ) for i in (0,1,'i') ] +
+    [ ( maclev._rescomp_model._indexers['m'][i], function('m')( u_indexer[i] ) ) for i in (0,1,'i') ]
+    ) )
+bmc_from_fn_bindings = Bindings( FunctionBindings( dict(
+    [ ( function( 'c_%s'%j ), c_func(0,j).function( u_indexer[0] ) )
+        for j in (0,1) ] +
+    [ ( function( 'b' ), SR(1) ), ( function('m'), SR(1) ) ]
+    ) ) )
+
+lv_adap_c = LotkaVolterraAdaptiveDynamics( maclev_adap_c, r_name='k' )
 
 class SeriesOfBindings( Bindings ):
     def __init__( self, *args ):
-	# this list of bindings will be applied from right to left
-	self._series = args
+        # this list of bindings will be applied from right to left
+        self._series = args
     def substitute( self, expr ):
-	return self.substitute_list( self._series, expr )
+        return self.substitute_list( self._series, expr )
     def substitute_list( self, series, expr ):
-	if not series: return expr
-	return series[0]( self.substitute_list( series[1:], expr ) )
+        if not series: return expr
+        return series[0]( self.substitute_list( series[1:], expr ) )
     def _latex_(self):
-	from operator import add
-	return reduce( add, map( latex, self._series ) )
+        from operator import add
+        return reduce( add, map( latex, self._series ) )
 
 A_to_u_bindings = SeriesOfBindings(
-	bmc_bindings + numeric_params + lv_adap_c._fn_bindings
-		+ lv_adap_c.population_equilibrium_bindings(),
-	lv_adap_c._phenotypes_from_fn_bindings,
-	lv_adap_c.dudt_bindings(),
-	lv_adap_c._phenotypes_to_fn_bindings
-		+ lv_adap_c._A_to_fn_bindings )
+    bmc_bindings + numeric_params + ad_bindings
+        + lv_adap_c._lv_model._A_bindings
+        + lv_adap_c._adaptivedynamics._parameters_function_expansion_bindings
+        + lv_adap_c._lv_model.interior_equilibrium_bindings(),
+    lv_adap_c._phenotypes_from_fn_bindings,
+    lv_adap_c.dudt_bindings(),
+    lv_adap_c._phenotypes_to_fn_bindings )
 
 print 'printing things in LaTeX'
 sys.stdout.flush()
 
-ltx.write( 'A\_to\_u\_bindings is ' + latex( A_to_u_bindings ) )
+#ltx.write( 'A\_to\_u\_bindings is ' + latex( A_to_u_bindings ) )
 
-ltx.write_equality( SR('A(0)'), lv_adap_c.A(0), lv_adap_c._fn_bindings( lv_adap_c._A_to_fn_bindings( lv_adap_c.A(0) ) ) )
-ltx.write_equality( SR('A(1)'), lv_adap_c.A(1), lv_adap_c._fn_bindings( lv_adap_c._A_to_fn_bindings( lv_adap_c.A(1) ) ) )
-ltx.write_equality( SR('S(A(0))'), lv_adap_c.S( lv_adap_c.A(0) ), lv_adap_c._A_to_fn_bindings( lv_adap_c.population_equilibrium_bindings()( lv_adap_c.S( lv_adap_c.A(0) ) ) ) )
-ltx.write_equality( SR('S(A(1))'), lv_adap_c.S( lv_adap_c.A(1) ), lv_adap_c._A_to_fn_bindings( lv_adap_c.population_equilibrium_bindings()( lv_adap_c.S( lv_adap_c.A(1) ) ) ) ) 
+ltx.write_equality( SR('A(0)'), lv_adap_c.A(0), A_to_u_bindings( lv_adap_c.A(0) ) )
+ltx.write_equality( SR('A(1)'), lv_adap_c.A(1), A_to_u_bindings( lv_adap_c.A(1) ) )
+ltx.write_equality( SR('S(A(0))'), lv_adap_c.S( lv_adap_c.A(0) ), lv_adap_c._lv_model.interior_equilibrium_bindings()( lv_adap_c.S( lv_adap_c.A(0) ) ) )
+ltx.write_equality( SR('S(A(1))'), lv_adap_c.S( lv_adap_c.A(1) ), lv_adap_c._lv_model.interior_equilibrium_bindings()( lv_adap_c.S( lv_adap_c.A(1) ) ) ) 
 
 ltx.write_equality( wrap_latex( 'D(u_0)' ), lv_adap_c.direct_effect(0),
-	#A_to_u_bindings( lv_adap_c.direct_effect(0) ),
-	initial_conditions( A_to_u_bindings( lv_adap_c.direct_effect(0) ) ) )
+    A_to_u_bindings( lv_adap_c.direct_effect(0) ) )
 ltx.write_equality( wrap_latex( 'I(u_0)' ), lv_adap_c.indirect_effect(0),
-	initial_conditions( A_to_u_bindings( lv_adap_c.indirect_effect(0) ) ) )
+    A_to_u_bindings( lv_adap_c.indirect_effect(0) ) )
+ltx.write_equality( wrap_latex( r'\frac{dA}{dt}' ), lv_adap_c.dAdt(0),
+    A_to_u_bindings( lv_adap_c.dAdt(0) ) )
 
 print 'plot k vs. t'
 sys.stdout.flush()
@@ -363,9 +568,11 @@ sys.stdout.flush()
 # plot k values vs. time
 k_timeseries = Graphics();
 for i in (0, 1):
+    #print ( str( lv_adap_c._lv_model._indexers['r'][i] ) + ': ' +
+        #str( A_to_u_bindings( lv_adap_c._lv_model._A_bindings( lv_adap_c._lv_model._indexers['r'][i] ) ) ) )
     k_timeseries += c_evolution.plot( t,
-	A_to_u_bindings( lv_adap_c._glv_model._indexers['r'][i] ),
-	color=[ 'blue', 'red' ][i], figsize=(4,4) )
+        A_to_u_bindings( lv_adap_c._lv_model._A_bindings( lv_adap_c._lv_model._indexers['r'][i] ) ),
+        color=[ 'blue', 'red' ][i], figsize=(4,4) )
 k_timeseries.axes_labels( [ '$t$', '$k(\cdot)$' ] )
 k_timeseries.save( 'maclev-2-2-k-vs-t.png' )
 
@@ -376,9 +583,9 @@ sys.stdout.flush()
 a_timeseries = Graphics()
 for i in (0, 1):
     for j in (0, 1):
-	a_timeseries += c_evolution.plot( t,
-	    A_to_u_bindings( lv_adap_c._glv_model._indexers['a'][i][j] ), 
-	    color=(i == j and 'red' or 'lime'), figsize=(4,4) )
+        a_timeseries += c_evolution.plot( t,
+            A_to_u_bindings( lv_adap_c._lv_model._A_bindings( lv_adap_c._lv_model._indexers['a'][i][j] ) ), 
+            color=(i == j and 'red' or 'lime'), figsize=(4,4) )
 a_timeseries.axes_labels( [ '$t$', '$a(\cdot,\cdot)$' ] )
 a_timeseries.save( 'maclev-2-2-a-vs-t.png' )
 
@@ -388,9 +595,11 @@ sys.stdout.flush()
 # population size vs time
 X_timeseries = Graphics()
 for i in (0, 1):
+    #print ( str( hat( lv_adap_c._lv_model._population_indexer[i] ) ) + ': ' +
+        #str( A_to_u_bindings( lv_adap_c._lv_model.interior_equilibrium_bindings()( hat( lv_adap_c._lv_model._population_indexer[i] ) ) ) ) )
     X_timeseries += c_evolution.plot( t,
-	A_to_u_bindings( lv_adap_c._population_equilibrium_indexer[i] ),
-	color=[ 'blue', 'red' ][i], figsize=(4,4) )
+        A_to_u_bindings( lv_adap_c._lv_model.interior_equilibrium_bindings()( hat( lv_adap_c._lv_model._population_indexer[i] ) ) ),
+        color=[ 'blue', 'red' ][i], figsize=(4,4) )
 X_timeseries.axes_labels( [ '$t$', '$\hat{X}$' ] )
 X_timeseries.save( 'maclev-2-2-Xhat-vs-t.png' )
 
@@ -400,12 +609,12 @@ sys.stdout.flush()
 # population size vs time
 R_timeseries = Graphics()
 for i in (0, 1):
-    ri = A_to_u_bindings( Bindings( { X_0: 'Xhat_0', X_1: 'Xhat_1' } )( rescomp_u._bindings( SR('R_%s'%i) ) ) )
-    print ri
-    print Bindings( c_evolution._timeseries[0] )( ri )
+    ri = A_to_u_bindings( Bindings( { X_0: hat(X_0), X_1: hat(X_1) } )( maclev._bindings( SR('R_%s'%i) ) ) )
+    #print ri
+    #print Bindings( c_evolution._timeseries[0] )( ri )
     sys.stdout.flush()
     R_timeseries += c_evolution.plot( t, ri,
-	color=[ 'blue', 'red' ][i], figsize=(4,4) )
+        color=[ 'blue', 'red' ][i], figsize=(4,4) )
 R_timeseries.axes_labels( [ '$t$', '$\hat{R}$' ] )
 R_timeseries.save( 'maclev-2-2-Rhat-vs-t.png' )
 
@@ -418,14 +627,14 @@ a_phase_plane = Graphics()
 #a_3d = Graphics3d()
 for i in (0, 1):
     a_phase_plane += c_evolution.plot(
-	A_to_u_bindings( lv_adap_c._glv_model._indexers['a'][i][0] ),
-	A_to_u_bindings( lv_adap_c._glv_model._indexers['a'][i][1] ),
-	color=[ 'blue', 'red' ][i] )
+        A_to_u_bindings( lv_adap_c._lv_model._indexers['a'][i][0] ),
+        A_to_u_bindings( lv_adap_c._lv_model._indexers['a'][i][1] ),
+        color=[ 'blue', 'red' ][i] )
     #a_3d += c_evolution.plot3d(
-	#A_to_u_bindings( lv_adap_c._glv_model._indexers['a'][i][0] ),
-	#A_to_u_bindings( lv_adap_c._glv_model._indexers['a'][i][1] ),
-	#A_to_u_bindings( lv_adap_c._glv_model._indexers['r'][i] ),
-	#color=[ 'blue', 'red' ][i] )
+        #A_to_u_bindings( lv_adap_c._lv_model._indexers['a'][i][0] ),
+        #A_to_u_bindings( lv_adap_c._lv_model._indexers['a'][i][1] ),
+        #A_to_u_bindings( lv_adap_c._lv_model._indexers['r'][i] ),
+        #color=[ 'blue', 'red' ][i] )
 a_phase_plane.axes_labels( [ '$a(u_0,\cdot)$', '$a(u_1,\cdot)$' ] )
 a_phase_plane.save( 'maclev-2-2-a-vs-a.png', figsize=(4,4) )
 ##a_3d.axes_labels( [ '$a(u_0,u)$', '$a(u_1,u)$', '$k(u)' ] )
@@ -442,42 +651,45 @@ a_phase_plane_annotated = a_phase_plane
 
 last_t = -oo
 scale = 1/12
-Ai = A_to_u_bindings( lv_adap_c.A(i) )
-SAi = A_to_u_bindings( lv_adap_c.S(lv_adap_c.A(i)) )
-Di = A_to_u_bindings( lv_adap_c.direct_effect(i) )
-Ii = A_to_u_bindings( lv_adap_c.indirect_effect(i) )
-dAdti = A_to_u_bindings( lv_adap_c.dAdt(i) )
+vectors = dict()
 for p in c_evolution._timeseries:
     next_t = p[t]
     pp = Bindings( p )
     if next_t >= last_t + 0.1:
-	last_t = next_t
-	for i in (0,1):
-	    # check equality
-	    #ltx.write( '$D(%s) + I(%s) = %s \\overset{?}{=} \\frac{dA(u)}{du} = %s$\n\n' % (
-	    #	latex(i), latex(i), latex(
-	    #	  pp( A_to_u_bindings( Di ) ) +
-	    #	  pp( A_to_u_bindings( Ii ) )
-	    #	), latex(
-	    #	  pp( A_to_u_bindings( dAdti ) )
-	    #	) ) )
-	    S_A_arrow = a_arrow(
-		pp( Ai ),
-		pp( SAi ),
-		scale=scale, color='red' )
-	    D_arrow = a_arrow(
-		pp( Ai ),
-		pp( Di ),
-		scale=scale, color='green' )
-	    I_arrow = a_arrow(
-		pp( Ai + Di.apply_map( lambda x:x*scale ) ),
-		pp( Ii ),
-		scale=scale, color='purple' )
-	    dA_du_arrow = a_arrow(
-		pp( Ai ),
-		pp( dAdti ),
-		scale=scale, color='blue' )
-	    a_phase_plane_annotated += S_A_arrow + D_arrow + I_arrow + dA_du_arrow
+        last_t = next_t
+        for i in (0,1):
+            if not i in vectors:
+                vectors[i] = ( A_to_u_bindings( lv_adap_c.A(i) ),
+                    A_to_u_bindings( lv_adap_c.S(lv_adap_c.A(i)) ),
+                    A_to_u_bindings( lv_adap_c.direct_effect(i) ),
+                    A_to_u_bindings( lv_adap_c.indirect_effect(i) ),
+                    A_to_u_bindings( lv_adap_c.dAdt(i) ) )
+            (Ai, SAi, Di, Ii, dAdti) = vectors[i]
+            # check equality
+            #print ( '$D(%s) + I(%s) = %s \\overset{?}{=} \\frac{dA(u)}{du} = %s$\n\n' % (
+            #        latex(i), latex(i), latex(
+            #          pp( A_to_u_bindings( Di ) ) +
+            #          pp( A_to_u_bindings( Ii ) )
+            #        ), latex(
+            #          pp( A_to_u_bindings( dAdti ) )
+            #        ) ) )
+            S_A_arrow = a_arrow(
+                pp( Ai ),
+                pp( SAi ),
+                scale=scale, color='red' )
+            D_arrow = a_arrow(
+                pp( Ai ),
+                pp( Di ),
+                scale=scale, color='green' )
+            I_arrow = a_arrow(
+                pp( Ai + Di.apply_map( lambda x:x*scale ) ),
+                pp( Ii ),
+                scale=scale, color='purple' )
+            dA_du_arrow = a_arrow(
+                pp( Ai ),
+                pp( dAdti ),
+                scale=scale, color='blue' )
+            a_phase_plane_annotated += S_A_arrow + D_arrow + I_arrow + dA_du_arrow
 
 a_phase_plane_annotated.axes_labels( [ '$a(u_0,\cdot)$', '$a(u_1,\cdot)$' ] )
 a_phase_plane_annotated.save( 'maclev-2-2-a-arrows.png', figsize=(10,10)
