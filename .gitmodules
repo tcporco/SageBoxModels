@@ -7,3 +7,6 @@
 [submodule "wmd_files/SageAdaptiveDynamics"]
 	path = wmd_files/SageAdaptiveDynamics
 	url = workingwiki::http://lalashan.mcmaster.ca/theobio/worden:SageAdaptiveDynamics
+[submodule "_site"]
+	path = _site
+	url = https://github.com/worden-lee/adaptive-dynamics-research.git
