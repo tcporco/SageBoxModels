@@ -49,6 +49,14 @@ u_indexer = indexer('u')
 u_0, u_1 = (u_indexer[0], u_indexer[1])
 gamma = SR.var( 'gamma' )
 
+def linear_c_func(i,j):
+    return j + (1 - 2*j)*u_indexer[i]
+
+def linear_bindings(indices):
+    return Bindings( dict(
+        (rescomp._indexers['c'][i][j], linear_c_func(i,j))
+        for i in indices for j in (0,1) ) )
+
 def quadratic_c_func(i,j):
     if j == 0:
         return 1/(1 + u_indexer[i]**2*5)
@@ -68,37 +76,47 @@ def quadratic_bindings(indices):
         [ (rescomp._indexers['m'][i], 1) for i in indices ]
     ) )
 
-def linear_c_func(i,j):
-    return j + (1 - 2*j)*u_indexer[i]
+def exponential_c_func(i,j):
+    if j == 0 or j == 1:
+        return exp( -(u_indexer[i] - j)**2*2 )
+    return -inf
 
-def linear_bindings(indices):
+def make_bindings( c_func, indices ):
     return Bindings( dict(
-        (rescomp._indexers['c'][i][j], linear_c_func(i,j))
-        for i in indices for j in (0,1) ) )
+        [ (rescomp._indexers['c'][i][0], c_func(i,0))
+          for i in indices
+        ] +
+        [ (rescomp._indexers['c'][i][1], c_func(i,1))
+          for i in indices
+        ] +
+        [ (rescomp._indexers['b'][i], 1) for i in indices ] +
+        [ (rescomp._indexers['m'][i], 1) for i in indices ]
+    ) )
 
 which_model = 'quadratic'
 
-if which_model == 'quadratic':
-    c_func = quadratic_c_func
-    bindings_func = quadratic_bindings
-    bmc_bindings = bindings_func( (0,1,'i') )
-
-    initial_conditions = Bindings( {
-        # in a .sage file, could just write u_0: 1/3
-        # in a .py, fractions need special care
-        u_0 : Rational('1/3'),
-        u_1 : Rational('4/9')
-    } )
-else:
+if which_model == 'linear':
     c_func = linear_c_func
-    bindings_func = linear_bindings
-    bmc_bindings = bindings_func( (0,1,'i') )
-
+    bmc_bindings = make_bindings( c_func, (0,1,'i') )
     initial_conditions = Bindings( {
         # in a .sage file, could just write u_0: 1/3
         # in a .py, fractions need special care
         u_0 : Rational('1/3'),
         u_1 : Rational('5/11')
+    } )
+elif which_model == 'quadratic':
+    c_func = quadratic_c_func
+    bmc_bindings = make_bindings( c_func, (0,1,'i') )
+    initial_conditions = Bindings( {
+        u_0 : Rational('1/3'),
+        u_1 : Rational('4/9')
+    } )
+elif which_model == 'exponential':
+    c_func = exponential_c_func
+    bmc_bindings = make_bindings( c_func, (0,1,'i') )
+    initial_conditions = Bindings( {
+        u_0 : Rational('1/3'),
+        u_1 : Rational('4/9')
     } )
 
 gamma_bindings = Bindings( { gamma: 1 } )
@@ -124,7 +142,7 @@ ltx.write_block( maclev.bind( ad_bindings ) )
 maclev_initial_system = maclev.bind( ad_bindings + numeric_params + initial_conditions )
 p = maclev_initial_system.plot_vector_field( (X_0, 0, 2), (X_1, 0, 2), color="gray", figsize=(5,5) )
 p += maclev_initial_system.plot_ZNGIs( (X_0, 0, 2), (X_1, 0, 2), color="gray" )
-s = maclev_initial_system.solve( [0, 0.02, 0.05], end_points=50 )
+s = maclev_initial_system.solve( [0, 0.02, 0.05], end_points=500 )
 p += s.plot( X_0, X_1, color='red' )
 p.save( 'maclev-2-2-popdyn.png' )
 
@@ -177,7 +195,8 @@ ltx.write( "In our initial model, $c$ values are" )
 for i in ( 0, 1 ):
     for j in ( 0, 1 ):
         cij = rescomp_abstract._indexers['c'][i][j]
-        ltx.write_block( cij == (initial_conditions + bmc_bindings)( cij ) )
+        ncij = (initial_conditions + bmc_bindings)( cij )
+        ltx.write_block( cij, '=', ncij, '=', N(ncij, digits=4) )
 
 ltx.close()
 
@@ -197,7 +216,8 @@ State space of this population dynamics model:
 <source-file filename=maclev-2-2-adap.sage.step lang=sage>
 # requires: $(SageDynamics)/dynamicalsystems.py $(SageAdaptiveDynamics)/adaptivedynamics.py maclevmodels.py maclev_2_2_defs.py
 # produces: maclev-2-2-adap.sage.out.tex maclev-2-2-adap.sobj
-# produces: maclev-2-2-u-vs-t.png maclev-2-2-u-vs-u.png maclev-2-2-c-vs-c.png
+# produces: maclev-2-2-c-vs-u.png maclev-2-2-u-vs-t.png 
+# produces: maclev-2-2-u-vs-u.png maclev-2-2-c-vs-c.png
 from maclev_2_2_defs import *
 
 ltx = latex_output( 'maclev-2-2-adap.sage.out.tex' )
@@ -227,6 +247,15 @@ bmc_from_fn_bindings = Bindings( FunctionBindings( dict(
 
 #print 'bmc_to_fn_bindings:', bmc_to_fn_bindings
 #print 'bmc_from_fn_bindings:', bmc_from_fn_bindings
+
+print 'plot c vs u'
+sys.stdout.flush()
+
+# and plot c vs u
+u_timeseries = plot( c_func( 0, 0 ), (u_0, 0, 1) )
+u_timeseries += plot( c_func( 1, 1 ), (u_1, 0, 1), color="green" )
+u_timeseries.axes_labels( [ '$u$', '$c_i(u)$' ] )
+u_timeseries.save( 'maclev-2-2-c-vs-u.png', figsize=(4,4) )
 
 print "starting adaptive dynamics"
 sys.stdout.flush()
@@ -289,6 +318,10 @@ Here we derive the adaptive dynamics equations when it is the uptake rates $$c_{
 
 <project-file filename=maclev-2-2-adap.sage.out.html/>
 
+This is the $$c$$ functions for the two resources:
+
+<project-file filename=maclev-2-2-c-vs-u.png make=no/>
+
 With these parameters, what happens to the evolving traits $$u$$?
 
 <project-file filename=maclev-2-2-u-vs-t.png make=no/> <project-file filename=maclev-2-2-u-vs-u.png make=no/>
@@ -330,13 +363,18 @@ def make_arrow( base, vec, scale=1, **args ):
     #print [ aa for aa in arr ]
     return arr
 
-# plot c_0 vs c_1, with arrows
+# plot c_1 vs c_0, with arrows
+
+print 'plot c vs c'
+sys.stdout.flush()
 
 # first put in the curves in the c_0-c_1 plane
 c_phase_plane = Graphics()
+c_phase_plane += parametric_plot( (c_func( 0, 0 ), c_func( 0, 1 )), (u_0, 0, 1), color='gray' )
 for i in maclev._population_indices:
     ci = [ rescomp._indexers['c'][i][0], rescomp._indexers['c'][i][1] ]
     c_phase_plane += c_evolution.plot( ci[0], ci[1], color=[ 'blue', 'red' ][i] )
+
 # then add the arrows at intervals of 0.1 time step
 last_t = -oo
 maclev_bindings = ad_bindings + numeric_params

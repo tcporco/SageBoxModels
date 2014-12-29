@@ -5,4 +5,4 @@ wmd_files/% : /proc/uptime
 	$(MAKE) -C $(dir $@) $(notdir $@)
 
 sync :
-	jekyll build --config=_wmd_sync.yml
+	jekyll build --config=_config.yml,_wmd_sync.yml
