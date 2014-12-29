@@ -6,7 +6,7 @@ wmd_project: Selection_Gradients
 
 Tilman-style resource uptake isoclines for two species and two resources.
 
-* See also [Adaptive Geometry and Resource Competition - Two Species, Two Resources](/Selection_Gradients/MacLev-2-2.html).
+* See also [Adaptive Geometry and Resource Competition - Two Species, Two Resources](MacLev-2-2.html).
 
 <project-file filename=maclev-2-2-zngi.sage.step lang=sage>
 

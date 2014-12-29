@@ -8,25 +8,21 @@ I'm working on a paper about selection gradients and interactions - I'm not read
 
 I'm using Sage to evaluate and analyze these models.
 
-* [Adaptive Geometry of Resource Competition](/Selection_Gradients/MacLev.html): introducing the MacArthur-Levins resource competition model, and Sage code for it
-    * [Adaptive Geometry of Resource Competition: One Species, One Resource](/Selection_Gradients/MacLev-1-1.html): analysis of the simple case
-    * [Adaptive Geometry of Resource Competition: Two Species, Two Resources](/Selection_Gradients/MacLev-2-2.html): not so simple
+* [Adaptive Geometry of Resource Competition](MacLev.html): introducing the MacArthur-Levins resource competition model, and Sage code for it
+    * [Adaptive Geometry of Resource Competition: One Species, One Resource](MacLev-1-1.html): analysis of the simple case
+    * [Adaptive Geometry of Resource Competition: Two Species, Two Resources](MacLev-2-2.html): not so simple
     * [Notes](notes.html)
 
-This project also uses Sage code that's stored on wiki pages:
+This project also uses Sage code that's stored in an external Git repository:
 
-* [SageUtils](http://lalashan.mcmaster.ca/theobio/worden/index.php/SageUtils)
-* [SageDynamics](http://lalashan.mcmaster.ca/theobio/worden/index.php/SageDynamics)
-* [SageAdaptiveDynamics](http://lalashan.mcmaster.ca/theobio/worden/index.php/SageAdaptiveDynamics).
-
-I'm sorry to say I've made essential edits in these projects that hasn't been checked in currently.
+* [SageDynamics](https://github.com/worden-lee/SageDynamics.git)
 
 ## Code
 
 Here are some makefiles that are used by all the code on the various pages in this project.
 
 <source-file filename="sage.mk">
-# Makefile to connect the Sage code here with the code in SageDynamics and elsewhere
+# Makefile to connect the Sage code here with the code in SageDynamics
 
 # the three upstream projects are all bundled into one git repo
 export SageUtils            = $(realpath $(SageDynamicsRepo)/SageUtils)

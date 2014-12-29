@@ -12,8 +12,8 @@ This page explains the adaptive dynamics concepts and questions I'm using, and i
 
 Child pages use this theory and code to investigate specific cases of the models: 
 
-* [Adaptive Geometry of Resource Competition: One Species, One Resource](/Selection_Gradients/MacLev-1-1.html)
-* [Adaptive Geometry of Resource Competition: Two Species, Two Resources](/Selection_Gradients/MacLev-2-2.html)
+* [Adaptive Geometry of Resource Competition: One Species, One Resource](MacLev-1-1.html)
+* [Adaptive Geometry of Resource Competition: Two Species, Two Resources](MacLev-2-2.html)
 
 ## MacArthur-Levins population dynamics
 

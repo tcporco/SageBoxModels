@@ -5,9 +5,9 @@ wmd_project: Selection_Gradients
 ---
 <!--- wmd_enable_make: false --->
 
-This page investigates the adaptive dynamics of [the Macarthur-Levins resource competition model](/SelectionGradients/MacLev.html) in the special case of one species and one resource.
+This page investigates the adaptive dynamics of [the Macarthur-Levins resource competition model](MacLev.html) in the special case of one species and one resource.
 
-* See [Selection Gradients/MacLev.html](/Selection Gradients/MacLev.html) for the general model, and the adaptive dynamics formulation we're using here, including the specific questions about the $$a$$ and $$k$$ of the Lotka-Volterra framework.
+* See [Selection Gradients/MacLev.html](MacLev.html) for the general model, and the adaptive dynamics formulation we're using here, including the specific questions about the $$a$$ and $$k$$ of the Lotka-Volterra framework.
 
 Before we do evolution, we start by defining the basic population dynamics.  Here I'm just going to consider one population and one resource.  This configuration is well suited to visualizing in two-dimensional plots.  
 

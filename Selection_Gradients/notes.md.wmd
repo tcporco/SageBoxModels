@@ -5,7 +5,7 @@ title: "Adaptive Geometry of Antagonism and Cooperation: Notes"
 
 ## Numerical adaptive dynamics?
 
-How to do adaptive dynamics of systems that can only find the pop-dynamics equilibrium numerically?  The [a-d routine](/wmd_files/SageAdaptiveDynamics/adaptivedynamics.py.step) I've got does:
+How to do adaptive dynamics of systems that can only find the pop-dynamics equilibrium numerically?  The [a-d routine]({{site.baseurl}}/wmd_files/SageAdaptiveDynamics/adaptivedynamics.py.step) I've got does:
 
 * Solve the general equilibrium symbolically, then use that expression to 
   derive adaptive dynamics ODE (symbolically) and pass it to numeric integration.

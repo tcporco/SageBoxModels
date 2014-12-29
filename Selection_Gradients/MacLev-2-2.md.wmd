@@ -4,10 +4,10 @@ title: "Adaptive Geometry and Resource Competition: Two Species, Two Resources"
 wmd_project: Selection_Gradients
 ---
 
-This page investigates the adaptive dynamics of [the Macarthur-Levins resource competition model](/Selection_Gradients/MacLev.html) in the case of two species and two resources.
+This page investigates the adaptive dynamics of [the Macarthur-Levins resource competition model](MacLev.html) in the case of two species and two resources.
 
-* See [Selection_Gradients/MacLev](/Selection_Gradients/MacLev.html) for the general model, and the adaptive dynamics formulation we're using here, including the specific questions about the $$a$$ and $$k$$ of the Lotka-Volterra framework.
-* See also [Adaptive Geometry and Resource Competition - One Species, One Resource](/Selection_Gradients/MacLev-1-1.html).
+* See [Selection_Gradients/MacLev](MacLev.html) for the general model, and the adaptive dynamics formulation we're using here, including the specific questions about the $$a$$ and $$k$$ of the Lotka-Volterra framework.
+* See also [Adaptive Geometry and Resource Competition - One Species, One Resource](MacLev-1-1.html).
 
 We begin by creating and testing a 2-species, 2-resource model.  
 
