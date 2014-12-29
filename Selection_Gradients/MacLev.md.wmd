@@ -3,9 +3,7 @@ layout: page
 title: Adaptive Geometry of Resource Competition
 wmd_project: Selection_Gradients
 wmd_prerequisite_projects:
-  SageUtils: SageUtils
-  SageDynamics: SageDynamics
-  SageAdaptiveDynamics: SageAdaptiveDynamics
+  SageDynamicsRepo: SageDynamicsRepo
 ---
 
 On these pages I am investigating the evolution of interactions in the MacArthur/Levins resource competition model.
@@ -187,12 +185,6 @@ def c_var(i, l):
 def b_var(i):
     return SR.var( 'b_%s'%i )
 
-def b_func(nargs=1):
-    key = ('b', nargs)
-    if not key in memoize:
-	memoize[key] = function( 'b', nargs=nargs )
-    return memoize[key]
-
 def m_var(i):
     return SR.var( 'm_%s'%i )
 
@@ -239,13 +231,11 @@ class ResourceCompetitionModel(PopulationDynamicsSystem):
 
 class MacArthurLevinsModel(PopulationDynamicsSystem):
     """The MacArthur-Levins model is constructed by separating timescales
-    to remove the R_l variables from the dynamics
-    """
+    to remove the R_l variables from the dynamics"""
     def __init__(self, rescomp_model=None, **named_args):
         """Give me a ResourceCompetitionModel with nx populations and
         nr resources, I will crunch it down into a MacArthurLevinsModel
-        with nx populations.
-        """
+        with nx populations."""
         #print 'MacArthurLevinsModel', (rescomp_model, named_args)
         if rescomp_model is None:
             rescomp_model = ResourceCompetitionModel(**named_args)
@@ -259,7 +249,7 @@ class MacArthurLevinsModel(PopulationDynamicsSystem):
     def flow(self):
         # find the equilibrium values of R_l given the current values X_i
         R = [self._rescomp_model._indexers['R'][l] for l in self._r_indices]
-        Rsolns = dict( (R_l, self.solve_for_R(R_l)) for R_l in R )
+        Rsolns = { R_l:self.solve_for_R(R_l) for R_l in R }
         #print 'R solns:', Rsolns
         # now substitute those values of R into the X equations
         reduced_flow = dict( (X_i,
@@ -275,6 +265,8 @@ class MacArthurLevinsModel(PopulationDynamicsSystem):
         #print "R-hat: %s" % Rhat_soln[0][R_l]
         # put it in the bindings in case we want to plot R_l or something
         self._bindings[R_l] = Rhat_soln[0][R_l]
+        # it's also its own equilibrium
+        self._bindings[hat(R_l)] = self._rescomp_model.add_hats( Rhat_soln[0][R_l] )
         return Rhat_soln[0][R_l]
     def set_population_indices(self,xi):
         # need to pass this through to the res-comp system
@@ -313,10 +305,9 @@ class GeneralizedLotkaVolterraModel(PopulationDynamicsSystem):
         return dict( (X[i],
           X[i]*(r[i] + sum( a[i][j]*X[j] for j in self._population_indices )))
           for i in self._population_indices)
-
     def interior_equilibrium_bindings( self, phenotype_bindings=Bindings() ):
 	eq = self.bind( phenotype_bindings ).interior_equilibria()[0]
-	eb = Bindings( dict( ( hat( self._population_indexer[i] ), eq[ self._population_indexer[i] ] ) for i in self._population_indices ) )
+	eb = Bindings( { vhat:eq[vhat] for vhat in (hat(v) for v in self._vars) } )
 	#print 'equilibrium bindings:', eb
 	return eb
 
@@ -344,17 +335,31 @@ class DerivedLotkaVolterraModel( GeneralizedLotkaVolterraModel ):
 	a_indexer = indexer_2d(a_name)
         x_indexer = model._population_indexer
         aij_dict = {}
+        vars = {v:1 for v in model._vars}
         for i in model._population_indices:
-	    lvi = model._flow[x_indexer[i]].expand()
-	    ri = xic = get_coeff( lvi, x_indexer[i], 1 )
-	    aij_dict[a_indexer[i][i]] = get_coeff( lvi, x_indexer[i], 2 )
+            xi = x_indexer[i]
+	    lvi = model._flow[xi].expand()
+            print 'Inferring LV coefficients from', xi, 'equation:', lvi
+	    ri = xic = get_coeff( lvi, xi, 1 )
+	    aij = aij_dict[a_indexer[i][i]] = get_coeff( lvi, xi, 2 )
+            lvi -= aij * xi**2
 	    for j in model._population_indices:
 	        if j != i:
-		    ri = get_coeff( ri, x_indexer[j], 0 )
-		    aij_dict[a_indexer[i][j]] = get_coeff( xic, x_indexer[j], 1 )
+                    xj = x_indexer[j]
+		    ri = get_coeff( ri, xj, 0 )
+		    aij = aij_dict[a_indexer[i][j]] = get_coeff( xic, xj, 1 )
+                    print a_indexer[i][j], ':', aij
+                    lvi -= aij * xi * xj
+            print r_indexer[i], ':', ri
 	    aij_dict[r_indexer[i]] = ri
+            lvi -= ri * xi
+            if lvi != 0:
+                raise LotkaVolterraException( "Population dynamics has excess terms in " + str(i) + "'th component: " + str(lvi) )
+            del vars[xi]
+        if len(vars) > 0:
+            raise LotkaVolterraException( "Population dynamics has extra variables: " + ', '.join(vars.keys()) )
 	self._A_bindings = Bindings( aij_dict ) 
-        return super(DerivedLotkaVolterraModel,self).__init__(
+        super(DerivedLotkaVolterraModel,self).__init__(
             model._population_indices,
             r = r_indexer,
             a = a_indexer
@@ -367,8 +372,8 @@ class LotkaVolterraAdaptiveDynamics( object ):
 
 	print 'ad bindings:', self._adaptivedynamics._bindings
 	print 'model bindings:', self._adaptivedynamics._popdyn_model._bindings
-	print '_parameters_to_functions_bindings:', self._adaptivedynamics._parameters_to_functions_bindings
-	print '_parameters_function_expansion_bindings:', self._adaptivedynamics._parameters_function_expansion_bindings
+	print '_early_bindings:', self._adaptivedynamics._early_bindings
+	print '_late_bindings:', self._adaptivedynamics._late_bindings
 
 	# make LV model here
 	print 'make LV model'
@@ -382,7 +387,7 @@ class LotkaVolterraAdaptiveDynamics( object ):
 	# sanity check the a values' functional form
 	# using extended system, in case it's only 1-d otherwise
 	extended_lv_model = DerivedLotkaVolterraModel( ad._extended_system, r_name=r_name, a_name=a_name )
-	a_to_u_bindings = self._adaptivedynamics._bindings + self._adaptivedynamics._parameters_function_expansion_bindings + extended_lv_model._A_bindings
+	a_to_u_bindings = self._adaptivedynamics._bindings + self._adaptivedynamics._late_bindings + extended_lv_model._A_bindings
 	print 'a_to_u_bindings:', a_to_u_bindings
         a_func = a_to_u_bindings( extended_lv_model._indexers['a'][0]['i'] ).function( u_indexer[0], u_indexer['i'] )
 	print 'a_func:', a_func
@@ -395,6 +400,7 @@ class LotkaVolterraAdaptiveDynamics( object ):
 			'Model does not have consistent form a(u_i,u_j): ' +
 			str( a_to_u_bindings( extended_lv_model._indexers['a'][i][j] ) ) +
 			' does not have the form of ' +
+                        'a(%s, %s) = ' % (u_indexer[i], u_indexer[j]) +
 			str( a_func( u_indexer[i], u_indexer[j] ) ) )
 		if a_to_u_bindings( extended_lv_model._indexers['r'][i] ) != r_func( u_indexer[i] ):
 		    raise LotkaVolterraException(
@@ -418,16 +424,17 @@ class LotkaVolterraAdaptiveDynamics( object ):
 			return SR.var( '{0}_{1}_{2}'.format( self._name, i, self._j ),
 			    latex_name='%s_\{%s%s\}' % ( self._name, i, self._j ) )
 		return subindexer( self._f, j )
+        formal_equilibrium = Bindings( { v : hat(v) for v in self._lv_model.population_vars() } )
 	self._lv_adap = AdaptiveDynamicsModel(
 	    self._lv_model,
 	    [ self._lv_model._indexers['r'] ] + [ indexer_2d_backwards('a')[j] for j in self._lv_model._population_indices ],
-	    equilibrium_function = self.equilibrium_function )
+            equilibrium = formal_equilibrium )
 	# todo: what to do with multiple phenotype indexers?
 	print 'make LV evolution bindings'
 	ui = self._adaptivedynamics._phenotype_indexers[0]
 	# _A_to_function_bindings expands the LV equations
 	# into functions of u_i, e.g. from a_i_j to a(u_i,u_j)
-	# very necessary so that derivatives can be taken
+	# very necessary so that partial derivatives can be taken
 	self._A_to_function_bindings = Bindings( dict( [
 	  ( self._lv_model._indexers['a'][i][j], 
 	    self._lv_model._A_bindings( function( a_name )( ui[i], ui[j] ) ) )
@@ -445,12 +452,9 @@ class LotkaVolterraAdaptiveDynamics( object ):
 	    for i in self._lv_model._population_indices
 	    for u in self._adaptivedynamics._phenotype_indexers ) )
 	# _phenotypes_from_fn_bindings: the inverse, change u_i(t) to u_i
-	self._phenotypes_from_fn_bindings = Bindings( dict(
-	    (v, k) for k, v in self._phenotypes_to_fn_bindings.items() ) )
+	self._phenotypes_from_fn_bindings = Bindings(
+	    { v:k for k, v in self._phenotypes_to_fn_bindings.items() } )
 	#print '_phenotypes_from_fn_bindings:', self._phenotypes_from_fn_bindings
-    @staticmethod
-    def equilibrium_function( ad, pd ):
-        return [ dict( ( pd._population_indexer[i], hat( pd._population_indexer[i] ) ) for i in pd._population_indices ) ]
     def A( self, i ):
         return column_vector(
             [ self._lv_model._indexers['r'][i] ] +
@@ -514,14 +518,17 @@ class LotkaVolterraAdaptiveDynamics( object ):
 		self.d1A(i).transpose().dot_product( self.S( self.A(i) ).transpose() ) )
 	    ) for i in self._lv_model._population_indices ) )
     def dAdt( self, i ):
-	import operator
-	#print 'A(%s):'%i, self.A(i)
-	Au = self._adaptivedynamics._bindings( self._lv_model._A_bindings( self.A(i) ) )
-	#print ' = ', Au
+        Ai = self.A(i)
+	Au = self._adaptivedynamics._bindings( self._lv_model._A_bindings( Ai ) )
 	u = self._adaptivedynamics._phenotype_indexers[0]
-	d = reduce( operator.add, ( diff( Au, u[j] ) * diff( self._phenotypes_to_fn_bindings( u[j] ), self._adaptivedynamics._time_variable ) for j in self._lv_model._population_indices ) )
+	#import operator
+        dAdus = [ self._phenotypes_to_fn_bindings( diff( Au, u[j] ) ) for j in self._lv_model._population_indices ]
+        dudts = [ diff( self._phenotypes_to_fn_bindings( u[j] ), self._adaptivedynamics._time_variable ) for j in self._lv_model._population_indices ]
+        # need: column_vector * scalar
+        dAdts = [ column_vector( dAidu * dudt for dAidu in dAdu ) for dAdu, dudt in zip( dAdus, dudts ) ]
+	d = reduce( operator.add, dAdts )
 	#print 'dAdt: diff of Au is $%s$' % latex( d )
+        sys.stdout.flush()
 	return d
-
 </source-file>
 

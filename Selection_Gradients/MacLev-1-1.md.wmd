@@ -13,6 +13,8 @@ Before we do evolution, we start by defining the basic population dynamics.  Her
 
 <source-file filename=maclev-1-1.sage.step lang=sage>
 # requires: maclevmodels.py $(SageDynamics)/dynamicalsystems.py
+# requires: $(SageAdaptiveDynamics)/adaptivedynamics.py
+# requires: $(SageUtils)/latex_output.py
 # produces: maclev-1-1.sobj maclev-1-1.sage.out.tex
 from sage.all import * 
 from sage.misc.latex import _latex_file_
@@ -53,6 +55,7 @@ The model equations, according to Sage:
 
 <source-file filename=maclev-1-1-adap.sage.step lang=sage>
 # requires: maclevmodels.py $(SageAdaptiveDynamics)/adaptivedynamics.py maclev-1-1.sobj
+# requires: $(SageUtils)/latex_output.py
 # produces: maclev-1-1-c00.png maclev-1-1-X.png maclev-1-1-ak.png maclev-1-1-adap.sage.out.tex maclev-1-1-adap.sobj
 from sage.all import *
 from sage.misc.latex import _latex_file_
@@ -68,6 +71,13 @@ from maclevmodels import *
 from adaptivedynamics import *
 from latex_output import *
 
+# create variables with custom latex names because load_session
+# creates them wrong
+# http://trac.sagemath.org/ticket/17559
+for x in ('X_0', 'X_i', 'R_0'): hat(SR.symbol(x))
+SR.symbol( 'c_0_0', latex_name='c_{00}' )
+SR.symbol( 'c_i_0', latex_name='c_{i0}' )
+
 load_session('maclev-1-1')
 
 ltx = latex_output( 'maclev-1-1-adap.sage.out.tex' )
@@ -75,7 +85,6 @@ ltx = latex_output( 'maclev-1-1-adap.sage.out.tex' )
 u_indexer = indexer('u')
 u_0 = u_indexer[0]
 
-import operator
 evol_c_bindings = Bindings( reduce( operator.add, (
     [ ( rescomp._indexers['c'][i][0], u_indexer[i] ),
       ( rescomp._indexers['b'][i], 1 ),
@@ -83,7 +92,7 @@ evol_c_bindings = Bindings( reduce( operator.add, (
     ] for i in (0,'i') ) ) )
 
 maclev_adap = AdaptiveDynamicsModel(maclev,
-    [ indexer('u') ], parameters_to_functions_bindings=evol_c_bindings)
+    [ indexer('u') ], early_bindings=evol_c_bindings )
 
 print 'when c_00 == u, the adaptive dynamics is ', maclev_adap
 
@@ -105,10 +114,10 @@ c_evolution = maclev_adap_bound.solve( [0, initial_u], end_points=10 )
 t = maclev_adap.time_variable()
 c_evolution.plot( t, u_indexer[0], 'maclev-1-1-c00.png', ylabel='$c_{00}$', figsize=(4,4) )
 # Xhat increases.
-Xhat = SR.var('X_0', latex_name='\hat{X}_0')
-c_evolution.plot( t, maclev_adap_bound._parameters_to_functions_bindings( maclev_adap_bound._bindings( Xhat ) ), "maclev-1-1-X.png", ylabel=Xhat, figsize=(4,4) )
-Rhat = SR.var('R_0', latex_name='\hat{R}_0')
-c_evolution.plot( t, maclev_adap_bound._parameters_to_functions_bindings( maclev_adap_bound._bindings( Rhat ) ), "maclev-1-1-R.png", figsize=(4,4) )
+Xhat = hat( maclev_adap_bound._popdyn_model._population_indexer[0] )
+c_evolution.plot( t, evol_c_bindings( maclev_adap_bound._bindings( Xhat ) ), "maclev-1-1-X.png", ylabel=Xhat, figsize=(4,4) )
+Rhat = hat( maclev_adap_bound._popdyn_model._rescomp_model._indexers['R'][0] )
+c_evolution.plot( t, evol_c_bindings( maclev_adap_bound._bindings( Rhat ) ), "maclev-1-1-R.png", figsize=(4,4), ylabel=Rhat )
 # and let's also plot k_0 vs. a_00.
 # these are the coefficients if you rewrite the maclev dynamics
 # as dX_0/dt = X_0(k_0 + a_00 X_0)
@@ -118,19 +127,19 @@ rhsc = maclev._flow[X_0].collect(X_0)
 k_0 = rhsc.coeff(X_0,1)
 a_00 = rhsc.coeff(X_0,2)
 ltx.write( 'With and without these bindings, the Lotka-Volterra coefficients $k_0$ and $a_{00}$ are:' )
-ltx.write_equality( SR.var('k_0'), k_0, numeric_params( maclev_adap_bound._parameters_to_functions_bindings(k_0)) )
-ltx.write_equality( SR.var('a_0_0', latex_name='a_{00}' ), a_00, numeric_params( maclev_adap_bound._parameters_to_functions_bindings(a_00) ) )
+ltx.write_equality( SR.var('k_0'), k_0, numeric_params( maclev_adap_bound._early_bindings(k_0)) )
+ltx.write_equality( SR.var('a_0_0', latex_name='a_{00}' ), a_00, numeric_params( maclev_adap_bound._early_bindings(a_00) ) )
 
 ltx.write( 'And the equilibrium values $\\hat X$ and $\\hat R$:',
     '\\begin{align*}\n  \\hat X_0 &\\to ',
-    latex( maclev_adap_bound._bindings( Xhat ) ), ' = ',
-    latex( numeric_params( maclev_adap_bound._bindings( Xhat ) ) ), '\\\\\n',
+    latex( maclev_adap_bound._equilibrium( Xhat ).expand() ), ' = ',
+    latex( maclev_adap_bound._bindings( Xhat ).expand() ), '\\\\\n',
     '  \\hat R_0 &\\to ',
-    latex( maclev_adap_bound._bindings( Rhat ) ), ' = ',
-    latex( numeric_params( maclev_adap_bound._bindings( Rhat ) ) ), '\n',
+    latex( maclev_adap_bound._equilibrium( maclev_adap_bound._popdyn_model._bindings( Rhat ) ).expand() ), ' = ',
+    latex( maclev_adap_bound._bindings( Rhat ).expand() ), '\n',
     '\\end{align*}\n' )
 
-c_evolution.plot( maclev_adap_bound._parameters_to_functions_bindings( a_00 ), maclev_adap_bound._parameters_to_functions_bindings( k_0 ), "maclev-1-1-ak.png",
+c_evolution.plot( maclev_adap_bound._early_bindings( a_00 ), maclev_adap_bound._early_bindings( k_0 ), "maclev-1-1-ak.png",
   xlabel = SR.var('a_00'), ylabel = SR.var('k_0'), figsize=(4,4) )
 
 ltx.close()
@@ -162,6 +171,7 @@ And the Lotka-Volterra coefficients $$k_0$$, $$a_{00}$$ both move away from zero
 
 <source-file filename=maclev-1-1-mc-adap-geom.sage.step lang=sage>
 # requires: maclevmodels.py $(SageAdaptiveDynamics)/adaptivedynamics.py maclev-1-1-adap.sobj
+# requires: $(SageUtils)/latex_output.py
 # produces: maclev-1-1-mc-adap-geom.sobj maclev-1-1-mc.png maclev-1-1-mc-adap-geom.sage.out.tex
 from sage.all import *
 
@@ -246,7 +256,7 @@ maclev_adap_c00_bound = maclev_adap_c00.bind( Bindings(
 c00_evolution = maclev_adap_c00_bound.solve( [0,2] )
 
 c00_bindings = c00_evolution._system._bindings.merge( FunctionBindings( {
-    function('c_0'):u_0.function(u_0), function('m'):SR('1'), function('b'):SR('1') } ) )
+    function('c_0'):u_0.function(u_0), function('m'):SR('1').function(u_0), function('b'):SR('1').function(u_0) } ) )
 
 flow_p_bound = vector( (c00_bindings(s_i) for s_i in flow_p_func) )
 
@@ -342,6 +352,7 @@ The red arrow shows how $$\mathbf p$$ "would like to evolve" if all its componen
 
 <source-file filename=maclev-1-1-ak-adap-geom.sage.step lang=sage>
 # requires: maclevmodels.py maclev-1-1-mc-adap-geom.sobj
+# requires: $(SageUtils)/latex_output.py
 # produces: maclev-1-1-ak-adap-geom.png maclev-1-1-ak-adap-geom.sage.out.tex
 from sage.all import *
 from sage.misc.latex import _latex_file_
@@ -357,6 +368,13 @@ from maclevmodels import *
 from adaptivedynamics import *
 from lotkavolterra import *
 from latex_output import *
+
+# create variables with custom latex names because load_session
+# creates them wrong
+# http://trac.sagemath.org/ticket/17559
+for x in ('X_0', 'X_i', 'R_0'): hat(SR.symbol(x))
+SR.symbol( 'c_0_0', latex_name='c_{00}' )
+SR.symbol( 'c_i_0', latex_name='c_{i0}' )
 
 load_session("maclev-1-1-mc-adap-geom")
 
@@ -737,7 +755,7 @@ Anyway, it's directly proportional to the population's growth rate in a sterile 
 
 [And while we're at it:
 
-[Hey! Where does this latex go??]<latex>\usepackage[usenames,dvipsnames,svgnames,table]{xcolor}\begin{align*}
+<latex>\usepackage[usenames,dvipsnames,svgnames,table]{xcolor}\begin{align*}
 \hat R_0 &= {\color{orange} K_0} - {\color{green} \frac{c_{00}}{r_0}}\hat X_0 \\
   &= {\color{orange} K_0} - {\color{green} \frac{c_{00}}{r_0}}(\color{orange} K_0 - \frac{\color{red} m_0}{\color{purple} c_{00} w_0}) \color{green} \frac{r_0}{c_{00}} \\
   &= \frac{\color{red} m_0}{\color{purple} c_{00} w_0}.]
@@ -812,6 +830,7 @@ outer = 3
 var( 'a k' )
 c = symbolic_expression( '(k + b_0 *m_0) / (b_0 w_0 K_0)' )
 vf = [ fixed_parameter_bindings( c00_bindings( change_p_to_functions( e ) ) ) for e in [ c * symbolic_expression('- b_0 * w_0 / r_0'), symbolic_expression( 'K_0 * b_0 * w_0' ) ] ]
+print vf; sys.stdout.flush()
 vfp = plot_vector_field( vf, [a,-outer,0], [k,0,outer], color='green', figsize=(4,4), frame=false );
 vfp.axes_labels( [ '$a$', '$k$' ] );
 vfp.save( 'maclev-1-1-d1A-vector-field.png' );
