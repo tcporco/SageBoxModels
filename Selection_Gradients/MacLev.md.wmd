@@ -228,6 +228,42 @@ class ResourceCompetitionModel(PopulationDynamicsSystem):
               sum(c[i][l]*X[i] for i in self._population_indices))
             for l in self._r_indices ]
         return dict(X_flows + R_flows)
+    def plot_R_ZNGIs( self, **options ):
+        """This probably doesn't do anything helpful when the number of
+        resources isn't 2"""
+        R_0, R_1 = ( self._indexers['R'][i] for i in (0,1) )
+        X_0, X_1 = ( self._population_indexer[i] for i in (0,1) )
+        P = Graphics()
+        #P = self.plot_isoclines( (R_0,0,4), (R_1,0,4), [ (X_0,0), (X_1,0) ], **iso_opts )
+        P += point( self._bindings( vector( [ self._indexers['K'][i] for i in (0,1) ] ) ), color='gray', size=30 )
+        # aux. line crossing R*
+        for x_in, x_out in ( (X_0,X_1), (X_1,X_0) ):
+            zngi = solve( self._flow[x_in]/x_in == 0, R_1, solution_dict=True )[0][R_1]
+            zngi_options = dict( options, color='gray', thickness=2, fill=True, fillcolor='gray', fillalpha=0.3, filename=None )
+            del zngi_options['filename']
+            r0max = solve( zngi, R_0, solution_dict=True )[0][R_0]
+            #print 'plot zngi:', zngi
+            #sys.stdout.flush()
+            P += plot( zngi, (R_0, 0, r0max), **zngi_options )
+            elim_x = Bindings( { x_out: 0 } )
+            # todo: plot parametrized by x_in, if needed for vertical case
+            zri_soln = solve( [
+                elim_x( self._flow[R_0] == 0 ),
+                elim_x( self._flow[R_1] == 0 ) ],
+                [ x_in, R_1 ], solution_dict=True )[0]
+            zri_r1 = zri_soln[R_1]
+            #print 'plot zri:', zri_r1
+            #sys.stdout.flush()
+            zri_options = dict( options, thickness=1,
+               color = { X_0:'blue', X_1:'red' }[x_in] )
+            del zri_options['filename']
+            P += plot( zri_r1, (R_0,0,4), **zri_options )
+            rstar_soln = solve( [ R_1 == zri_r1, R_1 == zngi ], [ R_0, R_1 ], solution_dict=True )[0]
+            rstar = Bindings( rstar_soln )( vector( [ R_0, R_1 ] ) )
+            P += point( rstar, color='gray', size=30 )
+        if 'filename' in options:
+            P.save( **options )
+        return P
 
 class MacArthurLevinsModel(PopulationDynamicsSystem):
     """The MacArthur-Levins model is constructed by separating timescales

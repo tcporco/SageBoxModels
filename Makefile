@@ -6,3 +6,5 @@ wmd_files/% : /proc/uptime
 
 sync :
 	jekyll build --config=_config.yml,_wmd_sync.yml
+
+.PHONY: sync
