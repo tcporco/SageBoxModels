@@ -228,16 +228,16 @@ class ResourceCompetitionModel(PopulationDynamicsSystem):
               sum(c[i][l]*X[i] for i in self._population_indices))
             for l in self._r_indices ]
         return dict(X_flows + R_flows)
-    def plot_R_ZNGIs( self, **options ):
+    def plot_R_ZNGIs( self, with_perpendicular=True, **options ):
         """This probably doesn't do anything helpful when the number of
-        resources isn't 2"""
+        resources or populations isn't 2"""
         R_0, R_1 = ( self._indexers['R'][i] for i in (0,1) )
         X_0, X_1 = ( self._population_indexer[i] for i in (0,1) )
         P = Graphics()
-        #P = self.plot_isoclines( (R_0,0,4), (R_1,0,4), [ (X_0,0), (X_1,0) ], **iso_opts )
-        P += point( self._bindings( vector( [ self._indexers['K'][i] for i in (0,1) ] ) ), color='gray', size=30 )
+        if with_perpendicular:
+            P += point( self._bindings( vector( [ self._indexers['K'][i] for i in (0,1) ] ) ), color='gray', size=30 )
         # aux. line crossing R*
-        for x_in, x_out in ( (X_0,X_1), (X_1,X_0) ):
+        for x_in in self.population_vars():
             zngi = solve( self._flow[x_in]/x_in == 0, R_1, solution_dict=True )[0][R_1]
             zngi_options = dict( options, color='gray', thickness=2, fill=True, fillcolor='gray', fillalpha=0.3, filename=None )
             del zngi_options['filename']
@@ -245,22 +245,23 @@ class ResourceCompetitionModel(PopulationDynamicsSystem):
             #print 'plot zngi:', zngi
             #sys.stdout.flush()
             P += plot( zngi, (R_0, 0, r0max), **zngi_options )
-            elim_x = Bindings( { x_out: 0 } )
-            # todo: plot parametrized by x_in, if needed for vertical case
-            zri_soln = solve( [
-                elim_x( self._flow[R_0] == 0 ),
-                elim_x( self._flow[R_1] == 0 ) ],
-                [ x_in, R_1 ], solution_dict=True )[0]
-            zri_r1 = zri_soln[R_1]
-            #print 'plot zri:', zri_r1
-            #sys.stdout.flush()
-            zri_options = dict( options, thickness=1,
-               color = { X_0:'blue', X_1:'red' }[x_in] )
-            del zri_options['filename']
-            P += plot( zri_r1, (R_0,0,4), **zri_options )
-            rstar_soln = solve( [ R_1 == zri_r1, R_1 == zngi ], [ R_0, R_1 ], solution_dict=True )[0]
-            rstar = Bindings( rstar_soln )( vector( [ R_0, R_1 ] ) )
-            P += point( rstar, color='gray', size=30 )
+            if with_perpendicular:
+                elim_x = Bindings( { x_out: 0 for x_out in self.population_vars() if x_out != x_in } )
+                # todo: plot parametrized by x_in, if needed for vertical case
+                zri_soln = solve( [
+                    elim_x( self._flow[R_0] == 0 ),
+                    elim_x( self._flow[R_1] == 0 ) ],
+                    [ x_in, R_1 ], solution_dict=True )[0]
+                zri_r1 = zri_soln[R_1]
+                #print 'plot zri:', zri_r1
+                #sys.stdout.flush()
+                zri_options = dict( options, thickness=1,
+                   color = { X_0:'blue', X_1:'red' }[x_in] )
+                zri_options['filename'] = None
+                P += plot( zri_r1, (R_0,0,4), **zri_options )
+                rstar_soln = solve( [ R_1 == zri_r1, R_1 == zngi ], [ R_0, R_1 ], solution_dict=True )[0]
+                rstar = Bindings( rstar_soln )( vector( [ R_0, R_1 ] ) )
+                P += point( rstar, color='gray', size=30 )
         if 'filename' in options:
             P.save( **options )
         return P
@@ -296,6 +297,7 @@ class MacArthurLevinsModel(PopulationDynamicsSystem):
     def solve_for_R(self, R_l):
         """solve for the equilibrium value of one R_l given the X_i values"""
         Rhat_soln = solve( 0 == self._rescomp_model._flow[R_l], R_l, solution_dict=True )
+	#print 'solve for', R_l, 'in', [ 0 == self._rescomp_model._flow[R_l] ], ' => ', Rhat_soln
         # there should be just one solution
         assert len(Rhat_soln) == 1
         #print "R-hat: %s" % Rhat_soln[0][R_l]
@@ -479,7 +481,7 @@ class LotkaVolterraAdaptiveDynamics( object ):
 	# _phenotypes_to_fn_bindings: changes u_i to u_i(t)
 	# is used in all the below methods, so that du_i(t)/dt works
 	self._phenotypes_to_fn_bindings = Bindings( dict(
-	    ( u[i], function( str(u[i]), self._adaptivedynamics._time_variable ) )
+	    ( u[i], function( str(u[i]), self._adaptivedynamics._time_variable, latex_name=latex(u[i]) ) )
 	    for i in self._lv_model._population_indices
 	    for u in self._adaptivedynamics._phenotype_indexers ) )
 	# _phenotypes_from_fn_bindings: the inverse, change u_i(t) to u_i

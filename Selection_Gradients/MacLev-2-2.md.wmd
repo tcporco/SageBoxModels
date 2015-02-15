@@ -11,7 +11,7 @@ This page investigates the adaptive dynamics of [the Macarthur-Levins resource c
 
 We begin by creating and testing a 2-species, 2-resource model.  
 
-<source-file filename=maclev_2_2_defs.py.step lang=python>
+<source-file filename=maclev_2_2_defs.py.step lang=python display=link display=link>
 # requires: maclevmodels.py $(SageDynamics)/dynamicalsystems.py
 from sage.all import *
 from sage.misc.latex import _latex_file_
@@ -57,11 +57,11 @@ def linear_bindings(indices):
         (rescomp._indexers['c'][i][j], linear_c_func(i,j))
         for i in indices for j in (0,1) ) )
 
+#quadratic_focus = 5 # narrow, selects for specialists
+quadratic_focus = 2
 def quadratic_c_func(i,j):
-    if j == 0:
-        return 1/(1 + u_indexer[i]**2*5)
-    if j == 1:
-        return 1/(1 + (u_indexer[i]-1)**2*5)
+    if j == 0 or j == 1:
+        return 1/(1 + (u_indexer[i]-j)**2 * quadratic_focus)
     return -inf
 
 def quadratic_bindings(indices):
@@ -76,7 +76,8 @@ def quadratic_bindings(indices):
         [ (rescomp._indexers['m'][i], 1) for i in indices ]
     ) )
 
-exp_focus = 3 #0.25
+#exp_focus = 0.25 # very broad, selects for generalist
+exp_focus = 3    # narrow, selects for specialists
 def exponential_c_func(i,j):
     if j == 0 or j == 1:
         return exp( -(u_indexer[i] - j)**2 * exp_focus )
@@ -101,7 +102,9 @@ integrate_popdyn_to = 30
 integrate_adapdyn_to = 1
 integrate_adapdyn_step = 0.02
 
-which_model = 'quadratic'
+gamma_bindings = Bindings( { gamma: 1 } )
+
+which_model = 'exponential'
 
 if which_model == 'linear':
     c_func = linear_c_func
@@ -127,23 +130,21 @@ elif which_model == 'exponential':
     c_bindings = make_bindings( c_func, (0,1,'i') )
     bmc_bindings = bm_bindings + c_bindings
     initial_conditions = Bindings( {
-        u_0 : Rational('1/4'),
-        u_1 : Rational('3/4'),
+        u_0 : Rational('3/7'), #'1/4'),
+        u_1 : Rational('4/7')  #'3/4'),
     } )
     integrate_adapdyn_to = 5
     integrate_adapdyn_step = 0.1
-
-gamma_bindings = Bindings( { gamma: 1 } )
 
 ad_bindings = bmc_bindings + gamma_bindings
 
 </source-file>
 
-<source-file filename=maclev-2-2-popdyn.sage.step lang=sage>
+<source-file filename=maclev-2-2-popdyn.sage.step lang=sage display=link>
 # requires: maclev_2_2_defs.py
 # requires: $(SageDynamics)/dynamicalsystems.py maclevmodels.py
 # produces: maclev-2-2-popdyn.sage.out.tex maclev-2-2-popdyn.sobj
-# produces: maclev-2-2-popdyn.png maclev-2-2-r-zngis.png maclev-2-2-c-vs-u.png 
+# produces: maclev-2-2-popdyn.png maclev-2-2-r-zngis.png maclev-2-2-c-vs-u.png
 from maclev_2_2_defs import *
 
 print 'start'
@@ -154,8 +155,8 @@ ltx = latex_output( 'maclev-2-2-popdyn.sage.out.tex' )
 ltx.write( 'The Mac-Lev model in generic form: ' )
 ltx.write_block( maclev )
 
-print 'apply bindings:', ad_bindings
-sys.stdout.flush()
+#print 'apply bindings:', ad_bindings
+#sys.stdout.flush()
 
 ltx.write( 'The Mac-Lev model with $b, m$, and $c$ bound to functions of $u$:\n' )
 ltx.write_block( maclev.bind( ad_bindings ) )
@@ -166,7 +167,7 @@ sys.stdout.flush()
 maclev_initial_system = maclev.bind( ad_bindings + numeric_params + initial_conditions )
 p = maclev_initial_system.plot_vector_field( (X_0, 0, 2), (X_1, 0, 2), color="gray", figsize=(5,5) )
 p += maclev_initial_system.plot_ZNGIs( (X_0, 0, 2), (X_1, 0, 2), color="gray" )
-s = maclev_initial_system.solve( [0, 0.02, 0.05], end_points=integrate_popdyn_to )
+s = maclev_initial_system.solve( [0.02, 0.05], end_time=integrate_popdyn_to )
 p += s.plot( X_0, X_1, color='red' )
 p.save( 'maclev-2-2-popdyn.png' )
 
@@ -281,7 +282,7 @@ community's two residents are marked on this plot as well.
 
 ## Adaptive dynamics of $$u$$
 
-<source-file filename=maclev-2-2-adap.sage.step lang=sage>
+<source-file filename=maclev-2-2-adap.sage.step lang=sage display=link>
 # requires: $(SageDynamics)/dynamicalsystems.py
 # requires: $(SageAdaptiveDynamics)/adaptivedynamics.py maclevmodels.py
 # requires: maclev-2-2-popdyn.sobj maclev_2_2_defs.py
@@ -346,26 +347,26 @@ try:
     print ( 'find adaptive dynamics equilibria' )
     sys.stdout.flush()
 
-    ltx.write( 'equilibria:' )
-    adap_equilibria = maclev_adap_c.equilibria( ranges={ u_0:(0.1,0.4,0.6,0.9), u_1:(0.1,0.4,0.6,0.9) } )
-    for eq in adap_equilibria:
-        ltx.write_block( eq )
+    #ltx.write( 'equilibria:' )
+    #adap_equilibria = maclev_adap_c.equilibria( ranges={ u_0:(0.1,0.4,0.6,0.9), u_1:(0.1,0.4,0.6,0.9) } )
+    #for eq in adap_equilibria:
+        #ltx.write_block( eq )
 
     print 'construct u vector field plot'
     sys.stdout.flush()
 
     # plot phase plane of u vs u
     u_phase_plane = maclev_adap_c.plot_vector_field( (u_0,0,1), (u_1,0,1), color='gray', plot_points=(19,20) )
-    for eq in adap_equilibria:
-        print 'eq',eq
-        print 'eq u_0', Bindings( eq )( hat(u_0) )
-        u_phase_plane += point( Bindings( eq )( vector( [ hat(u_0), hat(u_1) ] ) ), color='black', size=30 )
+    #for eq in adap_equilibria:
+        #print 'eq',eq
+        #print 'eq u_0', Bindings( eq )( hat(u_0) )
+        #u_phase_plane += point( Bindings( eq )( vector( [ hat(u_0), hat(u_1) ] ) ), color='black', size=30 )
 
     print 'solve'
     sys.stdout.flush()
 
     try:
-        c_evolution = maclev_adap_c.solve( [0, initial_conditions( u_0 ), initial_conditions( u_1 ) ], end_points=integrate_adapdyn_to, step=integrate_adapdyn_step )
+        c_evolution = maclev_adap_c.solve( [ initial_conditions( u_0 ), initial_conditions( u_1 ) ], end_time=integrate_adapdyn_to, step=integrate_adapdyn_step )
 
         print 'plot u vs t'
         sys.stdout.flush()
@@ -415,12 +416,12 @@ With these parameters, what happens to the evolving traits $$u$$?
 
 ## Adaptive Geometry: Ecological quantities $$m$$, $$b$$, and particularly $$c$$
 
-<source-file filename=maclev-2-2-p.sage.step>
+<source-file filename=maclev-2-2-p.sage.step display=link>
 # requires: $(SageDynamics)/dynamicalsystems.py $(SageUtils)/latex_output.py
 # requires: $(SageAdaptiveDynamics)/adaptivedynamics.py maclevmodels.py
 # requires: maclev_2_2_defs.py maclev-2-2-adap.sobj
-# produces: maclev-2-2-p.sage.out.tex maclev-2-2-c-vs-c.png
-# produces: maclev-2-2-total-c-vs-u.png
+# produces: maclev-2-2-p.sage.out.tex maclev-2-2-c-vs-t.png
+# produces: maclev-2-2-c-vs-c.png maclev-2-2-total-c-vs-u.png
 from maclev_2_2_defs import *
 
 load_session( 'maclev-2-2-adap' )
@@ -460,6 +461,18 @@ def make_arrow( base, vec, scale=1, **args ):
     #print [ aa for aa in arr ]
     return arr
 
+print 'plot c vs t'
+sys.stdout.flush()
+
+c_timeseries = Graphics()
+c = rescomp._indexers['c']
+for i in maclev._population_indices:
+    c_timeseries += c_evolution.plot( 't', c[i][0], color=[ 'blue', 'red' ][i] )
+    c_timeseries += c_evolution.plot( 't', c[i][1], color=[ 'blue', 'red' ][i] )
+
+c_timeseries.axes_labels( [ '$t$', '$c$' ] )
+c_timeseries.save( 'maclev-2-2-c-vs-t.png', figsize=(4,4) )
+
 # plot c_1 vs c_0, with arrows
 
 print 'plot c vs c'
@@ -469,8 +482,7 @@ sys.stdout.flush()
 c_phase_plane = Graphics()
 c_phase_plane += parametric_plot( (c_func( 0, 0 ), c_func( 0, 1 )), (u_0, 0, 1), color='gray' )
 for i in maclev._population_indices:
-    ci = [ rescomp._indexers['c'][i][0], rescomp._indexers['c'][i][1] ]
-    c_phase_plane += c_evolution.plot( ci[0], ci[1], color=[ 'blue', 'red' ][i] )
+    c_phase_plane += c_evolution.plot( c[i][0], c[i][1], color=[ 'blue', 'red' ][i] )
 
 # then add the arrows at intervals of 0.1 time step
 last_t = -oo
@@ -501,7 +513,7 @@ for p in c_evolution._timeseries:
                 0.05, color='green' )
 
 c_phase_plane.axes_labels( [ '$c_0$', '$c_1$' ] )
-c_phase_plane.save( 'maclev-2-2-c-vs-c.png', figsize=(6,6) )
+c_phase_plane.save( 'maclev-2-2-c-vs-c.png', figsize=(4,4) )
 
 print 'plot total c vs u' 
 sys.stdout.flush()
@@ -531,6 +543,7 @@ the motion of the vector $$(c_0(u), c_1(u))$$ is predicted by the projection
 of the vector's selection gradient $$S(\mathbf{c})$$ onto the tangent of the
 curve, $$\frac{d\mathbf{c}}{du}$$.
 
+<project-file filename=maclev-2-2-c-vs-t.png />
 <project-file filename=maclev-2-2-c-vs-c.png />
 
 It would be good to develop a complete geometric analysis of the dynamics
@@ -592,7 +605,7 @@ Partial to do list:
 * literature review.  That Kisdi paper, for instance, comes from studying this kind of system.  Tilman book is on order.
 * dynamics when $$c_{ij}$$ mutate independently, unconstrained by $$u$$
 
-<source-file filename=maclev-2-2-zngi.sage.step lang=sage>
+<source-file filename=maclev-2-2-zngi.sage.step lang=sage display=link>
 # requires: maclev_2_2_defs.py maclev-2-2-adap.sobj
 # produces: maclev-2-2-zngi.sage.out.tex maclev-2-2-zngi-animation.gif
 from maclev_2_2_defs import *
@@ -714,7 +727,7 @@ Here is the time evolution of the resource concentrations $$(R_0, R_1)$$:
 
 ## Adaptive Geometry: Community-structure measures $$a$$ and $$k$$
 
-<source-file filename=maclev-2-2-geom.sage.step lang=sage>
+<source-file filename=maclev-2-2-geom.sage.step lang=sage display=link>
 # requires: $(SageDynamics)/dynamicalsystems.py $(SageUtils)/latex_output.py
 # requires: $(SageAdaptiveDynamics)/adaptivedynamics.py maclevmodels.py 
 # requires: lotkavolterra.py
@@ -761,11 +774,13 @@ class SeriesOfBindings( Bindings ):
         from operator import add
         return reduce( add, map( latex, self._series ) )
 
-A_to_u_bindings = SeriesOfBindings(
-    bmc_bindings + numeric_params + ad_bindings
+A_to_c_bindings = (bm_bindings + numeric_params + gamma_bindings
         + lv_adap_c._lv_model._A_bindings
         + lv_adap_c._adaptivedynamics._late_bindings
-        + lv_adap_c._lv_model.interior_equilibrium_bindings(),
+        + lv_adap_c._lv_model.interior_equilibrium_bindings())
+
+A_to_u_bindings = SeriesOfBindings(
+    A_to_c_bindings + c_bindings,
     lv_adap_c._phenotypes_from_fn_bindings,
     lv_adap_c.dudt_bindings(),
     lv_adap_c._phenotypes_to_fn_bindings )
@@ -775,8 +790,8 @@ sys.stdout.flush()
 
 #ltx.write( 'A\_to\_u\_bindings is ' + latex( A_to_u_bindings ) )
 
-ltx.write_equality( SR('A(0)'), lv_adap_c.A(0).column(), A_to_u_bindings( lv_adap_c.A(0).column() ) )
-ltx.write_equality( SR('A(1)'), lv_adap_c.A(1).column(), A_to_u_bindings( lv_adap_c.A(1).column() ) )
+ltx.write_equality( SR('A(0)'), lv_adap_c.A(0).column(), A_to_c_bindings( lv_adap_c.A(0).column() ) )
+ltx.write_equality( SR('A(1)'), lv_adap_c.A(1).column(), A_to_c_bindings( lv_adap_c.A(1).column() ) )
 ltx.write_equality( SR('S(A(0))'), lv_adap_c.S( lv_adap_c.A(0) ).column(), lv_adap_c._lv_model.interior_equilibrium_bindings()( lv_adap_c.S( lv_adap_c.A(0) ) ).column() )
 ltx.write_equality( SR('S(A(1))'), lv_adap_c.S( lv_adap_c.A(1) ).column(), lv_adap_c._lv_model.interior_equilibrium_bindings()( lv_adap_c.S( lv_adap_c.A(1) ) ).column() ) 
 
@@ -972,4 +987,28 @@ And the motion of the Lotka-Volterra coefficients $$k$$ and $$a$$:
 <project-file filename=maclev-2-2-a-arrows.png />
 
 {% comment %}<project-file filename=maclev-2-2-a-vs-k.png />{% endcomment %}
+
+## Analysis
+
+Looking at just selection on $$c_0(u)$$ and $$c_1(u)$$, with $$b$$ and $$m$$
+held fixed at 1.
+
+We have that the selection gradient on $$\left(\begin{array}{c}c_{i0}\\c_{i1}\end{array}\right)$$ is $$\left(\begin{array}{c}\hat{R}_0\\\hat{R}_1\end{array}\right)$$, and therefore the selection gradient on $$u$$ is $$S(u) = \frac{\partial\mathbf{c}}{\partial u}^TS(\mathbf{c}) = \hat{R}_0c_0'(u) + \hat{R}_1c_1'(u)$$.
+
+With $$\mathbf{A}=\left(\begin{array}{c}k_i\\a_{i0}\\a_{i1}\end{array}\right)=\left(\begin{array}{c} 2(c_{i0} + c_{i1}) - 1 \\ - c_{i0}c_{00} - c_{i1}c_{01} \\ - c_{i0}c_{10} - c_{i1}c_{11} \end{array}\right)$$,
+and $$S(\mathbf{A}) = \left(\begin{array}{c}1\\\hat{X}_0\\\hat{X}_1\end{array}\right)$$, we should have $$S(\mathbf{c}) = \frac{\partial\mathbf{A}}{\partial\mathbf{c}}^T S(\mathbf{A})$$... ?
+
+A: not quite, it needs to be $$S(\mathbf{c}) = \partial_1\mathbf{A}(\mathbf{c})^TS(\mathbf{A})$$.
+
+That would be
+$$\begin{pmatrix} 2 & 2 \\ -c_{00}\ & -c_{01} \\ -c_{10}\ & -c_{11} \end{pmatrix}^T \begin{pmatrix} 1 \\ \hat{X}_0 \\ \hat{X}_1 \end{pmatrix} = \begin{pmatrix} 2 - c_{00}\hat{X}_0 - c_{10}\hat{X}_1 \\ 2 - c_{01}\hat{X}_0 - c_{11}\hat{X}_1 \end{pmatrix}$$, which does in fact equal $$\begin{pmatrix} \hat{R}_0 \\ \hat{R}_1 \end{pmatrix}$$!
+
+### with fixed $$k$$?
+
+If $$m$$ isn't constant we'll have $$k_0 = -K_0c_{00} - K_1c_{01} + m_0$$
+rather than without the $m$ term. So if
+$$m_i = K_0c_{i0} + K_1c_{i1} + \mathit{const}$$, we'll have fixed $$k_i$$
+and the same $$a_{ij}$$ as before. Then 
+we can see how selection goes on $$a$$.
+
 

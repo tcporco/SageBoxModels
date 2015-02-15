@@ -4,12 +4,25 @@ title: "Adaptive Geometry and Resource Competition: Two Species, Two Resources, 
 wmd_project: Selection_Gradients
 ---
 
-<source-file filename=maclev-2-2-c-popdyn.sage.step lang=sage>
+<source-file filename=maclev_unconstrained_c.py.step lang=python display=link>
 # requires: maclev_2_2_defs.py
+from maclev_2_2_defs import *
+
+ad_bindings = bm_bindings + gamma_bindings
+initial_conditions = Bindings( {
+    rescomp._indexers['c'][0][0] : Rational('1/2'),
+    rescomp._indexers['c'][0][1] : Rational('1/4'),
+    rescomp._indexers['c'][1][0] : Rational('1/4'),
+    rescomp._indexers['c'][1][1] : Rational('1/2'),
+} )
+</source-file>
+
+<source-file filename=maclev-2-2-c-popdyn.sage.step lang=sage display=link>
+# requires: maclev_unconstrained_c.py maclev_2_2_defs.py
 # requires: $(SageDynamics)/dynamicalsystems.py maclevmodels.py
 # produces: maclev-2-2-c-popdyn.sage.out.tex maclev-2-2-c-popdyn.sobj
 # produces: maclev-2-2-c-popdyn.png maclev-2-2-c-r-zngis.png
-from maclev_2_2_defs import *
+from maclev_unconstrained_c import *
 
 print 'start'
 sys.stdout.flush()
@@ -18,14 +31,6 @@ ltx = latex_output( 'maclev-2-2-c-popdyn.sage.out.tex' )
 
 ltx.write( 'The Mac-Lev model in generic form: ' )
 ltx.write_block( maclev )
-
-ad_bindings = bm_bindings + gamma_bindings
-initial_conditions = Bindings( {
-    rescomp._indexers['c'][0][0] : 1/2,
-    rescomp._indexers['c'][0][1] : 1/4,
-    rescomp._indexers['c'][1][0] : 1/4,
-    rescomp._indexers['c'][1][1] : 1/2,
-} )
 
 print 'apply bindings:', ad_bindings
 sys.stdout.flush()
@@ -39,7 +44,7 @@ sys.stdout.flush()
 maclev_initial_system = maclev.bind( ad_bindings + numeric_params + initial_conditions )
 p = maclev_initial_system.plot_vector_field( (X_0, 0, 2), (X_1, 0, 2), color="gray", figsize=(5,5) )
 p += maclev_initial_system.plot_ZNGIs( (X_0, 0, 2), (X_1, 0, 2), color="gray" )
-s = maclev_initial_system.solve( [0, 0.02, 0.05], end_points=integrate_popdyn_to )
+s = maclev_initial_system.solve( [0.02, 0.05], end_time=integrate_popdyn_to )
 p += s.plot( X_0, X_1, color='red' )
 p.save( 'maclev-2-2-c-popdyn.png' )
 
@@ -65,7 +70,7 @@ ZNGI mutual invasion diagram.  Write more about this here.
 
 ## Adaptive dynamics of $$c$$
 
-<source-file filename=maclev-2-2-c-adap.sage.step lang=sage>
+<source-file filename=maclev-2-2-c-adap.sage.step lang=sage display=link>
 # requires: $(SageDynamics)/dynamicalsystems.py
 # requires: $(SageAdaptiveDynamics)/adaptivedynamics.py maclevmodels.py
 # requires: maclev-2-2-c-popdyn.sobj maclev_2_2_defs.py
@@ -104,7 +109,7 @@ try:
     sys.stdout.flush()
 
     try:
-        c_evolution = maclev_adap_c.solve( [0] + [ initial_conditions( c ) for c in maclev_adap_c._vars ], end_points=integrate_adapdyn_to, step=integrate_adapdyn_step )
+        c_evolution = maclev_adap_c.solve( [ initial_conditions( c ) for c in maclev_adap_c._vars ], end_time=integrate_adapdyn_to, step=integrate_adapdyn_step )
     except AdaptiveDynamicsException, e:
         print( 'AdaptiveDynamicsException: %s' % e ) 
         print 'Failed to integrate adaptive dynamics'
@@ -130,7 +135,7 @@ Here we derive the adaptive dynamics equations when it is the uptake rates $$c_{
 
 <project-file filename=maclev-2-2-c-adap.sage.out.html/>
 
-<source-file filename=maclev-2-2-c-p.sage.step>
+<source-file filename=maclev-2-2-c-p.sage.step display=link>
 # requires: $(SageDynamics)/dynamicalsystems.py $(SageUtils)/latex_output.py
 # requires: $(SageAdaptiveDynamics)/adaptivedynamics.py maclevmodels.py
 # requires: maclev_2_2_defs.py maclev-2-2-c-adap.sobj
@@ -163,7 +168,7 @@ save_session( 'maclev-2-2-c-p' )
 
 <project-file filename=maclev-2-2-c-c-vs-c.png />
 
-<source-file filename=maclev-2-2-c-zngi.sage.step lang=sage>
+<source-file filename=maclev-2-2-c-zngi.sage.step lang=sage display=link>
 # requires: maclev_2_2_defs.py maclev-2-2-c-adap.sobj
 # produces: maclev-2-2-c-zngi.sage.out.tex maclev-2-2-c-zngi-animation.gif
 from maclev_2_2_defs import *
@@ -244,7 +249,7 @@ resources $$(R_0, R_1)$$ in the white region above the line.
 
 ## Adaptive Geometry: Community-structure measures $$a$$ and $$k$$
 
-<source-file filename=maclev-2-2-c-geom.sage.step lang=sage>
+<source-file filename=maclev-2-2-c-geom.sage.step lang=sage display=link>
 # requires: $(SageDynamics)/dynamicalsystems.py $(SageUtils)/latex_output.py
 # requires: $(SageAdaptiveDynamics)/adaptivedynamics.py maclevmodels.py 
 # requires: lotkavolterra.py

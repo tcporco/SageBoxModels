@@ -1,20 +1,29 @@
 ---
 layout: page
-title: "Adaptive Geometry and Resource Competition: One Species, Two Resources"
+title: "Adaptive Geometry and Resource Competition: Evolution of \"a\" terms only"
 wmd_project: Selection_Gradients
+wmd_enable_make: false
 ---
 
 This page investigates the adaptive dynamics of [the Macarthur-Levins resource competition model](MacLev.html) in the case of one species and two resources.
 It's a supplement to [Adaptive Geometry and Resource Competition - Two Species, Two Resources](MacLev-2-2.html).
 
-<source-file filename=maclev_1_2_defs.py.step lang=python display=link>
+<source-file filename=maclev_a_only_defs.py.step lang=python display=link>
+# requires: maclev_unconstrained_c.py maclev_2_2_defs.py
 # requires: maclevmodels.py $(SageDynamics)/dynamicalsystems.py
 from sage.all import *
 from sage.misc.latex import _latex_file_
-from maclev_2_2_defs import *
+from maclev_unconstrained_c import *
 
 rescomp = ResourceCompetitionModel( x_indices = [0], r_indices = [0, 1] )
 maclev = MacArthurLevinsModel( x_indices = [0], r_indices = [0, 1] )
+
+m_const = SR(-1)
+
+bm_bindings = Bindings( dict(
+    [ (rescomp._indexers['b'][i], 1) for i in (0,1,'i') ] +
+    [ (rescomp._indexers['m'][i], K_0*c_func(i,0) + K_1*c_func(i,1) + m_const) for i in (0,1,'i') ]
+) )
 
 which_model = 'exponential'
 
@@ -52,18 +61,18 @@ ad_bindings = bmc_bindings + gamma_bindings
 
 </source-file>
 
-<source-file filename=maclev-1-2-popdyn.sage.step lang=sage display=link>
-# requires: maclev_1_2_defs.py
+<source-file filename=maclev-a-only-popdyn.sage.step lang=sage display=link>
+# requires: maclev_a_only_defs.py
 # requires: $(SageDynamics)/dynamicalsystems.py maclevmodels.py
 # requires: $(SageAdaptiveDynamics)/adaptivedynamics.py
-# produces: maclev-1-2-popdyn.sage.out.tex maclev-1-2-popdyn.sobj
-# produces: maclev-1-2-popdyn.png maclev-1-2-r-zngis.png maclev-1-2-c-vs-u.png 
-from maclev_1_2_defs import *
+# produces: maclev-a-only-popdyn.sage.out.tex maclev-a-only-popdyn.sobj
+# produces: maclev-a-only-popdyn.png maclev-a-only-r-zngis.png maclev-a-only-c-vs-u.png 
+from maclev_a_only_defs import *
 
 print 'start'
 sys.stdout.flush()
 
-ltx = latex_output( 'maclev-1-2-popdyn.sage.out.tex' )
+ltx = latex_output( 'maclev-a-only-popdyn.sage.out.tex' )
 
 ltx.write( 'The Mac-Lev model in generic form: ' )
 ltx.write_block( maclev )
@@ -72,7 +81,7 @@ ltx.write( 'The Mac-Lev model with $b, m$, and $c$ bound to functions of $u$:\n'
 ltx.write_block( maclev.bind( ad_bindings ) )
 
 rescomp_initial_system = maclev._rescomp_model.bind( ad_bindings + numeric_params + initial_conditions )
-rescomp_initial_system.plot_R_ZNGIs( filename='maclev-1-2-r-zngis.png', figsize=(4,4), ymin=0, ymax=4, xmin=0, xmax=4 )
+rescomp_initial_system.plot_R_ZNGIs( filename='maclev-a-only-r-zngis.png', figsize=(4,4), ymin=0, ymax=4, xmin=0, xmax=4 )
 
 print 'plot c vs u' 
 sys.stdout.flush()
@@ -82,45 +91,45 @@ c_curve += plot( c_func( 1, 1 ), (u_1, 0, 1), color="green" )
 c_curve += point( initial_conditions( vector( [ u_0, c_func( 0, 0 ) ] ) ), color='blue', size=30 )
 c_curve += point( initial_conditions( vector( [ u_0, c_func( 0, 1 ) ] ) ), color='blue', size=30 )
 c_curve.axes_labels( [ '$u$', '$c_i(u)$' ] )
-c_curve.save( 'maclev-1-2-c-vs-u.png', figsize=(4,4), ymin=0 )
+c_curve.save( 'maclev-a-only-c-vs-u.png', figsize=(4,4), ymin=0 )
 
 ltx.close()
 
-save_session('maclev-1-2-popdyn')
+save_session('maclev-a-only-popdyn')
 </source-file>
 
 The model equations, according to Sage:
 
-<project-file filename=maclev-1-2-popdyn.sage.out.html/>
+<project-file filename=maclev-a-only-popdyn.sage.out.html/>
 
 State space of this population dynamics model:
 
-<project-file filename="maclev-1-2-popdyn.png"/>
+<project-file filename="maclev-a-only-popdyn.png"/>
 
 ZNGI mutual invasion diagram.  Write more about this here.
 
-<project-file filename="maclev-1-2-r-zngis.png"/>
+<project-file filename="maclev-a-only-r-zngis.png"/>
 
 Here are the $$c$$ functions for the two resources. The above plots are
 of the community that starts off the adaptive dynamics below.  That
 community's two residents are marked on this plot as well.
 
-<project-file filename=maclev-1-2-c-vs-u.png />
+<project-file filename=maclev-a-only-c-vs-u.png />
 
-## Adaptive dynamics of $$u$$
+## Adaptive dynamics of $$c$$
 
-<source-file filename=maclev-1-2-adap.sage.step lang=sage display=link>
+<source-file filename=maclev-a-only-adap.sage.step lang=sage display=link>
 # requires: $(SageDynamics)/dynamicalsystems.py
 # requires: $(SageAdaptiveDynamics)/adaptivedynamics.py maclevmodels.py
-# requires: maclev-1-2-popdyn.sobj maclev_1_2_defs.py
-# produces: maclev-1-2-adap.sage.out.tex maclev-1-2-adap.sobj
-# produces: maclev-1-2-u-vs-t.png
-# produces: maclev-1-2-u-vs-u.png
-from maclev_1_2_defs import *
+# requires: maclev-a-only-popdyn.sobj maclev_a_only_defs.py
+# produces: maclev-a-only-adap.sage.out.tex maclev-a-only-adap.sobj
+# produces: maclev-a-only-u-vs-t.png
+# produces: maclev-a-only-u-vs-u.png
+from maclev_a_only_defs import *
 
-load_session( 'maclev-1-2-popdyn' )
+load_session( 'maclev-a-only-popdyn' )
 
-ltx = latex_output( 'maclev-1-2-adap.sage.out.tex' )
+ltx = latex_output( 'maclev-a-only-adap.sage.out.tex' )
 
 ltx.write( 'maclev anyone? ' )
 ltx.write_block( maclev )
@@ -128,46 +137,20 @@ ltx.write_block( maclev )
 ltx.write( 'and with the functional and numeric bindings: ' )
 ltx.write_block( maclev.bind( ad_bindings + numeric_params ) )
 
-# I don't trust FunctionBindings any more, but I need to use it briefly
-# to get tractable adaptive dynamics here.
-# (see http://trac.sagemath.org/ticket/17503 and
-# http://trac.sagemath.org/ticket/17504)
-bmc_to_fn_bindings = Bindings( dict(
-    [ ( maclev._rescomp_model._indexers['c'][i][j],
-        function( 'c_%s'%j )( u_indexer[i] ) )
-      for i in (0,1,'i') for j in (0,1) ] +
-    [ ( maclev._rescomp_model._indexers['b'][i], function('b')( u_indexer[i] ) ) for i in (0,1,'i') ] +
-    [ ( maclev._rescomp_model._indexers['m'][i], function('m')( u_indexer[i] ) ) for i in (0,1,'i') ]
-    ) )
-bmc_from_fn_bindings = Bindings( FunctionBindings( dict(
-    [ ( function( 'c_%s'%j ), c_func(0,j).function( u_indexer[0] ) )
-        for j in (0,1) ] +
-    [ ( function( 'b' ), SR(1) ), ( function('m'), SR(1) ) ]
-    ) ) )
-
 try:
     maclev_adap_c = NumericalAdaptiveDynamicsModel( maclev,
-        [ u_indexer ],
-        early_bindings=bmc_to_fn_bindings,
-        late_bindings=bmc_from_fn_bindings + ad_bindings + numeric_params,
+        [ indexer_2d_reverse('c')[j] for j in (0,1) ],
+        early_bindings=bm_bindings,
+        late_bindings=ad_bindings + numeric_params,
         equilibrium_function = find_interior_equilibrium )
-    #ltx.write( maclev_adap_c._debug_output._output._str )
-    ltx.write( 'adaptive dynamics of $u_\cdot$ in that model:' )
+    ltx.write( 'adaptive dynamics of $c$:\n' )
     ltx.write_block( maclev_adap_c )
-
-    print ( 'find adaptive dynamics equilibria' )
-    sys.stdout.flush()
-
-    ltx.write( 'equilibria:' )
-    adap_equilibria = maclev_adap_c.equilibria( ranges={ u_0:(0.1,0.4,0.6,0.9) } )
-    for eq in adap_equilibria:
-        ltx.write_block( eq )
 
     print 'solve'
     sys.stdout.flush()
 
     try:
-        c_evolution = maclev_adap_c.solve( [ initial_conditions( u ) for u in maclev_adap_c._vars ], end_time=integrate_adapdyn_to, step=integrate_adapdyn_step )
+        c_evolution = maclev_adap_c.solve( [ initial_conditions( c ) for c in maclev_adap_c._vars ], end_time=integrate_adapdyn_to, step=integrate_adapdyn_step )
 
         print 'plot u vs t'
         sys.stdout.flush()
@@ -176,7 +159,7 @@ try:
         t = maclev_adap_c.time_variable()
         u_timeseries = c_evolution.plot( t, u_0 )
         u_timeseries.axes_labels( [ '$t$', '$u$' ] )
-        u_timeseries.save( 'maclev-1-2-u-vs-t.png', figsize=(4,4) )
+        u_timeseries.save( 'maclev-a-only-u-vs-t.png', figsize=(4,4) )
     except AdaptiveDynamicsException, e:
         print( 'AdaptiveDynamicsException: %s' % e )
         print 'Failed to integrate adaptive dynamics'
@@ -189,7 +172,7 @@ except AdaptiveDynamicsException, e:
     ltx.write( e._latex_str or '', r'\\Exception: %s\\' % e )
 
 ltx.close()
-save_session( 'maclev-1-2-adap' )
+save_session( 'maclev-a-only-adap' )
 try:
     c_evolution
 except NameError:
@@ -200,25 +183,25 @@ sys.exit()
 
 Here we derive the adaptive dynamics equations when it is the uptake rates $$c_{ij}$$ that is evolving -- that is, when $$c_{ij}=c_j(u_i)$$, $$b_0=1$$, and $$m_0=1$$; and then we bind the remaining parameters to get a realization of the system that we can integrate and plot.
 
-<project-file filename=maclev-1-2-adap.sage.out.html/>
+<project-file filename=maclev-a-only-adap.sage.out.html/>
 
 With these parameters, what happens to the evolving traits $$u$$?
 
-<project-file filename=maclev-1-2-u-vs-t.png /> <project-file filename=maclev-1-2-u-vs-u.png />
+<project-file filename=maclev-a-only-u-vs-t.png /> <project-file filename=maclev-a-only-u-vs-u.png />
 
 ## Adaptive Geometry: Ecological quantities $$m$$, $$b$$, and particularly $$c$$
 
-<source-file filename=maclev-1-2-p.sage.step display=link>
+<source-file filename=maclev-a-only-p.sage.step display=link>
 # requires: $(SageDynamics)/dynamicalsystems.py $(SageUtils)/latex_output.py
 # requires: $(SageAdaptiveDynamics)/adaptivedynamics.py maclevmodels.py
-# requires: maclev_1_2_defs.py maclev-1-2-adap.sobj
-# produces: maclev-1-2-p.sage.out.tex maclev-1-2-c-vs-t.png
-# produces: maclev-1-2-c-vs-c.png maclev-1-2-total-c-vs-u.png
-from maclev_1_2_defs import *
+# requires: maclev_a_only_defs.py maclev-a-only-adap.sobj
+# produces: maclev-a-only-p.sage.out.tex maclev-a-only-c-vs-t.png
+# produces: maclev-a-only-c-vs-c.png maclev-a-only-total-c-vs-u.png
+from maclev_a_only_defs import *
 
-load_session( 'maclev-1-2-adap' )
+load_session( 'maclev-a-only-adap' )
 
-ltx = latex_output( 'maclev-1-2-p.sage.out.tex' )
+ltx = latex_output( 'maclev-a-only-p.sage.out.tex' )
 
 p_indexers = [ indexer('b'), indexer('m') ] + [ indexer_2d_reverse('c')[j] for j in maclev._rescomp_model._r_indices ]
 
@@ -263,7 +246,7 @@ for i in maclev._population_indices:
     c_timeseries += c_evolution.plot( 't', c[i][1], color=[ 'blue', 'red' ][i] )
 
 c_timeseries.axes_labels( [ '$t$', '$c$' ] )
-c_timeseries.save( 'maclev-1-2-c-vs-t.png', figsize=(4,4) )
+c_timeseries.save( 'maclev-a-only-c-vs-t.png', figsize=(4,4) )
 
 # plot c_1 vs c_0, with arrows
 
@@ -305,7 +288,7 @@ for p in c_evolution._timeseries:
                 0.05, color='green' )
 
 c_phase_plane.axes_labels( [ '$c_0$', '$c_1$' ] )
-c_phase_plane.save( 'maclev-1-2-c-vs-c.png', figsize=(4,4) )
+c_phase_plane.save( 'maclev-a-only-c-vs-c.png', figsize=(4,4) )
 
 print 'plot total c vs u' 
 sys.stdout.flush()
@@ -313,13 +296,13 @@ sys.stdout.flush()
 c_curve = plot( c_func( 0, 0 ) + c_func( 0, 1 ), (u_0, 0, 1) )
 c_curve += point( initial_conditions( vector( [ u_0, c_func( 0, 0 ) + c_func( 0, 1 ) ] ) ), color='blue', size=30 )
 c_curve.axes_labels( [ '$u$', '$c_0(u) + c_1(u)$' ] )
-c_curve.save( 'maclev-1-2-total-c-vs-u.png', figsize=(4,4), ymin=0 )
+c_curve.save( 'maclev-a-only-total-c-vs-u.png', figsize=(4,4), ymin=0 )
 
 ltx.close()
-save_session( 'maclev-1-2-p' )
+save_session( 'maclev-a-only-p' )
 </source-file>
 
-<project-file filename=maclev-1-2-p.sage.out.html/>
+<project-file filename=maclev-a-only-p.sage.out.html/>
 
 Here is the motion of $$c_0(u)$$ and $$c_1(u)$$ as the two
 populations' trait values $$u_i$$ change.
@@ -334,8 +317,8 @@ the motion of the vector $$(c_0(u), c_1(u))$$ is predicted by the projection
 of the vector's selection gradient $$S(\mathbf{c})$$ onto the tangent of the
 curve, $$\frac{d\mathbf{c}}{du}$$.
 
-<project-file filename=maclev-1-2-c-vs-t.png />
-<project-file filename=maclev-1-2-c-vs-c.png />
+<project-file filename=maclev-a-only-c-vs-t.png />
+<project-file filename=maclev-a-only-c-vs-c.png />
 
 It would be good to develop a complete geometric analysis of the dynamics
 of one and two species for all possible functions $$c_j(u)$$, $$b(u)$$,
@@ -377,7 +360,7 @@ would make it an evolutionary branching point.
 
 Experiment: How well does this curve predict the outcome?
 
-<project-file filename=maclev-1-2-total-c-vs-u.png/>
+<project-file filename=maclev-a-only-total-c-vs-u.png/>
 
 Pretty well, I suspect. If the $$u$$ values are symmetrically chosen
 ($$u_1 = 1-u_0$$) then they rise away from or toward the center point.
@@ -390,14 +373,14 @@ equal in sign to $$d^2/du^2(c_0)$$, that should be all it takes to predict that
 stability. And is there an equally simple criterion for whether the center
 point attracts a single population?
 
-<source-file filename=maclev-1-2-zngi.sage.step lang=sage display=link>
-# requires: maclev_1_2_defs.py maclev-1-2-adap.sobj
-# produces: maclev-1-2-zngi.sage.out.tex maclev-1-2-zngi-animation.gif
-from maclev_1_2_defs import *
+<source-file filename=maclev-a-only-zngi.sage.step lang=sage display=link>
+# requires: maclev_a_only_defs.py maclev-a-only-adap.sobj
+# produces: maclev-a-only-zngi.sage.out.tex maclev-a-only-zngi-animation.gif
+from maclev_a_only_defs import *
 
-load_session( 'maclev-1-2-adap.sobj' )
+load_session( 'maclev-a-only-adap.sobj' )
 
-ltx = latex_output( 'maclev-1-2-zngi.sage.out.tex' )
+ltx = latex_output( 'maclev-a-only-zngi.sage.out.tex' )
 
 rescomp_abstract = rescomp.bind( numeric_params )
 rescomp_initial = rescomp_abstract.bind( bmc_bindings, initial_conditions )
@@ -465,7 +448,7 @@ def main():
 
     print 'create animate gif'; sys.stdout.flush()
     animation = animate( anima, xmin=0, xmax=4, ymin=0, ymax=4, figsize=(5,5) )
-    animation.save( 'maclev-1-2-zngi-animation.gif' )
+    animation.save( 'maclev-a-only-zngi-animation.gif' )
     return 0r
 
 if __name__ == '__main__':
@@ -474,11 +457,11 @@ else:
     status = 0r
 
 ltx.close()
-save_session('maclev-1-2-zngi')
+save_session('maclev-a-only-zngi')
 sys.exit(status)
 </source-file>
 
-<project-file filename=maclev-1-2-zngi.sage.out.html/>
+<project-file filename=maclev-a-only-zngi.sage.out.html/>
 
 <a name="ZNGI-animation"></a>
 Here is an animation of the changing ZNGI curves of the
@@ -487,7 +470,7 @@ combinations for which it is at equilibrium, and the gray
 region below is resource concentrations that are too low
 for it.
 
-<project-file filename="maclev-1-2-zngi-animation.gif"/>
+<project-file filename="maclev-a-only-zngi-animation.gif"/>
 
 The $$R_0$$- and $$R_1$$-intercepts of a given line are $$\frac{m_i}{c_{ji}}=\frac1{c_{ji}}$$
 for that species $$i$$ and that resource $$j$$.
@@ -509,26 +492,26 @@ curve and how it relates to the form of the function $$c_j(u)$$.
 
 Here is the time evolution of the resource concentrations $$(R_0, R_1)$$:
 
-<project-file filename=maclev-1-2-Rhat-vs-t.png/>
+<project-file filename=maclev-a-only-Rhat-vs-t.png/>
 
 ## Adaptive Geometry: Community-structure measures $$a$$ and $$k$$
 
-<source-file filename=maclev-1-2-geom.sage.step lang=sage display=link>
+<source-file filename=maclev-a-only-geom.sage.step lang=sage display=link>
 # requires: $(SageDynamics)/dynamicalsystems.py $(SageUtils)/latex_output.py
 # requires: $(SageAdaptiveDynamics)/adaptivedynamics.py maclevmodels.py 
 # requires: lotkavolterra.py
-# requires: maclev_1_2_defs.py maclev-1-2-adap.sobj
-# produces: maclev-1-2-geom.sage.out.tex
-# produces: maclev-1-2-k-vs-t.png maclev-1-2-a-vs-t.png
-# produces: maclev-1-2-Xhat-vs-t.png maclev-1-2-Rhat-vs-t.png
-# produces: maclev-1-2-a-vs-a.png
-# produces: maclev-1-2-a-vs-k.png maclev-1-2-a-arrows.png
-from maclev_1_2_defs import *
+# requires: maclev_a_only_defs.py maclev-a-only-adap.sobj
+# produces: maclev-a-only-geom.sage.out.tex
+# produces: maclev-a-only-k-vs-t.png maclev-a-only-a-vs-t.png
+# produces: maclev-a-only-Xhat-vs-t.png maclev-a-only-Rhat-vs-t.png
+# produces: maclev-a-only-a-vs-a.png
+# produces: maclev-a-only-a-vs-k.png maclev-a-only-a-arrows.png
+from maclev_a_only_defs import *
 from lotkavolterra import *
 
-load_session( 'maclev-1-2-adap' )
+load_session( 'maclev-a-only-adap' )
 
-ltx = latex_output( 'maclev-1-2-geom.sage.out.tex' )
+ltx = latex_output( 'maclev-a-only-geom.sage.out.tex' )
 
 # I don't trust FunctionBindings any more, but I need to use it briefly
 # to get tractable adaptive dynamics here.
@@ -602,7 +585,7 @@ for i in lv_adap_c._lv_model._population_indices:
         A_to_u_bindings( lv_adap_c._lv_model._A_bindings( lv_adap_c._lv_model._indexers['r'][i] ) ),
         color=[ 'blue', 'red' ][i], figsize=(4,4) )
 k_timeseries.axes_labels( [ '$t$', '$k(\cdot)$' ] )
-k_timeseries.save( 'maclev-1-2-k-vs-t.png' )
+k_timeseries.save( 'maclev-a-only-k-vs-t.png' )
 
 print 'plot a vs. t'
 sys.stdout.flush()
@@ -615,7 +598,7 @@ for i in lv_adap_c._lv_model._population_indices:
             A_to_u_bindings( lv_adap_c._lv_model._A_bindings( lv_adap_c._lv_model._indexers['a'][i][j] ) ), 
             color=(i == j and 'red' or 'lime'), figsize=(4,4) )
 a_timeseries.axes_labels( [ '$t$', '$a(\cdot,\cdot)$' ] )
-a_timeseries.save( 'maclev-1-2-a-vs-t.png' )
+a_timeseries.save( 'maclev-a-only-a-vs-t.png' )
 
 print 'plot X vs. t'
 sys.stdout.flush()
@@ -629,7 +612,7 @@ for i in lv_adap_c._lv_model._population_indices:
         A_to_u_bindings( lv_adap_c._lv_model.interior_equilibrium_bindings()( hat( lv_adap_c._lv_model._population_indexer[i] ) ) ),
         color=[ 'blue', 'red' ][i], figsize=(4,4) )
 X_timeseries.axes_labels( [ '$t$', '$\hat{X}$' ] )
-X_timeseries.save( 'maclev-1-2-Xhat-vs-t.png' )
+X_timeseries.save( 'maclev-a-only-Xhat-vs-t.png' )
 
 print 'plot R vs. t'
 sys.stdout.flush()
@@ -644,7 +627,7 @@ for i in lv_adap_c._lv_model._population_indices:
     R_timeseries += c_evolution.plot( t, ri,
         color=[ 'blue', 'red' ][i], figsize=(4,4) )
 R_timeseries.axes_labels( [ '$t$', '$\hat{R}$' ] )
-R_timeseries.save( 'maclev-1-2-Rhat-vs-t.png' )
+R_timeseries.save( 'maclev-a-only-Rhat-vs-t.png' )
 
 print 'plot a vs. a'
 sys.stdout.flush()
@@ -659,11 +642,11 @@ for i in (0, 1):
         A_to_u_bindings( lv_adap_c._lv_model._indexers['a'][i][i] ),
         color=[ 'blue', 'red' ][i] )
 a_phase_plane.axes_labels( [ '$a(u,u)$', '$a(u,u)$' ] )
-a_phase_plane.save( 'maclev-1-2-a-vs-a.png', figsize=(4,4), xmax=0, ymax=0 )
+a_phase_plane.save( 'maclev-a-only-a-vs-a.png', figsize=(4,4), xmax=0, ymax=0 )
 
 #stop there for now
 ltx.close()
-save_session('maclev-1-2-geom')
+save_session('maclev-a-only-geom')
 sys.exit()
 
 print 'plot a vs. a with arrows'
@@ -741,7 +724,7 @@ for p in c_evolution._timeseries:
             a_phase_plane_annotated += S_A_arrow + D_arrow + I_arrow + dA_du_arrow
 
 a_phase_plane_annotated.axes_labels( [ '$a(u_0,\cdot)$', '$a(u_1,\cdot)$' ] )
-a_phase_plane_annotated.save( 'maclev-1-2-a-arrows.png', figsize=(8,8)
+a_phase_plane_annotated.save( 'maclev-a-only-a-arrows.png', figsize=(8,8)
     #, xmin=-0.6, xmax=-0.3, ymin=-0.6, ymax=-0.3
     , xmax=0, ymax=0
 )
@@ -749,19 +732,19 @@ a_phase_plane_annotated.save( 'maclev-1-2-a-arrows.png', figsize=(8,8)
 ltx.close() 
 </source-file>
 
-<project-file filename=maclev-1-2-geom.sage.out.html/>
+<project-file filename=maclev-a-only-geom.sage.out.html/>
 
 And the motion of the Lotka-Volterra coefficients $$k$$ and $$a$$:
 
-<project-file filename=maclev-1-2-k-vs-t.png /> 
-<project-file filename=maclev-1-2-a-vs-t.png />
+<project-file filename=maclev-a-only-k-vs-t.png /> 
+<project-file filename=maclev-a-only-a-vs-t.png />
 
-<project-file filename=maclev-1-2-Xhat-vs-t.png />
-<project-file filename=maclev-1-2-a-vs-a.png />
+<project-file filename=maclev-a-only-Xhat-vs-t.png />
+<project-file filename=maclev-a-only-a-vs-a.png />
 
 {% comment %}
-<project-file filename=maclev-1-2-a-arrows.png />
+<project-file filename=maclev-a-only-a-arrows.png />
 
-<project-file filename=maclev-1-2-a-vs-k.png />
+<project-file filename=maclev-a-only-a-vs-k.png />
 {% endcomment %}
 

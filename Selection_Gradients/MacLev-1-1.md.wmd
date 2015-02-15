@@ -3,7 +3,6 @@ layout: page
 title: "Adaptive Geometry and Resource Competition: One Species, One Resource"
 wmd_project: Selection_Gradients
 ---
-<!--- wmd_enable_make: false --->
 
 This page investigates the adaptive dynamics of [the Macarthur-Levins resource competition model](MacLev.html) in the special case of one species and one resource.
 
@@ -108,7 +107,7 @@ ltx.write( 'and the bound adaptive dynamics is:', latex( maclev_adap_bound ) )
 
 ltx.write( 'its bindings:', latex(maclev_adap_bound._bindings) )
 initial_u = 2/3
-c_evolution = maclev_adap_bound.solve( [0, initial_u], end_points=10 )
+c_evolution = maclev_adap_bound.solve( [initial_u], end_time=10 )
 
 # and plot. 
 t = maclev_adap.time_variable()
@@ -253,7 +252,7 @@ maclev_adap_c00_bound = maclev_adap_c00.bind( Bindings(
 #ltx.write( 'And with parameters bound:' )
 #ltx.write_block( maclev_adap_c00_bound )
 
-c00_evolution = maclev_adap_c00_bound.solve( [0,2] )
+c00_evolution = maclev_adap_c00_bound.solve( [2] )
 
 c00_bindings = c00_evolution._system._bindings.merge( FunctionBindings( {
     function('c_0'):u_0.function(u_0), function('m'):SR('1').function(u_0), function('b'):SR('1').function(u_0) } ) )
@@ -512,7 +511,7 @@ ltx.write_equality( X_0, maclev_adap_lv_c00_bound._bindings( X_0 ) )
 initcond_bindings = Bindings({u_0: initial_u})
 
 # integrate the adaptive dynamics and get a numeric trajectory
-lv_c00_evolution = maclev_adap_lv_c00_bound.solve( [0,initcond_bindings(u_0)] )
+lv_c00_evolution = maclev_adap_lv_c00_bound.solve( [initcond_bindings(u_0)] )
 
 c00_bindings = maclev_adap_lv_c00_bound._bindings
 #print 'c00_bindings:', c00_bindings
