@@ -13,8 +13,8 @@ c = rescomp._indexers['c']
 # special choice of m to make k unevolvable
 m_const = -1
 bm_bindings = Bindings( dict(
-    [ (rescomp._indexers['b'][i], 1) for i in (0,1,'i') ] +
-    [ (rescomp._indexers['m'][i], K_0*c[i][0] + K_1*c[i][1] + m_const) for i in (0,1,'i') ]
+    [ (rescomp._indexers['b'][i], 1) for i in (0,1,2,3) ] +
+    [ (rescomp._indexers['m'][i], K_0*c[i][0] + K_1*c[i][1] + m_const) for i in (0,1,2,3) ]
 ) )
 
 ad_bindings = bm_bindings + gamma_bindings
@@ -305,9 +305,9 @@ ltx = latex_output( 'maclev-2-2-a-c-geom.sage.out.tex' )
 bmc_to_fn_bindings = Bindings( dict(
     [ ( maclev._rescomp_model._indexers['c'][i][j],
         function( 'c_%s'%j )( u_indexer[i] ) )
-      for i in (0,1,'i') for j in (0,1) ] +
-    [ ( maclev._rescomp_model._indexers['b'][i], function('b')( u_indexer[i] ) ) for i in (0,1,'i') ] +
-    [ ( maclev._rescomp_model._indexers['m'][i], function('m')( u_indexer[i] ) ) for i in (0,1,'i') ]
+      for i in (0,1,2,3) for j in (0,1) ] +
+    [ ( maclev._rescomp_model._indexers['b'][i], function('b')( u_indexer[i] ) ) for i in (0,1,2,3) ] +
+    [ ( maclev._rescomp_model._indexers['m'][i], function('m')( u_indexer[i] ) ) for i in (0,1,2,3) ]
     ) )
 bmc_from_fn_bindings = Bindings( FunctionBindings( dict(
     [ ( function( 'c_%s'%j ), c_func(0,j).function( u_indexer[0] ) )

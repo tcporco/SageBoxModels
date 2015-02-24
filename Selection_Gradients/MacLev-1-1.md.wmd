@@ -88,7 +88,7 @@ evol_c_bindings = Bindings( reduce( operator.add, (
     [ ( rescomp._indexers['c'][i][0], u_indexer[i] ),
       ( rescomp._indexers['b'][i], 1 ),
       ( rescomp._indexers['m'][i], 1 )
-    ] for i in (0,'i') ) ) )
+    ] for i in (0,1) ) ) )
 
 maclev_adap = AdaptiveDynamicsModel(maclev,
     [ indexer('u') ], early_bindings=evol_c_bindings )

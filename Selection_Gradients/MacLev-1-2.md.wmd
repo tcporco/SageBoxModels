@@ -20,7 +20,7 @@ which_model = 'exponential'
 
 if which_model == 'linear':
     c_func = linear_c_func
-    c_bindings = make_bindings( c_func, (0,1,'i') )
+    c_bindings = make_bindings( c_func, (0,1,2) )
     bmc_bindings = bm_bindings + c_bindings
     initial_conditions = Bindings( {
         # in a .sage file, could just write u_0: 1/3
@@ -31,7 +31,7 @@ if which_model == 'linear':
     integrate_popdyn_to = 500
 elif which_model == 'quadratic':
     c_func = quadratic_c_func 
-    c_bindings = make_bindings( c_func, (0,1,'i') )
+    c_bindings = make_bindings( c_func, (0,1,2) )
     bmc_bindings = bm_bindings + c_bindings
     initial_conditions = Bindings( {
         u_0 : Rational('1/3'),
@@ -39,7 +39,7 @@ elif which_model == 'quadratic':
     } )
 elif which_model == 'exponential':
     c_func = exponential_c_func
-    c_bindings = make_bindings( c_func, (0,1,'i') )
+    c_bindings = make_bindings( c_func, (0,1,2) )
     bmc_bindings = bm_bindings + c_bindings
     initial_conditions = Bindings( {
         u_0 : Rational('1/4'),
@@ -135,9 +135,9 @@ ltx.write_block( maclev.bind( ad_bindings + numeric_params ) )
 bmc_to_fn_bindings = Bindings( dict(
     [ ( maclev._rescomp_model._indexers['c'][i][j],
         function( 'c_%s'%j )( u_indexer[i] ) )
-      for i in (0,1,'i') for j in (0,1) ] +
-    [ ( maclev._rescomp_model._indexers['b'][i], function('b')( u_indexer[i] ) ) for i in (0,1,'i') ] +
-    [ ( maclev._rescomp_model._indexers['m'][i], function('m')( u_indexer[i] ) ) for i in (0,1,'i') ]
+      for i in (0,1,2) for j in (0,1) ] +
+    [ ( maclev._rescomp_model._indexers['b'][i], function('b')( u_indexer[i] ) ) for i in (0,1,2) ] +
+    [ ( maclev._rescomp_model._indexers['m'][i], function('m')( u_indexer[i] ) ) for i in (0,1,2) ]
     ) )
 bmc_from_fn_bindings = Bindings( FunctionBindings( dict(
     [ ( function( 'c_%s'%j ), c_func(0,j).function( u_indexer[0] ) )
@@ -174,7 +174,7 @@ try:
 
         # and plot u vs t
         t = maclev_adap_c.time_variable()
-        u_timeseries = c_evolution.plot( t, u_0 )
+        u_timeseries = c_evolution.plot( t, u_0 ) + c_evolution.plot( t, u_1, color='red' )
         u_timeseries.axes_labels( [ '$t$', '$u$' ] )
         u_timeseries.save( 'maclev-1-2-u-vs-t.png', figsize=(4,4) )
     except AdaptiveDynamicsException, e:
@@ -258,7 +258,7 @@ sys.stdout.flush()
 
 c_timeseries = Graphics()
 c = rescomp._indexers['c']
-for i in maclev._population_indices:
+for i in maclev_adap_c._popdyn_model._population_indices:
     c_timeseries += c_evolution.plot( 't', c[i][0], color=[ 'blue', 'red' ][i] )
     c_timeseries += c_evolution.plot( 't', c[i][1], color=[ 'blue', 'red' ][i] )
 
@@ -273,8 +273,11 @@ sys.stdout.flush()
 # first put in the curves in the c_0-c_1 plane
 c_phase_plane = Graphics()
 c_phase_plane += parametric_plot( (c_func( 0, 0 ), c_func( 0, 1 )), (u_0, 0, 1), color='gray' )
-for i in maclev._population_indices:
+for i in maclev_adap_c._popdyn_model._population_indices:
     c_phase_plane += c_evolution.plot( c[i][0], c[i][1], color=[ 'blue', 'red' ][i] )
+
+print 'with arrows'
+sys.stdout.flush()
 
 # then add the arrows at intervals of 0.1 time step
 last_t = -oo
@@ -284,25 +287,27 @@ for p in c_evolution._timeseries:
     t = N( pp( c_evolution._system._time_variable ) )
     if t >= last_t + 0.1:
         last_t = t
-        dudt = maclev_adap_c._bindings( column_vector( maclev_adap_c.compute_flow(
-            [ pp( ui ) for ui in maclev_adap_c._vars ],
-            t ) ) )
-        eq = maclev_adap_c.equilibrium_function( pp )
-        for i in maclev._population_indices:
-            ci = [ rescomp._indexers['c'][i][0], rescomp._indexers['c'][i][1] ]
-            # the vector S(c)
-            c_phase_plane += make_arrow(
-                [ pp( maclev_bindings( eq( cij ) ) ) for cij in ci ],
-                [ pp( maclev_bindings( eq( maclev_adap_p._S[ cij ] ) ) ) for cij in ci ],
-                0.05, color=[ 'blue', 'red' ][i] )
-            # the vector dc/dt
-            dci = [ diff( ad_bindings( cij ), u_indexer[i] ) for cij in ci ]
-            #print dudt, dci
-            #print [ pp( dcij * dudt[i] ) for dcij in dci ]
-            c_phase_plane += make_arrow(
-                [ pp( ad_bindings( cij ) ) for cij in ci ],
-                [ pp( dcij * dudt[i] ) for dcij in dci ],
-                0.05, color='green' )
+	try:
+            dudt = maclev_adap_c._bindings( column_vector( maclev_adap_c.compute_flow(
+                [ N( pp( ui ) ) for ui in maclev_adap_c._vars ],
+                t ) ) )
+            eq = maclev_adap_c.equilibrium_function( pp )
+            for i in maclev._population_indices:
+                ci = [ rescomp._indexers['c'][i][0], rescomp._indexers['c'][i][1] ]
+                # the vector S(c)
+                c_phase_plane += make_arrow(
+                    [ pp( maclev_bindings( eq( cij ) ) ) for cij in ci ],
+                    [ pp( maclev_bindings( eq( maclev_adap_p._S[ cij ] ) ) ) for cij in ci ],
+                    0.05, color=[ 'blue', 'red' ][i] )
+                # the vector dc/dt
+                dci = [ diff( ad_bindings( cij ), u_indexer[i] ) for cij in ci ]
+                #print dudt, dci
+                #print [ pp( dcij * dudt[i] ) for dcij in dci ]
+                c_phase_plane += make_arrow(
+                    [ pp( ad_bindings( cij ) ) for cij in ci ],
+                    [ pp( dcij * dudt[i] ) for dcij in dci ],
+                    0.05, color='green' )
+        except TypeError: pass
 
 c_phase_plane.axes_labels( [ '$c_0$', '$c_1$' ] )
 c_phase_plane.save( 'maclev-1-2-c-vs-c.png', figsize=(4,4) )
@@ -535,9 +540,9 @@ ltx = latex_output( 'maclev-1-2-geom.sage.out.tex' )
 bmc_to_fn_bindings = Bindings( dict(
     [ ( maclev._rescomp_model._indexers['c'][i][j],
         function( 'c_%s'%j )( u_indexer[i] ) )
-      for i in (0,1,'i') for j in (0,1) ] +
-    [ ( maclev._rescomp_model._indexers['b'][i], function('b')( u_indexer[i] ) ) for i in (0,1,'i') ] +
-    [ ( maclev._rescomp_model._indexers['m'][i], function('m')( u_indexer[i] ) ) for i in (0,1,'i') ]
+      for i in (0,1,2) for j in (0,1) ] +
+    [ ( maclev._rescomp_model._indexers['b'][i], function('b')( u_indexer[i] ) ) for i in (0,1,2) ] +
+    [ ( maclev._rescomp_model._indexers['m'][i], function('m')( u_indexer[i] ) ) for i in (0,1,2) ]
     ) )
 bmc_from_fn_bindings = Bindings( FunctionBindings( dict(
     [ ( function( 'c_%s'%j ), c_func(0,j).function( u_indexer[0] ) )
@@ -559,6 +564,9 @@ class SeriesOfBindings( Bindings ):
     def _latex_(self):
         from operator import add
         return reduce( add, map( latex, self._series ) )
+    def __repr__(self):
+        from operator import add
+        return reduce( add, map( repr, self._series ) )
 
 A_to_u_bindings = SeriesOfBindings(
     bmc_bindings + numeric_params + ad_bindings
@@ -595,9 +603,10 @@ sys.stdout.flush()
 
 # plot k values vs. time
 k_timeseries = Graphics();
+#print c_evolution._timeseries[0]
 for i in lv_adap_c._lv_model._population_indices:
     #print ( str( lv_adap_c._lv_model._indexers['r'][i] ) + ': ' +
-        #str( A_to_u_bindings( lv_adap_c._lv_model._A_bindings( lv_adap_c._lv_model._indexers['r'][i] ) ) ) )
+    #    str( A_to_u_bindings( lv_adap_c._lv_model._A_bindings( lv_adap_c._lv_model._indexers['r'][i] ) ) ) )
     k_timeseries += c_evolution.plot( t,
         A_to_u_bindings( lv_adap_c._lv_model._A_bindings( lv_adap_c._lv_model._indexers['r'][i] ) ),
         color=[ 'blue', 'red' ][i], figsize=(4,4) )
@@ -612,7 +621,7 @@ a_timeseries = Graphics()
 for i in lv_adap_c._lv_model._population_indices:
     for j in lv_adap_c._lv_model._population_indices:
         a_timeseries += c_evolution.plot( t,
-            A_to_u_bindings( lv_adap_c._lv_model._A_bindings( lv_adap_c._lv_model._indexers['a'][i][j] ) ), 
+            A_to_u_bindings( lv_adap_c._lv_model._A_bindings( lv_adap_c._lv_model._indexers['a'][i][j] ) ),
             color=(i == j and 'red' or 'lime'), figsize=(4,4) )
 a_timeseries.axes_labels( [ '$t$', '$a(\cdot,\cdot)$' ] )
 a_timeseries.save( 'maclev-1-2-a-vs-t.png' )
@@ -622,9 +631,10 @@ sys.stdout.flush()
 
 # population size vs time
 X_timeseries = Graphics()
+print c_evolution._timeseries
 for i in lv_adap_c._lv_model._population_indices:
-    #print ( str( hat( lv_adap_c._lv_model._population_indexer[i] ) ) + ': ' +
-        #str( A_to_u_bindings( lv_adap_c._lv_model.interior_equilibrium_bindings()( hat( lv_adap_c._lv_model._population_indexer[i] ) ) ) ) )
+    print ( str( hat( lv_adap_c._lv_model._population_indexer[i] ) ) + ': ' +
+        str( A_to_u_bindings( lv_adap_c._lv_model.interior_equilibrium_bindings()( hat( lv_adap_c._lv_model._population_indexer[i] ) ) ) ) )
     X_timeseries += c_evolution.plot( t,
         A_to_u_bindings( lv_adap_c._lv_model.interior_equilibrium_bindings()( hat( lv_adap_c._lv_model._population_indexer[i] ) ) ),
         color=[ 'blue', 'red' ][i], figsize=(4,4) )
@@ -655,10 +665,10 @@ a_phase_plane = Graphics()
 #a_3d = Graphics3d()
 for i in (0, 1):
     a_phase_plane += c_evolution.plot(
-        A_to_u_bindings( lv_adap_c._lv_model._indexers['a'][i][i] ),
-        A_to_u_bindings( lv_adap_c._lv_model._indexers['a'][i][i] ),
+        A_to_u_bindings( lv_adap_c._lv_model._indexers['a'][0][i] ),
+        A_to_u_bindings( lv_adap_c._lv_model._indexers['a'][1][i] ),
         color=[ 'blue', 'red' ][i] )
-a_phase_plane.axes_labels( [ '$a(u,u)$', '$a(u,u)$' ] )
+a_phase_plane.axes_labels( [ '$a(u_0,u)$', '$a(u_1,u)$' ] )
 a_phase_plane.save( 'maclev-1-2-a-vs-a.png', figsize=(4,4), xmax=0, ymax=0 )
 
 #stop there for now

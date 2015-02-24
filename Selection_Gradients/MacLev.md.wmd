@@ -424,12 +424,15 @@ class LotkaVolterraAdaptiveDynamics( object ):
 
 	# sanity check the a values' functional form
 	# using extended system, in case it's only 1-d otherwise
-	extended_lv_model = DerivedLotkaVolterraModel( ad._extended_system, r_name=r_name, a_name=a_name )
+	extended_system = deepcopy( ad._popdyn_model )
+	# TODO: mutate all populations, not just the first one
+	mutant_index = extended_system.mutate( extended_system._population_indices[0] )
+	extended_lv_model = DerivedLotkaVolterraModel( extended_system, r_name=r_name, a_name=a_name )
 	a_to_u_bindings = self._adaptivedynamics._bindings + self._adaptivedynamics._late_bindings + extended_lv_model._A_bindings
 	print 'a_to_u_bindings:', a_to_u_bindings
         u0s = column_vector( [ u_indexer[0] for u_indexer in u_indexers ] )
-        uqis = column_vector( [ u_indexer['i'] for u_indexer in u_indexers ] )
-        a_func = a_to_u_bindings( extended_lv_model._indexers['a'][0]['i'] ).function( *(list(u0s) + list(uqis)) )
+        uqis = column_vector( [ u_indexer[mutant_index] for u_indexer in u_indexers ] )
+        a_func = a_to_u_bindings( extended_lv_model._indexers['a'][0][mutant_index] ).function( *(list(u0s) + list(uqis)) )
 	print 'a_func:', a_func
 	r_func = a_to_u_bindings( extended_lv_model._indexers['r'][0] ).function( *u0s )
 	print 'r_func:', r_func
