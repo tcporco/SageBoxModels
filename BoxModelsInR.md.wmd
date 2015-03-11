@@ -1,0 +1,259 @@
+---
+layout: page
+title: Box Models
+wmd_project: Box_Models
+wmd_prerequisite_projects:
+  SageDynamicsRepo: SageDynamicsRepo
+---
+
+This is a preliminary stab at automating construction of compartment (box)
+models in Sage.
+
+## BoxModel class
+
+Here's a class to represent a BoxModel. It's an ODE model, with a special
+constructor, and the ability to draw itself as a directed graph.
+
+<source-file filename=boxmodel.py.step lang=python>
+# requires: $(SageDynamics)/dynamicalsystems.py $(SageAdaptiveDynamics)/adaptivedynamics.py
+from sage.all import *
+import os
+import sys
+ 
+sys.path.append( os.environ['SageUtils'] )
+sys.path.append( os.environ['SageDynamics'] )
+from dynamicalsystems import *
+
+from sage.misc.latex import _latex_file_
+#from sage.symbolic.relation import solve
+from sage.symbolic.function_factory import function
+
+class BoxModel(ODESystem):
+    """Parent class for all kinds of box models.
+    Note that since this gets its variables from a graph's vertices,
+    rather than from indexers, it can't be used in adaptive dynamics.
+    Subclasses that generate their boxes, maybe can.
+    """
+    def __init__(self, graph,
+	vars=None,
+	population_vars=None,
+	time_variable=SR.symbol('t'),
+	parameters=None,
+	vertex_func=None,
+	edge_func=None,
+        bindings=Bindings()):
+	self._graph = graph
+	if vars is None:
+	    vars = graph.vertices()
+	if vertex_func is None:
+	    vertex_func = lambda x:x
+	if edge_func is None:
+	    edge_func = lambda x:x
+	flow = { v:0 for v in vars }
+	print flow
+	self._flow_graph = DiGraph( {
+	    vertex_func(v):{
+		vertex_func(w):edge_func(e)
+		for vv,w,e in self._graph.outgoing_edges(v)
+	    } for v in self._graph.vertices()
+	} )
+	self._flow_graph.set_latex_options( edge_labels=True )
+	for source,sink,edge_label in self._graph.edges():
+	    rate = edge_func(edge_label)
+	    print vertex_func(source), '-$%s$->'%latex(rate), vertex_func(sink)
+	    flow[vertex_func(source)] -= rate
+	    flow[vertex_func(sink)]   += rate
+	if parameters is None:
+	    parameters = set( reduce( union, (f.variables() for f in flow.values()) ) ).difference( vars )
+	self._parameters = parameters
+        super(BoxModel, self).__init__(
+	    flow,
+            vars,
+	    time_variable,
+            bindings = bindings )
+    def tikz_boxes( self ):
+	return _latex_file_( self._flow_graph, title='' )
+    def plot_boxes( self, filename=None, **options ):
+	# new Tikz/SVG code
+        LF = open( filename, 'w' )
+	LT = self.tikz_boxes()
+	LF.write( LT )
+        LF.close()
+	return LT
+	# old PNG code
+	P = self._graph.plot( edge_labels=True, **options )
+	if filename is not None:
+	    P.save( filename )
+	return P
+
+def cross_product_with_edges( *graphs ):
+    """similar to DiGraph.cartesian.product(), but handles edge labels."""
+    adj_dict = {}
+    import itertools
+    for vs in itertools.product( *(g.vertices() for g in graphs) ):
+	adj_dict[vs] = {}
+	for i in range(len(vs)):
+	    for v,w,rate in graphs[i].outgoing_edges(vs[i]):
+		ws = list(vs)
+		ws[i] = w
+		erate = [rate, i] + [ vs[j] for j in range(len(vs)) if j != i ]
+		adj_dict[vs][tuple(ws)] = tuple(erate)
+    return DiGraph( adj_dict )
+
+def cross( *models ):
+    cross_graph = cross_product_with_edges( *(m._graph for m in models) )
+    # cross_graph has (v,v,...) tuples for vertices, and
+    # (rate,i,v,...) tuples for edges
+    # how to relabel?
+    # vertices are formally (v1, v2, ...) where vi is the vertex label in
+    # the ith graph. They get relabeled v1_{v2v3...}.
+    # edges are formally (rate, i, v1, v2, ...) where i is the index of
+    # which graph the edge comes from, and the vs don't include vi.
+    # the edge's rate expression gets relabeled by recursively adding
+    # subscripts to all of that models state variables and parameters.
+    # TODO this probably doesn't do the right thing if graphs other than
+    # the first one have rates that depend on state variables.
+    def vfunc( vtuple ):
+	return SR.symbol( '_'.join( str(v) for v in vtuple ),
+	    latex_name='%s_{%s}'%(latex(vtuple[0]),''.join( latex(v) for v in vtuple[1:] )) )
+    def efunc( etuple ):
+	"""the input is (rate, i, v, v, ...) where rate is an expression, and the
+	vs are the pre-cross vertex labels not involved in the edge."""
+	params_rename = Bindings( {
+	    p : vfunc( [p] + list(etuple[2:]) )
+	    for p in models[etuple[1]]._parameters
+	} )
+	vert_rename = Bindings( {
+	    v : vfunc( [v] + list(etuple[2:]) )
+	    for v in models[etuple[1]]._vars
+	} )
+	# note those bindings are independent of 'rate' and could be memoized
+	return vert_rename( params_rename( etuple[0] ) )
+    return BoxModel( cross_graph,
+	[ vfunc(tp) for tp in cross_graph.vertices() ],
+	vertex_func=vfunc, edge_func=efunc )
+
+</source-file>
+
+## Test it by making an SIR model
+
+<source-file filename="SIR.sage.step">
+# requires: boxmodel.py
+# requires: $(SageDynamics)/dynamicalsystems.py
+# requires: $(SageAdaptiveDynamics)/adaptivedynamics.py
+# produces: SIR.sage.out.tex SIR.boxes.tex SIR.trajectory.png
+import os
+import sys
+sys.path.append( os.environ['SageUtils'] )
+from latex_output import *
+from boxmodel import *
+
+S, I, R, mu, alpha = SR.var( 'S I R mu alpha' )
+
+SIR = BoxModel( DiGraph( { S:{ I:alpha*S*I }, I:{ R:mu*I } } ), [S,I,R] )
+
+ltx = latex_output( "SIR.sage.out.tex" )
+
+ltx.write( 'SIR model:\n', SIR )
+
+ltx.close()
+
+SIR.plot_boxes( 'SIR.boxes.tex', figsize=(5,5) )
+
+epsilon = 0.01 # initial infectious pop
+trajectory = SIR.bind( { mu:0.1, alpha:1 } ).solve( [1-epsilon,epsilon,0], end_time=100 )
+#trajectory.plot( 't', [S,I,R], filename='SIR.trajectory.png', figsize=(5,5) )
+P = ( trajectory.plot( 't', S, color='blue', legend_label='$S$' )
+    + trajectory.plot( 't', I, color='red', legend_label='$I$' )
+    + trajectory.plot( 't', R, color='green', legend_label='$R$' )
+)
+P.save( filename='SIR.trajectory.png', figsize=(5,4), legend_loc='upper right' )
+
+sys.exit(0r)
+</source-file>
+
+<project-file filename="SIR.sage.out.tex"/>
+
+<project-file filename="SIR.boxes.crop.svg"/>
+
+<project-file filename="SIR.trajectory.png"/>
+
+## test the cross product
+
+<source-file filename=cross.sage.step lang=sage>
+# requires: boxmodel.py
+# requires: $(SageDynamics)/dynamicalsystems.py
+# requires: $(SageAdaptiveDynamics)/adaptivedynamics.py
+# produces: cross.sage.out.tex classes.boxes.tex SIR2.boxes.tex
+import sys
+print 'init'; sys.stdout.flush()
+import os
+sys.path.append( os.environ['SageUtils'] )
+from latex_output import *
+from boxmodel import *
+
+print 'make SIR model'
+sys.stdout.flush()
+
+S, I, R, mu, alpha = SR.var( 'S I R mu alpha' )
+SIRgraph = DiGraph( { S:{ I:alpha*S*I }, I:{ R:mu*I } } )
+SIR = BoxModel( SIRgraph, [S,I,R] )
+
+print 'make classes model'
+sys.stdout.flush()
+
+a, b, rho, sigma = SR.var( 'a b rho sigma' )
+classes = BoxModel( DiGraph( { a:{ b:rho }, b:{ a:sigma } } ), [a,b] )
+
+print 'write latex'
+sys.stdout.flush()
+
+ltx = latex_output( "cross.sage.out.tex" )
+
+ltx.write( 'SIR model:\n', SIR )
+
+ltx.write( 'classes:\n', classes ) 
+
+SIR2 = cross( SIR, classes )
+
+ltx.write( 'cross:\n', SIR2 )
+
+ltx.close()
+
+print 'write tikz boxes'
+sys.stdout.flush()
+
+classes.plot_boxes( 'classes.boxes.tex', figsize=(5,5) )
+
+SIR2.plot_boxes( 'SIR2.boxes.tex', figsize=(5,5) )
+
+</source-file>
+
+<project-file filename=cross.sage.out.html/>
+
+<project-file filename=classes.boxes.crop.svg/>
+
+<project-file filename=SIR2.boxes.crop.svg/>
+
+## apparatus
+
+<source-file filename=upstream.mk>
+# Makefile to connect the Sage code here with the code in SageDynamics
+
+# the three upstream projects are all bundled into one git repo
+export SageUtils            = $(realpath $(SageDynamicsRepo)/SageUtils)
+export SageDynamics         = $(realpath $(SageDynamicsRepo)/SageDynamics)
+export SageAdaptiveDynamics = $(realpath $(SageDynamicsRepo)/SageAdaptiveDynamics)
+
+# When we need something from the upstream projects, make it there
+$(SageDynamics)/% : /proc/uptime
+	$(MAKE) --no-print-directory -C $(SageDynamics) $*
+
+$(SageAdaptiveDynamics)/% : /proc/uptime
+	$(MAKE) --no-print-directory -C $(SageAdaptiveDynamics) $*
+
+# The good makefile stuff is upstream, just reuse it
+-include $(SageUtils)/sage.mk
+-include $(SageUtils)/step.mk
+</source-file>
+
