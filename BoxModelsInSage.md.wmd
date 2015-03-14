@@ -1,6 +1,6 @@
 ---
 layout: page
-title: Box Models
+title: Box Models in Sage
 wmd_project: Box_Models
 wmd_prerequisite_projects:
   SageDynamicsRepo: SageDynamicsRepo
@@ -28,7 +28,10 @@ from sage.misc.latex import _latex_file_
 #from sage.symbolic.relation import solve
 from sage.symbolic.function_factory import function
 
-class BoxModel(ODESystem):
+# constant 'enum' values for use with indexing
+index, sumover = range(0,2)
+
+class BoxModel(SageObject):
     """Parent class for all kinds of box models.
     Note that since this gets its variables from a graph's vertices,
     rather than from indexers, it can't be used in adaptive dynamics.
@@ -37,101 +40,161 @@ class BoxModel(ODESystem):
     def __init__(self, graph,
 	vars=None,
 	population_vars=None,
-	time_variable=SR.symbol('t'),
 	parameters=None,
-	vertex_func=None,
-	edge_func=None,
+	parameter_dependencies={},
         bindings=Bindings()):
+	# we are given a directed graph whose vertex labels are state
+	# variables, representing fractions of total population,
+	# and whose edge labels are flow rates.
 	self._graph = graph
+	self._graph.set_latex_options( edge_labels=True )
+	self._graph.set_latex_options( vertex_shape='rectangle' )
 	if vars is None:
 	    vars = graph.vertices()
-	if vertex_func is None:
-	    vertex_func = lambda x:x
-	if edge_func is None:
-	    edge_func = lambda x:x
-	flow = { v:0 for v in vars }
-	print flow
-	self._flow_graph = DiGraph( {
-	    vertex_func(v):{
-		vertex_func(w):edge_func(e)
-		for vv,w,e in self._graph.outgoing_edges(v)
-	    } for v in self._graph.vertices()
-	} )
-	self._flow_graph.set_latex_options( edge_labels=True )
-	for source,sink,edge_label in self._graph.edges():
-	    rate = edge_func(edge_label)
-	    print vertex_func(source), '-$%s$->'%latex(rate), vertex_func(sink)
-	    flow[vertex_func(source)] -= rate
-	    flow[vertex_func(sink)]   += rate
+	self._vars = vars
 	if parameters is None:
-	    parameters = set( reduce( union, (f.variables() for f in flow.values()) ) ).difference( vars )
+	    parameters = set( reduce( union, (r.variables() for f,t,r in graph.edges()) ) ).difference( self._vars )
 	self._parameters = parameters
-        super(BoxModel, self).__init__(
+	#print 'parameters:', parameters
+	self._parameter_dependencies = parameter_dependencies
+	for p in self._parameters:
+	    if p not in self._parameter_dependencies:
+		self._parameter_dependencies[p] = [ self._vars[0] ]
+	for p, pd in self._parameter_dependencies.items():
+	    try: [ d[0] for d in pd ]
+	    except: self._parameter_dependencies[p] = [ (d,index) for d in pd ]
+	#print 'parameter dependencies:', self._parameter_dependencies
+	self._bindings = bindings
+	if self._graph.get_pos() is None:
+	    self._graph.set_pos( { v:(i,0) for i,v in enumerate(self._vars) } )
+	self._flow_graph = self._graph
+    def ode(self, time_variable=SR.symbol('t'), bindings=Bindings()):
+	flow = { v:0 for v in self._vars }
+	#print flow
+	for source,target,rate in self._flow_graph.edges():
+	    #print source, '-$%s$->'%latex(rate), target
+	    flow[source] -= rate
+	    flow[target] += rate
+	return ODESystem(
 	    flow,
-            vars,
+            self._vars,
 	    time_variable,
-            bindings = bindings )
-    def tikz_boxes( self ):
+            bindings = bindings+self._bindings )
+    def tikz_boxes( self, raw=False ):
+	if raw:
+	    return _latex_file_( self._graph, title='' )
+	print 'draw flow graph'
 	return _latex_file_( self._flow_graph, title='' )
-    def plot_boxes( self, filename=None, **options ):
+    def plot_boxes( self, filename=None, raw=False, **options ):
 	# new Tikz/SVG code
+	print 'plot to', filename
         LF = open( filename, 'w' )
-	LT = self.tikz_boxes()
+	LT = self.tikz_boxes( raw )
 	LF.write( LT )
         LF.close()
 	return LT
-	# old PNG code
-	P = self._graph.plot( edge_labels=True, **options )
-	if filename is not None:
-	    P.save( filename )
-	return P
+
+class BoxModelCrossProduct(BoxModel):
+    def __init__(self, *models):
+	self._models = models
+	# TODO: it would be more efficient to iterate one model at a time,
+	# and generate the vertex tuples, rate tuples, subscripted state
+	# variables, subscripted parameters, and subscripted rates all in
+	# the same loop.
+	self._graph = cross_product_with_edges( *(m._graph for m in models) )
+	self._graph.set_latex_options( edge_labels=True, vertex_shape='rectangle' )
+	# positions of graph vertices
+	directions = [ 0, pi/2, pi/3, pi/6 ] # will add more as needed, I guess
+	import itertools
+	positions = { tuple(a[1] for a in dtup):[ sum(a[0]*cos(d) for a,d in zip(dtup,directions)), sum(a[0]*sin(d) for a,d in zip(dtup,directions)) ] for dtup in itertools.product( *[ enumerate(model._vars) for model in models ] ) }
+	#print positions
+	self._graph.set_pos( positions )
+	# if the model was made by a cross operation, vertex and edge labels
+	# will be tuples, i.e. members of a cartesian product of sets.
+	# vertices are simple tuples of atomic state variables.
+	for v in self._graph.vertices():
+	    try: v[0]
+	    except: v = tuple(v)
+	# the edges have a special format: (r, i, v, v, ...), where
+	# r is a symbolic expression in the form it came from the original
+	# uncrossed model;
+	# v, v, ... is the tuple representing the edge's source vertex;
+	# i is an integer indexing which model the rate comes from.
+	for v,w,e in self._graph.edges():
+	    try: e[0]
+	    except: e = tuple(e,0,*v)
+	# now for consumption by humans and math software, we map vertex
+	# tuples to regular variable names
+	def apply_subscripts( vtuple ):
+	    return SR.symbol( '_'.join( str(v) for v in vtuple ),
+	        latex_name='%s_{%s}'%(latex(vtuple[0]),''.join( latex(v) for v in vtuple[1:] )) )
+	vertex_label_func = apply_subscripts
+	# and relabel the flow rates, which is more complex
+	def edge_label_func( etuple ):
+	    """the input is (rate, i, v, v, ...) where rate is an expression, and the
+	    vs are the pre-cross vertex labels."""
+	    rate, i = etuple[:2]
+	    local_vars_rename = Bindings( {
+		var : apply_subscripts( list(etuple[2:2+i]) + [var] + list(etuple[2+i+1:]) )
+		for var in models[i]._vars
+	    } )
+	    local_params_rename = Bindings( {
+	    } )
+	    for p in models[i]._parameters:
+		plist = [p]
+		for dv, dtype in models[i]._parameter_dependencies[p]:
+		    if dtype is index:
+			plist += list(etuple[2:2+i]) + list( etuple[2+i+1:] )
+		    else:
+			vts = [ vt for vt in self._graph.vertices() if vt[i] == dv ]
+			#for vt in vts:
+			    #plist += 
+			    # TODO: how to sum over multiple indexes
+		local_params_rename[p] = apply_subscripts( plist )
+	    # note those bindings are independent of 'rate' and could be memoized
+	    return local_vars_rename( local_params_rename( rate ) )
+	self._flow_graph = DiGraph( {
+	    vertex_label_func(v):{
+		vertex_label_func(w):edge_label_func(e)
+		for vv,w,e in self._graph.outgoing_edges(v)
+	    } for v in self._graph.vertices()
+	} )
+	self._flow_graph.set_latex_options( edge_labels=True, vertex_shape='rectangle' )
+	self._flow_graph.set_pos( { vertex_label_func(v):pos for v,pos in positions.items() } )
+	# the list of variables is the graph's vertex list
+	self._vars = list( self._flow_graph.vertices() )
+	# now generate all the crossed parameters
+	# TODO: do this right
+	self._parameters = set( reduce( union, (r.variables() for f,t,r in self._flow_graph.edges()) ) ).difference( self._vars )
+	#print 'parameters:', self._parameters
+	self._bindings = Bindings()
+
+def flatten( lst ):
+    try:
+	# nonempty list: flatten recursively
+	return flatten( lst[0] ) + flatten( lst[1:] )
+    except:
+	try:
+	    # empty list: return empty list
+	    return lst[:]
+	except:
+	    # not a list: return list of it
+	    return [ lst ]
 
 def cross_product_with_edges( *graphs ):
     """similar to DiGraph.cartesian.product(), but handles edge labels."""
     adj_dict = {}
     import itertools
-    for vs in itertools.product( *(g.vertices() for g in graphs) ):
+    for vst in itertools.product( *(g.vertices() for g in graphs) ):
+	vs = tuple( flatten( vst ) )
 	adj_dict[vs] = {}
 	for i in range(len(vs)):
 	    for v,w,rate in graphs[i].outgoing_edges(vs[i]):
 		ws = list(vs)
 		ws[i] = w
-		erate = [rate, i] + [ vs[j] for j in range(len(vs)) if j != i ]
+		erate = [rate, i] + list(vs)
 		adj_dict[vs][tuple(ws)] = tuple(erate)
     return DiGraph( adj_dict )
-
-def cross( *models ):
-    cross_graph = cross_product_with_edges( *(m._graph for m in models) )
-    # cross_graph has (v,v,...) tuples for vertices, and
-    # (rate,i,v,...) tuples for edges
-    # how to relabel?
-    # vertices are formally (v1, v2, ...) where vi is the vertex label in
-    # the ith graph. They get relabeled v1_{v2v3...}.
-    # edges are formally (rate, i, v1, v2, ...) where i is the index of
-    # which graph the edge comes from, and the vs don't include vi.
-    # the edge's rate expression gets relabeled by recursively adding
-    # subscripts to all of that models state variables and parameters.
-    # TODO this probably doesn't do the right thing if graphs other than
-    # the first one have rates that depend on state variables.
-    def vfunc( vtuple ):
-	return SR.symbol( '_'.join( str(v) for v in vtuple ),
-	    latex_name='%s_{%s}'%(latex(vtuple[0]),''.join( latex(v) for v in vtuple[1:] )) )
-    def efunc( etuple ):
-	"""the input is (rate, i, v, v, ...) where rate is an expression, and the
-	vs are the pre-cross vertex labels not involved in the edge."""
-	params_rename = Bindings( {
-	    p : vfunc( [p] + list(etuple[2:]) )
-	    for p in models[etuple[1]]._parameters
-	} )
-	vert_rename = Bindings( {
-	    v : vfunc( [v] + list(etuple[2:]) )
-	    for v in models[etuple[1]]._vars
-	} )
-	# note those bindings are independent of 'rate' and could be memoized
-	return vert_rename( params_rename( etuple[0] ) )
-    return BoxModel( cross_graph,
-	[ vfunc(tp) for tp in cross_graph.vertices() ],
-	vertex_func=vfunc, edge_func=efunc )
 
 </source-file>
 
@@ -154,14 +217,16 @@ SIR = BoxModel( DiGraph( { S:{ I:alpha*S*I }, I:{ R:mu*I } } ), [S,I,R] )
 
 ltx = latex_output( "SIR.sage.out.tex" )
 
-ltx.write( 'SIR model:\n', SIR )
+SIRode = SIR.ode()
+
+ltx.write( 'SIR model:\n', SIRode )
 
 ltx.close()
 
 SIR.plot_boxes( 'SIR.boxes.tex', figsize=(5,5) )
 
 epsilon = 0.01 # initial infectious pop
-trajectory = SIR.bind( { mu:0.1, alpha:1 } ).solve( [1-epsilon,epsilon,0], end_time=100 )
+trajectory = SIRode.bind( { mu:0.1, alpha:1 } ).solve( [1-epsilon,epsilon,0], end_time=80 )
 #trajectory.plot( 't', [S,I,R], filename='SIR.trajectory.png', figsize=(5,5) )
 P = ( trajectory.plot( 't', S, color='blue', legend_label='$S$' )
     + trajectory.plot( 't', I, color='red', legend_label='$I$' )
@@ -172,7 +237,7 @@ P.save( filename='SIR.trajectory.png', figsize=(5,4), legend_loc='upper right' )
 sys.exit(0r)
 </source-file>
 
-<project-file filename="SIR.sage.out.tex"/>
+<project-file filename="SIR.sage.out.html"/>
 
 <project-file filename="SIR.boxes.crop.svg"/>
 
@@ -196,27 +261,26 @@ print 'make SIR model'
 sys.stdout.flush()
 
 S, I, R, mu, alpha = SR.var( 'S I R mu alpha' )
-SIRgraph = DiGraph( { S:{ I:alpha*S*I }, I:{ R:mu*I } } )
-SIR = BoxModel( SIRgraph, [S,I,R] )
+SIR = BoxModel( DiGraph( { S:{ I:alpha*S*I }, I:{ R:mu*I } } ), [S,I,R] )
 
 print 'make classes model'
 sys.stdout.flush()
 
-a, b, rho, sigma = SR.var( 'a b rho sigma' )
-classes = BoxModel( DiGraph( { a:{ b:rho }, b:{ a:sigma } } ), [a,b] )
+A, B, a, b = SR.var( 'A B a b' )
+classes = BoxModel( DiGraph( { A:{ B:b*B }, B:{ A:A*a } } ), [A,B] )
 
 print 'write latex'
 sys.stdout.flush()
 
 ltx = latex_output( "cross.sage.out.tex" )
 
-ltx.write( 'SIR model:\n', SIR )
+ltx.write( 'SIR model:\n', SIR.ode() )
 
-ltx.write( 'classes:\n', classes ) 
+ltx.write( 'classes:\n', classes.ode() ) 
 
-SIR2 = cross( SIR, classes )
+SIR2 = BoxModelCrossProduct( SIR, classes )
 
-ltx.write( 'cross:\n', SIR2 )
+ltx.write( 'cross:\n', SIR2.ode() )
 
 ltx.close()
 
@@ -234,6 +298,69 @@ SIR2.plot_boxes( 'SIR2.boxes.tex', figsize=(5,5) )
 <project-file filename=classes.boxes.crop.svg/>
 
 <project-file filename=SIR2.boxes.crop.svg/>
+
+## The $$\beta$$ problem
+
+<source-file filename=beta.sage.step lang=sage>
+# requires: boxmodel.py
+# requires: $(SageDynamics)/dynamicalsystems.py
+# produces: beta.sage.out.tex beta.boxes.tex
+import sys
+print 'init'; sys.stdout.flush()
+import os
+sys.path.append( os.environ['SageUtils'] )
+from latex_output import *
+from boxmodel import *
+
+print 'make SI model'
+sys.stdout.flush()
+
+S, I, beta = SR.var( 'S I beta' )
+SI = BoxModel( DiGraph( { S:{ I:beta*S*I } } ), [S,I] )
+
+print 'make classes model'
+sys.stdout.flush()
+
+a, b, rho, sigma = SR.var( 'a b rho sigma' )
+classes = BoxModel( DiGraph( { a:{ b:rho }, b:{ a:sigma } } ), [a,b] )
+
+print 'write latex'
+sys.stdout.flush()
+
+ltx = latex_output( "beta.sage.out.tex" )
+
+ltx.write( 'SI model:\n', SI.ode() )
+
+ltx.write( 'classes:\n', classes.ode() ) 
+
+SIcross = BoxModelCrossProduct( SI, classes )
+
+ltx.write( 'cross:\n', SIcross.ode() )
+
+SI2 = BoxModel( DiGraph( { S:{ I:beta*S*I } } ), [S,I],
+	parameter_dependencies={ beta:[S,I] } )
+SI2cross = BoxModelCrossProduct( SI2, classes )
+
+ltx.write( 'and the cross with double-indexing:', SI2cross.ode() )
+
+SIx = BoxModel( DiGraph( { S:{ I:beta*S*I } } ), [S,I],
+	parameter_dependencies={ beta:[(S,index),(I,sumover)] } )
+SIxcross = BoxModelCrossProduct( SI2, classes )
+
+ltx.write( 'and the cross with correct double-indexing:', SIxcross.ode() )
+
+ltx.close()
+
+print 'write tikz boxes'
+sys.stdout.flush()
+
+SIcross.plot_boxes( 'beta.boxes.tex', figsize=(5,5) )
+
+</source-file>
+
+<project-file filename=beta.sage.out.html/>
+
+<project-file filename=beta.boxes.crop.svg/>
 
 ## apparatus
 
