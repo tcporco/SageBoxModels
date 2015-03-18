@@ -6,6 +6,8 @@ wmd_prerequisite_projects:
   BoxModels: Box_Models
 ---
 
+## How to infer indexing of variables
+
 Here is a possible (partial, I'm sure) schema for box models. 
 This is probably too detailed for real use, but I want to be detailed
 some of the time to make sure I'm thinking clearly:
@@ -27,6 +29,13 @@ some of the time to make sure I'm thinking clearly:
 };
 \end{tikzpicture}
 </source-file>
+
+The bottom row of these ("... in expression") is just a formalization of
+the expression tree structure.  We have fine expression trees in the
+software, so I don't think
+we'll try to represent these using tables, I just want to have them in the
+schema diagram at least to help in clear thinking. We might be able to infer
+the relevant facts about $$\beta$$ from this structure.
 
 For this box model:
 
@@ -116,13 +125,28 @@ pe1 & oe1 & pa1
 \end{minipage}
 </source-file>
 
-The bottom row of these ("... in expression") is just the formalization of
-the expression tree structure.  We have fine expression trees, so I don't think
-we'll try to represent these using tables, I just want to have them in the
-schema diagram at least to help in clear thinking. We might be able to infer
-the relevant facts about $$\beta$$ from this structure.
+which is equivalent to this graph, aside from the 'box model' table:
 
-We want the cross operation to produce this boxmodel, by figuring out that $$\beta I$$ is implicitly an inner product, but $$\beta S$$ isn't:
+<source-file filename="boxmodel-instance-graph-1.cd" display="boxmodel-instance-graph-1.cd.crop.svg">
+\begin{tikzpicture}[baseline= (operator in expression).base]
+\node[scale=0.95] (a) at (0,0) {
+\begin{tikzcd}[swap, math mode=false, column sep=huge, row sep=large]
+  $\cdot$ \arrow{r}{from} \arrow[bend left]{rr}[swap]{to}
+    \arrow{d}{rate}
+  & $S$
+  & $I$
+  & $\beta$ \\
+  *
+  & $\cdot$ \arrow{l}{parent} \arrow{u}{state}
+  & $\cdot$ \arrow[bend left]{ll}{parent} \arrow{u}{state}
+  & $\cdot$ \arrow[bend left]{lll}{parent} \arrow{u}{parameter}
+\end{tikzcd}
+};
+\end{tikzpicture}
+</source-file>
+
+We want the cross operation to produce this box model, by figuring out
+that $$\beta I$$ is implicitly an inner product, but $$\beta S$$ isn't:
 
 <source-file filename="SI2.sage.step" display="SI2.boxes.crop.svg">
 # requires: $(BoxModels)/boxmodel.py
@@ -154,9 +178,36 @@ SI2 = BoxModel(
 SI2.plot_boxes( 'SI2.boxes.tex', figsize=(5,5) )
 </source-file>
 
-with maybe these tables:
+That is, we want the original model to be understood as something like
 
-<source-file filename="SI2-tables.cd" display="SI2-tables.cd.crop.svg">
+<source-file filename="boxmodel-instance-graph-inferred.cd" display="boxmodel-instance-graph-inferred.cd.crop.svg">
+\begin{tikzpicture}[baseline= (operator in expression).base]
+\node[scale=0.95] (a) at (0,0) {
+\begin{tikzcd}[swap, math mode=false, column sep=huge, row sep=large]
+  $\cdot$ \arrow{r}{from} \arrow[bend left]{rr}[swap]{to}
+    \arrow{d}{rate}
+  & $S$
+  & $I$
+  & $\beta$
+  \\
+  product at index of ``from'' state
+  & $\cdot$ \arrow{l}{parent} \arrow{u}{state}
+  & $\cdot$ \arrow{dll}{parent} \arrow{u}{state}
+  & $\cdot$ \arrow[bend left]{dlll}{parent} \arrow{u}{parameter}
+  \\
+  sum of product over all indices \arrow{u}{parent}
+\end{tikzcd}
+};
+\end{tikzpicture}
+</source-file>
+
+whether we have to tell it that explicitly when we create the model, or
+have the software infer it from the plain * operation. I don't think this
+is a good diagram. The language about indexing is very unclear here.
+
+The cross product might have these tables:
+
+<source-file filename="SI2-tables.cd" display=none wasdisplay="SI2-tables.cd.crop.svg">
 \begin{tabular}{c}
 \texttt{box model} \\
 \hline
@@ -241,7 +292,57 @@ pe4 & oe8 & pa4
 \end{minipage}
 </source-file>
 
-... at least I think that's right.  The point is that it makes $$S$$ into
+<source-file filename="boxmodel-instance-graph-2.cd" display="boxmodel-instance-graph-2.cd.crop.svg">
+\begin{tikzpicture}[baseline= (operator in expression).base]
+\node[scale=0.95] (a) at (0,0) {
+\begin{tikzcd}[swap, math mode=false, column sep=small, row sep=large]
+    $S_1$
+  &
+  & $S_2$
+  &
+  & $I_1$
+  &
+  & $I_2$
+  &
+  & $\beta_{11}$
+  &
+  & $\beta_{12}$
+  &
+  & $\beta_{21}$
+  &
+  & $\beta_{22}$
+  \\
+    $\cdot$ \arrow{u}[swap]{from} \arrow{urrrr}[near start]{to}
+      \arrow{d}{rate}
+  &
+  & $\cdot$ \arrow{u}[swap]{from} \arrow{urrrr}[near start]{to}
+      \arrow{d}{rate}
+  \\
+    *
+  & $\cdot$ \arrow{l} \arrow{uul}
+  & *
+  & $\cdot$ \arrow{l} \arrow{uul}
+  & $\cdot$ \arrow{dlll} \arrow{uu}
+  & $\cdot$ \arrow{dllll} \arrow{uurrr}
+  & $\cdot$ \arrow{dllll} \arrow{uu}
+  & $\cdot$ \arrow{dlllll} \arrow{uurrr}
+  & $\cdot$ \arrow{dllll} \arrow{uullll}
+  & $\cdot$ \arrow{dlllll} \arrow{uurrr}
+  & $\cdot$ \arrow{dlllll} \arrow{uullll}
+  & $\cdot$ \arrow{dllllll} \arrow{uurrr}
+  \\
+    + \arrow{u}
+  & * \arrow{l}
+  & * \arrow[bend left]{ll}
+  & + \arrow{ul}
+  & * \arrow{l}
+  & * \arrow[bend left]{ll}\\
+\end{tikzcd}
+};
+\end{tikzpicture}
+</source-file>
+
+The point is that it makes $$S$$ into
 $$S_1$$ and $$S_2$$, and $$I$$ into $$I_1$$ and $$I_2$$ in the usual way,
 but it somehow infers that it should make $$\beta$$ into four things, and
 make $$\beta I$$ into $$\beta_{11}I_1 + \beta_{12}I_2$$ and
@@ -252,7 +353,344 @@ I'm wondering if it might be able to infer that from the facts that
 * the expression $$\beta S I$$ involves two state variables, therefore $$\beta$$ is double indexed;
 * the variable $$S$$ is tied to the source state $$S$$, so it keeps its index.
 
-Is that sufficient to infer that $$\beta S I$$ is actually $$S\ \text{innerproduct}}(\beta, I)$$?  Is that a sensible thing to infer?
+Is that sufficient to infer that $$\beta S I$$ is actually
+$$S$$ times the inner product of $$\beta$$ and $$I$$?
+Is that a sensible thing to infer?
+
+## What does indexing mean?
+
+This kind of seems like a non-issue, but it's bothering me and there might
+be something there...
+
+Here is a diagram of the states of a simple unindexed box model (though
+this diagram should be true of a product model as well):
+
+<source-file filename="state-schema.cd" display="state-schema.cd.crop.svg">
+\begin{tikzpicture}[baseline= (a).base]
+\node[scale=0.95] (a) at (0,0) {
+\begin{tikzcd}[swap, math mode=false, column sep=small, row sep=large]
+   
+  & size of compartment \arrow{rr}{has units}
+  &
+  & number of individuals
+  \\
+    state variable \arrow{ur}[near end]{has value}
+      \arrow[yshift=-2pt]{rr}{names}
+      \arrow{d}[swap]{is an entry in}
+  &
+  & compartment \arrow{r}{$\subseteq$} \arrow{d}{$\in$}
+      \arrow{ul}{has measure}
+      \arrow[yshift=2pt]{ll}{is called}
+  & Population
+  \\
+    state vector \arrow{rr}{names each element of}
+  &
+  & compartmentalization \arrow{ur}{is a partition of}
+\end{tikzcd}
+};
+\end{tikzpicture}
+</source-file>
+
+Maybe saying the state variable is a real-valued function of time
+rather than just a number or a symbol is a bad idea, but I'll leave
+it there for now.  Also, the units might be "proportion of population"
+rather than "number of individuals".  And maybe they have other units
+in some box models?  Leaving aside the matter of different _kinds_ of
+individuals, as in people, birds, etc.
+
+<source-file filename="transition-schema.cd" display="transition-schema.cd.crop.svg">
+\begin{tikzpicture}[baseline= (a).base]
+\node[scale=0.95] (a) at (0,0) {
+\begin{tikzcd}[swap, math mode=false, column sep=small, row sep=large]
+  &
+  &
+  & flow from source to target \arrow{rr}{has units}
+  &
+  & number of individuals per unit time
+  \\
+    transition \arrow[xshift=-2pt]{d}{source} \arrow[xshift=2pt, swap]{d}{target}
+      \arrow[swap]{rrr}{has rate}
+  &
+  &
+  & transition rate \arrow[swap]{dlll}{is rate of change in}
+      \arrow{u}{has value}
+  \\
+    state variable
+\end{tikzcd}
+};
+\end{tikzpicture}
+</source-file>
+
+In this diagram, it might be very helpful to put more care into the role
+of state variables vs. compartments, and what exactly that "flow"
+is...
+
+The goal here is:
+
+* To formalize the operation that produces state variables during the cross
+operation (summary: set intersections applied to the Cartesian product of partitions of Population).
+
+    * and summarize the relationship between those set intersections and subscripting of state variables.
+
+* Try to formalize the operation that happens to transitions.
+
+### Cross product of states
+
+In the SI model, the states $$S$$ and $$I$$ stand for subsets of the population,
+which are exhaustive in that every individual is either in one compartment
+or the other.  That is, they correspond to a partition
+$$\left\{\mathbf{S},\mathbf{I}\right\}$$ of the set$$\ \text{Population}$$:
+two sets $$\mathbf{S}$$ and $$\mathbf{I}$$ with
+$$\mathbf{S}\cap\mathbf{I}=\emptyset$$ and
+$$\mathbf{S}\cup\mathbf{I}=\text{Population}$$, and $$S$$ and $$I$$ are the
+measures of those sets: $$S=\mu(\mathbf{S})$$, $$I=\mu(\mathbf{I})$$. 
+
+<source-file filename="state-instance-1.cd" display="state-instance-1.cd.crop.svg">
+\begin{tikzpicture}[baseline= (a).base]
+\node[scale=0.95] (a) at (0,0) {
+\begin{tikzcd}[swap, math mode=false, column sep=large, row sep=large]
+    $S$ \arrow[yshift=-2pt]{r}{measure of}
+  & $\mathbf{S}$ \arrow{r}{$\subseteq$} \arrow[near end]{rd}{$\in$}
+      \arrow[yshift=2pt]{l}{called}
+  & Population
+  \\
+    $I$ \arrow[yshift=-2pt]{r}{measure of}
+  & $\mathbf{I}$ \arrow[near start, swap]{ru}{$\subseteq$} \arrow{r}{$\in$}
+      \arrow[yshift=2pt]{l}{called}
+  & $\left\{\mathbf{S},\mathbf{I}\right\}$ \arrow{u}{partition of}
+\end{tikzcd}
+};
+\end{tikzpicture}
+</source-file>
+
+A model for us to cross with might look like this one:
+
+<source-file filename="state-instance-2.cd" display="state-instance-2.cd.crop.svg">
+\begin{tikzpicture}[baseline= (a).base]
+\node[scale=0.95] (a) at (0,0) {
+\begin{tikzcd}[swap, math mode=false, column sep=large, row sep=large]
+    $A$ \arrow[yshift=-2pt]{r}{measure of}
+  & $\mathbf{A}$ \arrow{r}{$\subseteq$} \arrow[near end]{rd}{$\in$}
+      \arrow[yshift=2pt]{l}{called}
+  & Population
+  \\
+    $B$ \arrow[yshift=-2pt]{r}{measure of}
+  & $\mathbf{B}$ \arrow[near start, swap]{ru}{$\subseteq$} \arrow{r}{$\in$}
+      \arrow[yshift=2pt]{l}{called}
+  & $\left\{\mathbf{A},\mathbf{B}\right\}$ \arrow{u}{partition of}
+\end{tikzcd}
+};
+\end{tikzpicture}
+</source-file>
+
+This represents a different partition of the same population: instead of
+classifying people into susceptible and infected, we classify them into
+high-and-low-contact groups or whatever.
+
+The cross operation, from the point of view of the state variables (leaving
+aside transitions for now), is about constructing the Cartesian product of
+these partitions.
+
+<source-file filename="crossed-state-instance-1.cd" display="crossed-state-instance-1.cd.crop.svg">
+\begin{landscape}
+\begin{tikzpicture}[baseline= (a).base]
+\node[scale=0.95] (a) at (0,0) {
+\begin{tikzcd}[swap, math mode=false, column sep=small, row sep=large]
+    $S$ \arrow[yshift=-2pt]{r}
+  & $\mathbf{S}$ \arrow{rr}{$\subseteq$} \arrow[near start]{rd}{$\in$}
+       \arrow[yshift=2pt]{l}
+  &
+  & Population
+  &
+  & $\mathbf{A}$ \arrow[swap]{ll}{$\subseteq$} \arrow[swap]{ld}{$\in$}
+       \arrow[yshift=-2pt]{r}
+  & $A$ \arrow[swap,yshift=2pt]{l}
+  \\
+    $I$ \arrow[yshift=-2pt]{r}
+  & $\mathbf{I}$ \arrow[swap]{rru}{$\subseteq$} \arrow{r}{$\in$}
+       \arrow[yshift=2pt]{l}
+  & $\left\{\mathbf{S},\mathbf{I}\right\}$ \arrow{ru}{partition of}
+  &
+  & $\left\{\mathbf{A},\mathbf{B}\right\}$ \arrow[swap, near start]{lu}{partition of}
+  & $\mathbf{B}$ \arrow[near end]{llu}{$\subseteq$} \arrow[swap]{l}{$\in$}
+       \arrow[yshift=-2pt]{r}
+  & $B$ \arrow[swap,yshift=2pt]{l}
+  \\
+  &
+  &
+  & $\left\{\mathbf{S},\mathbf{I}\right\}\times\left\{\mathbf{A},\mathbf{B}\right\}$
+      \arrow{ul}{first} \arrow{ur}[swap]{second}
+      \arrow{dd}{$\cap$}
+  \\
+  & $(\mathbf{S},\mathbf{A})$ \arrow{urr}{$\in$} \ar{dd}{$\cap$}
+      \ar{dl}[swap]{called$\times$called}
+  & $(\mathbf{S},\mathbf{B})$ \arrow{ur}{$\in$} \ar{dd}{$\cap$}
+  &
+  & $(\mathbf{I},\mathbf{A})$ \arrow[swap]{ul}{$\in$} \ar{dd}{$\cap$}
+  & $(\mathbf{I},\mathbf{B})$ \arrow[swap]{ull}{$\in$} \ar{dd}{$\cap$}
+  \\
+    $(S,A)$ \ar{ddr}[near end]{subscript}
+  &
+  &
+  & \mathllap{$\{\mathbf{X}\cap\mathbf{Y}|(\mathbf{X},\mathbf{Y})$}$\in$\mathrlap{$\left\{\mathbf{S},\mathbf{I}\right\}\times\left\{\mathbf{A},\mathbf{B}\right\}\}$}
+       \arrow[bend left=50, pos=0.8]{uuuu}{partition of}
+  \\
+  & $\mathbf{S}\cap\mathbf{A}$ \arrow{urr}{$\in$} \arrow[xshift=-2pt]{d}
+  & $\mathbf{S}\cap\mathbf{B}$ \arrow{ur}{$\in$} \arrow[xshift=-2pt]{d}
+  &
+  & $\mathbf{I}\cap\mathbf{A}$ \arrow[swap]{ul}{$\in$} \arrow[xshift=-2pt]{d}
+  & $\mathbf{I}\cap\mathbf{B}$ \arrow[swap]{ull}{$\in$} \arrow[xshift=-2pt]{d}
+  \\
+  & $S_A$ \arrow[xshift=2pt]{u}
+  & $S_B$ \arrow[xshift=2pt]{u}
+  &
+  & $I_A$ \arrow[xshift=2pt]{u}
+  & $I_B$ \arrow[xshift=2pt]{u}
+\end{tikzcd}
+};
+\end{tikzpicture}
+\end{landscape}
+</source-file>
+
+Arrows are omitted asserting that $$\mathbf{S}\cap\mathbf{A}$$ and
+the other sets on that row are subsets of$$\ \text{Population}$$.
+Also omitted are the "first" and "second" relations e.g. from
+$$(\mathbf{I},\mathbf{A})$$ to $$\mathbf{I}$$ and $$\mathbf{A}$$.
+Also, only one of the four "subscript" relations defining how the
+composite variable name is constructed is shown, the one from
+$$(\mathbf{S},\mathbf{A})$$ to $$S_A$$.
+
+So actually, the Cartesian product of the partitions isn't the new
+partition, it's an intermediate object on the way to constructing
+the new partition (by taking intersections of the pairs contained
+in the Cartesian product).
+
+### Transition rates in the cross product
+
+Actually, without making a diagram of the transitions in the cross,
+does the above notation help me think about the $$\beta$$ problem?
+It says that the transition rate $$\beta S I$$ is  really
+$$\beta\mu(\mathbf{S})\mu(\mathbf{I})$$.
+
+Well, maybe that doesn't help.
+
+But speaking of those measures,
+I'm also curious about writing it in terms of measures and integrals:
+let $$x$$ and $$y$$ be individuals $$\in\text{Population}$$,
+with $$\text{class}(x)$$ and
+$$\text{class}(y)\in\{\mathbf{S},\mathbf{I}\}$$, and $$\beta_{xy}$$
+the rate of infection of $$x$$ by $$y$$ given that $$x\in\mathbf{S}$$ and
+$$y\in\mathbf{I}$$.  Let $$\mathbf{1}_{\text{event}}$$
+be the indicator function for that event, 1 iff the event is true, else 0.
+Then $$x$$ becomes infected at rate
+
+$$\int\beta_{xy}\mathbf{1}_{x\in\mathbf{S}}\mathbf{1}_{y\in\mathbf{I}} dy = \mathbf{1}_{x\in\mathbf{S}}\int_\mathbf{I}\beta_{xy}dy$$.
+
+So the rate of change of $$\mu(S)=\int\mathbf{1}_{x\in\mathbf{S}}dx$$ is
+
+$$\int_\mathbf{S}\int_\mathbf{I} \beta_{xy}dy dx$$,
+
+and if we assume that $$\beta$$ is a good approximation to $$\beta_{xy}$$
+for all $$x$$ and $$y$$, that reduces to
+$$\beta\mu(\mathbf{S})\mu(\mathbf{I}) = \beta S I$$.
+
+When we use the cross operation to diversify $$\mathbf{S}$$ and $$\mathbf{I}$$,
+however, we don't assume that approximation, and we want to provide different
+approximate $$\beta$$s depending on membership of $$x$$ and $$y$$ in
+$$\mathbf{A}$$ and $$\mathbf{B}$$.
+
+This notation so far doesn't capture that an encounter with a $$y$$ from
+$$\mathbf{B}$$ will transition an $$x$$ from
+$$\mathbf{S}\cap\mathbf{A}$$ to $$\mathbf{I}\cap\mathbf{A}$$, however,
+not to individual $$y$$'s class.  This is a model assumption that
+needs to be specified somehow -- that classes $$\mathbf{A}$$ and
+$$\mathbf{B}$$ represent characteristics of the host, and
+not of the pathogen.
+
+## Ways to cross the SI model
+
+The crossed model we've been discussing above is the Rushton-Mautner one:
+
+$$\[ \frac{dS_i}{dt} = \sum_j \beta_{ij}S_iI_j \]$$
+
+with $$I_j = N_j-S_j$$.
+
+This is a model for S and I classes in multiple communities, sharing a
+single disease.
+
+A multiple-infection model, with one community circulating multiple strains of
+a disease without coinfection, might look like this instead:
+
+<source-file filename="SI3.sage.step" display="SI3.boxes.crop.svg">
+# requires: $(BoxModels)/boxmodel.py
+# requires: $(SageDynamics)/dynamicalsystems.py
+# requires: $(SageAdaptiveDynamics)/adaptivedynamics.py
+# produces: SI3.sage.out.tex SI3.boxes.tex
+import os
+import sys
+sys.path.append( os.environ['BoxModels'] )
+sys.path.append( os.environ['SageUtils'] )
+from latex_output import *
+from boxmodel import *
+
+Ss, Is, betas = {}, {}, {}
+
+for i in (1,2):
+    Ss[i] = SR.symbol('S_'+str(i))
+    Is[i] = SR.symbol('I_'+str(i))
+    betas[i] = {}
+    for j in (1,2):
+	betas[i][j] = SR.symbol('beta_'+str(i)+str(j), latex_name='\\beta_{'+str(i)+str(j)+'}')
+
+SI2 = BoxModel(
+    DiGraph(
+	{ Ss[i]:{ Is[j]: Ss[i]*betas[i][j]*Is[j] for j in (1,2) } for i in (1,2) },
+	pos = { Ss[1]:[ 0,1 ], Ss[2]:[ 0,0 ], Is[1]:[ 1/2,1 ], Is[2]:[ 1/2,0 ] }
+    ), [ Ss[1], Ss[2], Is[1], Is[2] ] )
+
+SI2.plot_boxes( 'SI3.boxes.tex', figsize=(5,5) )
+</source-file>
+
+<latex>\begin{align*}
+ \frac{dS_i}{dt} &= - S_i\sum_j \beta_{ij}I_j \\
+ \frac{dI_i}{dt} &= I_i\sum_j \beta_{ji}S_j
+\end{align*}</latex>
+
+(Although in that case, it doesn't really make sense to have two $$S$$
+classes -- there's really just one.)
+
+Note that all of these are products with a trivial box model without arrows,
+so this is not a strong product, but something else.
+
+Another cross may be
+
+<source-file filename="SI4.sage.step" display="SI4.boxes.crop.svg">
+# requires: $(BoxModels)/boxmodel.py
+# requires: $(SageDynamics)/dynamicalsystems.py
+# requires: $(SageAdaptiveDynamics)/adaptivedynamics.py
+# produces: SI4.sage.out.tex SI4.boxes.tex
+import os
+import sys
+sys.path.append( os.environ['BoxModels'] )
+sys.path.append( os.environ['SageUtils'] )
+from latex_output import *
+from boxmodel import *
+Ss, Is, betas = {}, {}, {}
+for i in (1,2):
+    Ss[i] = SR.symbol('S_'+str(i))
+    Is[i] = SR.symbol('I_'+str(i))
+    betas[i] = SR.symbol('beta_'+str(i), latex_name='\\beta_{'+str(i)+'}')
+SI4 = BoxModel(
+    DiGraph(
+	{ Ss[i]:{ Is[i]: Ss[i]*betas[i]*Is[i] } for i in (1,2) },
+	pos = { Ss[1]:[ 0,1 ], Ss[2]:[ 0,0 ], Is[1]:[ 1/2,1 ], Is[2]:[ 1/2,0 ] }
+    ), [ Ss[1], Ss[2], Is[1], Is[2] ] )
+SI4.plot_boxes( 'SI4.boxes.tex', figsize=(5,5) )
+</source-file>
+
+-- two isolated subcommunities. 
+Though this can be seen as a special case of one of the above ones, with
+off-diagonal $$\beta_{ij}$$ entries set to zero.
 
 <!-- below this line, boring utility code that makes everything work -->
 
