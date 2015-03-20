@@ -29,7 +29,8 @@ from sage.misc.latex import _latex_file_
 from sage.symbolic.function_factory import function
 
 # constant 'enum' values for use with indexing
-index, sumover = range(0,2)
+class deps:
+    index, sumover = range(0,2)
 
 class BoxModel(SageObject):
     """Parent class for all kinds of box models.
@@ -62,7 +63,7 @@ class BoxModel(SageObject):
 		self._parameter_dependencies[p] = [ self._vars[0] ]
 	for p, pd in self._parameter_dependencies.items():
 	    try: [ d[0] for d in pd ]
-	    except: self._parameter_dependencies[p] = [ (d,index) for d in pd ]
+	    except: self._parameter_dependencies[p] = [ (d,deps.index) for d in pd ]
 	#print 'parameter dependencies:', self._parameter_dependencies
 	self._bindings = bindings
 	if self._graph.get_pos() is None:
@@ -93,6 +94,13 @@ class BoxModel(SageObject):
 	LF.write( LT )
         LF.close()
 	return LT
+
+#import itertools
+#gensym_counter = itertools.count()
+#def gensym():
+#    c = gensym_counter.next()
+#    return SR.symbol( '_bm_gensym_' + str(c),
+#	latex_name='\_bm\_gensym\_' + str(c) )
 
 class BoxModelCrossProduct(BoxModel):
     def __init__(self, *models):
@@ -140,19 +148,37 @@ class BoxModelCrossProduct(BoxModel):
 	    } )
 	    local_params_rename = Bindings( {
 	    } )
+	    local_subs_expr = []
+	    bm_index_function = sage.symbolic.function_factory.function( 'bm_index', latex_name='bm\_index' )
+	    def make_index_expr( terms ):
+		return bm_index_function( *terms )
+	    def apply_apply_subscripts( *args ): return apply_subscripts( args )
 	    for p in models[i]._parameters:
 		plist = [p]
+		print 'dependencies of', p, 'are', models[i]._parameter_dependencies[p]
+		sumover = []
+		product = p
 		for dv, dtype in models[i]._parameter_dependencies[p]:
-		    if dtype is index:
+		    if dtype is deps.index:
 			plist += list(etuple[2:2+i]) + list( etuple[2+i+1:] )
+		    elif dtype is deps.sumover:
+			syms = [ (SR.symbol(), models[j]) for j in range(len(models)) if j != i ]
+			print 'sum over', dv, ':', [s for s,m in syms]
+			plist += [ s for s,m in syms ]
+			sumover += [ (s, m._vars) for s,m in syms ]
+			# TODO: multiple dependencies on same variable
+			local_params_rename[dv] = make_index_expr( [dv] + [ s for s,m in syms ] )
 		    else:
-			vts = [ vt for vt in self._graph.vertices() if vt[i] == dv ]
-			#for vt in vts:
-			    #plist += 
-			    # TODO: how to sum over multiple indexes
-		local_params_rename[p] = apply_subscripts( plist )
+			raise ValueError
+		    product *= dv
+		local_params_rename[p] = make_index_expr( plist )
+		prodsum = local_params_rename(product)
+		for i,vs in sumover: prodsum = sum( Bindings( { s: v } )( prodsum ) for v in vs )
+		print 'prodsum', latex(product), ':', latex(prodsum)
+		local_subs_expr += [product == prodsum.substitute_function( bm_index_function, apply_apply_subscripts )]
+	    # TODO: figure out what to sum over those things
 	    # note those bindings are independent of 'rate' and could be memoized
-	    return local_vars_rename( local_params_rename( rate ) )
+	    return local_vars_rename( local_params_rename( rate.subs_expr( *local_subs_expr ) ) ).substitute_function( bm_index_function, apply_apply_subscripts )
 	self._flow_graph = DiGraph( {
 	    vertex_label_func(v):{
 		vertex_label_func(w):edge_label_func(e)
@@ -162,6 +188,7 @@ class BoxModelCrossProduct(BoxModel):
 	self._flow_graph.set_latex_options( edge_labels=True, vertex_shape='rectangle' )
 	self._flow_graph.set_pos( { vertex_label_func(v):pos for v,pos in positions.items() } )
 	# the list of variables is the graph's vertex list
+	# TODO: in sorted order
 	self._vars = list( self._flow_graph.vertices() )
 	# now generate all the crossed parameters
 	# TODO: do this right
@@ -341,11 +368,11 @@ SI2 = BoxModel( DiGraph( { S:{ I:beta*S*I } } ), [S,I],
 	parameter_dependencies={ beta:[S,I] } )
 SI2cross = BoxModelCrossProduct( SI2, classes )
 
-ltx.write( 'and the cross with double-indexing:', SI2cross.ode() )
+ltx.write( 'cross with double-indexing:', SI2cross.ode() )
 
 SIx = BoxModel( DiGraph( { S:{ I:beta*S*I } } ), [S,I],
-	parameter_dependencies={ beta:[(S,index),(I,sumover)] } )
-SIxcross = BoxModelCrossProduct( SI2, classes )
+	parameter_dependencies={ beta:[(S,deps.index),(I,deps.sumover)] } )
+SIxcross = BoxModelCrossProduct( SIx, classes )
 
 ltx.write( 'and the cross with correct double-indexing:', SIxcross.ode() )
 
@@ -354,7 +381,7 @@ ltx.close()
 print 'write tikz boxes'
 sys.stdout.flush()
 
-SIcross.plot_boxes( 'beta.boxes.tex', figsize=(5,5) )
+SIxcross.plot_boxes( 'beta.boxes.tex', figsize=(5,5) )
 
 </source-file>
 
