@@ -485,7 +485,7 @@ A model for us to cross with might look like this one:
 
 This represents a different partition of the same population: instead of
 classifying people into susceptible and infected, we classify them into
-high-and-low-contact groups or whatever.
+distinct communities, or high-and-low-contact groups or whatever.
 
 The cross operation, from the point of view of the state variables (leaving
 aside transitions for now), is about constructing the Cartesian product of
@@ -565,10 +565,14 @@ partition, it's an intermediate object on the way to constructing
 the new partition (by taking intersections of the pairs contained
 in the Cartesian product).
 
+But also, I think I prefer the approach I'll use below, where I
+define a labeling function from$$\ \text{Population}$$ to {"A","B"}
+and then derive the partition from that.
+
 ### Transition rates in the cross product
 
-Actually, without making a diagram of the transitions in the cross,
-does the above notation help me think about the $$\beta$$ problem?
+At this point, without making a diagram of the transitions in the cross,
+does the above set notation help me think about the $$\beta$$ problem?
 It says that the transition rate $$\beta S I$$ is  really
 $$\beta\mu(\mathbf{S})\mu(\mathbf{I})$$.
 
@@ -606,6 +610,69 @@ not to individual $$y$$'s class.  This is a model assumption that
 needs to be specified somehow -- that classes $$\mathbf{A}$$ and
 $$\mathbf{B}$$ represent characteristics of the host, and
 not of the pathogen.
+
+But I think this diagram does:
+
+<source-file filename="crossed-transition-instance-1.cd" display="crossed-transition-instance-1.cd.crop.svg">
+\begin{tikzpicture}[baseline= (a).base]
+\node[scale=0.95] (a) at (0,0) {
+\begin{tikzcd}[swap, math mode=false, column sep=small, row sep=large]
+    $\{(\text{Population},x,S,I,\mathbf{1}_{\text{i.s.}(x)=S}\int\beta_{xy}\mathbf{1}_{\text{i.s.}(y)=I}dy)\}$
+	\arrow{r}{??}[swap]{$S_{\text{comm.}(x)}\sum_c\beta_{\text{comm.}(x),c}I_c$}
+  & $\mathbb{R}$
+  \\
+    $\{(x,y,\beta_{xy},\text{i.s.}(x),\text{comm.}(x),\text{i.s.}(y),\text{comm.}(y))\}$
+	\arrow{u}{$\mu$ update}
+  & Transition %\arrow{d}{of}
+	\arrow{drr}[swap]{from} \arrow[swap]{r}{to}
+	\arrow{ul}{$\mu$ update}
+	\arrow{u}{ODE rate}
+  & $\{S,I\}$
+  \\
+    $\mu$state $\times$ $\mu$state %\arrow{r}{$x$} \arrow{ddr}{$y$}
+	\arrow{u}
+	\arrow{rr}{$\text{comm.}(x)$}
+	\arrow[out=10, in=170, swap]{rrr}{$\text{i.s.}(x)$}
+	\arrow{dr}
+	\arrow{drr}{$\text{comm.}(y)$}
+	\arrow[near end,swap]{drrr}{$\text{i.s.}(y)$}
+	\arrow{ddr}{$\beta_{xy}$}
+  &
+  & $\{A,B\}$
+  & $\{S,I\}$
+  \\
+  & $\{A,B\}\times\{A,B\}$
+	\arrow{ur}
+	\arrow{r}
+	\arrow[line width=1pt]{d}[swap]{$\beta_{\text{comm.}(x),\text{comm.}(y)}$}
+  & $\{A,B\}$
+  & $\{S,I\}$
+  \\
+  & $\mathbb{R}$
+%  \\
+%	\arrow{d}
+%  \\
+%    $\{(x,y,\mathbf{1}_{\text{i.s.}(x)=S}\int\beta_{xy}\mathbf{1}_{\text{i.s.}(y)=I}dy)\}$
+%	\arrow{d}
+%  \\
+\end{tikzcd}
+};
+\end{tikzpicture}
+</source-file>
+
+The key here is the heavy arrow at the bottom.  Since this is a commutative
+diagram, it is required that every arrow is a function, paths through
+the diagram represent compositions of functions, and any time there
+are two paths from the same source location to the same target location,
+they represent the same function.  So the presence of this arrow requires
+that the rate constant $$\beta_{xy}$$, which would otherwise be an arbritrary
+number for every pair of individuals $$x,y$$, actually depends only on their
+community membership $$\text{comm.}(x),\text{comm.}(y)\in\{A,B\}$$.
+
+Once we know that, which gives us that $$\beta_{xy}$$ is actually
+$$\beta_{AA}$$, $$\beta_{AB}$$, etc., we should be able to get
+just what we want by integrating
+the microstate transition rates over the population...
 
 ## Ways to cross the SI model
 
