@@ -9,223 +9,9 @@ wmd_prerequisite_projects:
 This is a preliminary stab at automating construction of compartment (box)
 models in Sage.
 
-## BoxModel class
+The BoxModel and BoxModelCrossProduct classes are at the end of this page.
 
-Here's a class to represent a BoxModel. It's an ODE model, with a special
-constructor, and the ability to draw itself as a directed graph.
-
-<source-file filename=boxmodel.py.step lang=python>
-# requires: $(SageDynamics)/dynamicalsystems.py $(SageAdaptiveDynamics)/adaptivedynamics.py
-from sage.all import *
-import os
-import sys
- 
-sys.path.append( os.environ['SageUtils'] )
-sys.path.append( os.environ['SageDynamics'] )
-from dynamicalsystems import *
-
-from sage.misc.latex import _latex_file_
-#from sage.symbolic.relation import solve
-from sage.symbolic.function_factory import function
-
-# constant 'enum' values for use with indexing
-class deps:
-    index, sumover = range(0,2)
-
-class BoxModel(SageObject):
-    """Parent class for all kinds of box models.
-    Note that since this gets its variables from a graph's vertices,
-    rather than from indexers, it can't be used in adaptive dynamics.
-    Subclasses that generate their boxes, maybe can.
-    """
-    def __init__(self, graph,
-	vars=None,
-	population_vars=None,
-	parameters=None,
-	parameter_dependencies={},
-        bindings=Bindings()):
-	# we are given a directed graph whose vertex labels are state
-	# variables, representing fractions of total population,
-	# and whose edge labels are flow rates.
-	self._graph = graph
-	self._graph.set_latex_options( edge_labels=True )
-	self._graph.set_latex_options( vertex_shape='rectangle' )
-	if vars is None:
-	    vars = graph.vertices()
-	self._vars = vars
-	if parameters is None:
-	    parameters = set( reduce( union, (r.variables() for f,t,r in graph.edges()) ) ).difference( self._vars )
-	self._parameters = parameters
-	#print 'parameters:', parameters
-	self._parameter_dependencies = parameter_dependencies
-	for p in self._parameters:
-	    if p not in self._parameter_dependencies:
-		self._parameter_dependencies[p] = [ self._vars[0] ]
-	for p, pd in self._parameter_dependencies.items():
-	    try: [ d[0] for d in pd ]
-	    except: self._parameter_dependencies[p] = [ (d,deps.index) for d in pd ]
-	#print 'parameter dependencies:', self._parameter_dependencies
-	self._bindings = bindings
-	if self._graph.get_pos() is None:
-	    self._graph.set_pos( { v:(i,0) for i,v in enumerate(self._vars) } )
-	self._flow_graph = self._graph
-    def ode(self, time_variable=SR.symbol('t'), bindings=Bindings()):
-	flow = { v:0 for v in self._vars }
-	#print flow
-	for source,target,rate in self._flow_graph.edges():
-	    #print source, '-$%s$->'%latex(rate), target
-	    flow[source] -= rate
-	    flow[target] += rate
-	return ODESystem(
-	    flow,
-            self._vars,
-	    time_variable,
-            bindings = bindings+self._bindings )
-    def tikz_boxes( self, raw=False ):
-	if raw:
-	    return _latex_file_( self._graph, title='' )
-	print 'draw flow graph'
-	return _latex_file_( self._flow_graph, title='' )
-    def plot_boxes( self, filename=None, raw=False, **options ):
-	# new Tikz/SVG code
-	print 'plot to', filename
-        LF = open( filename, 'w' )
-	LT = self.tikz_boxes( raw )
-	LF.write( LT )
-        LF.close()
-	return LT
-
-#import itertools
-#gensym_counter = itertools.count()
-#def gensym():
-#    c = gensym_counter.next()
-#    return SR.symbol( '_bm_gensym_' + str(c),
-#	latex_name='\_bm\_gensym\_' + str(c) )
-
-class BoxModelCrossProduct(BoxModel):
-    def __init__(self, *models):
-	self._models = models
-	# TODO: it would be more efficient to iterate one model at a time,
-	# and generate the vertex tuples, rate tuples, subscripted state
-	# variables, subscripted parameters, and subscripted rates all in
-	# the same loop.
-	self._graph = cross_product_with_edges( *(m._graph for m in models) )
-	self._graph.set_latex_options( edge_labels=True, vertex_shape='rectangle' )
-	# positions of graph vertices
-	directions = [ 0, pi/2, pi/3, pi/6 ] # will add more as needed, I guess
-	import itertools
-	positions = { tuple(a[1] for a in dtup):[ sum(a[0]*cos(d) for a,d in zip(dtup,directions)), sum(a[0]*sin(d) for a,d in zip(dtup,directions)) ] for dtup in itertools.product( *[ enumerate(model._vars) for model in models ] ) }
-	#print positions
-	self._graph.set_pos( positions )
-	# if the model was made by a cross operation, vertex and edge labels
-	# will be tuples, i.e. members of a cartesian product of sets.
-	# vertices are simple tuples of atomic state variables.
-	for v in self._graph.vertices():
-	    try: v[0]
-	    except: v = tuple(v)
-	# the edges have a special format: (r, i, v, v, ...), where
-	# r is a symbolic expression in the form it came from the original
-	# uncrossed model;
-	# v, v, ... is the tuple representing the edge's source vertex;
-	# i is an integer indexing which model the rate comes from.
-	for v,w,e in self._graph.edges():
-	    try: e[0]
-	    except: e = tuple(e,0,*v)
-	# now for consumption by humans and math software, we map vertex
-	# tuples to regular variable names
-	def apply_subscripts( vtuple ):
-	    return SR.symbol( '_'.join( str(v) for v in vtuple ),
-	        latex_name='%s_{%s}'%(latex(vtuple[0]),''.join( latex(v) for v in vtuple[1:] )) )
-	vertex_label_func = apply_subscripts
-	# and relabel the flow rates, which is more complex
-	def edge_label_func( etuple ):
-	    """the input is (rate, i, v, v, ...) where rate is an expression, and the
-	    vs are the pre-cross vertex labels."""
-	    rate, i = etuple[:2]
-	    local_vars_rename = Bindings( {
-		var : apply_subscripts( list(etuple[2:2+i]) + [var] + list(etuple[2+i+1:]) )
-		for var in models[i]._vars
-	    } )
-	    local_params_rename = Bindings( {
-	    } )
-	    local_subs_expr = []
-	    bm_index_function = sage.symbolic.function_factory.function( 'bm_index', latex_name='bm\_index' )
-	    def make_index_expr( terms ):
-		return bm_index_function( *terms )
-	    def apply_apply_subscripts( *args ): return apply_subscripts( args )
-	    for p in models[i]._parameters:
-		plist = [p]
-		print 'dependencies of', p, 'are', models[i]._parameter_dependencies[p]
-		sumover = []
-		product = p
-		for dv, dtype in models[i]._parameter_dependencies[p]:
-		    if dtype is deps.index:
-			plist += list(etuple[2:2+i]) + list( etuple[2+i+1:] )
-		    elif dtype is deps.sumover:
-			syms = [ (SR.symbol(), models[j]) for j in range(len(models)) if j != i ]
-			print 'sum over', dv, ':', [s for s,m in syms]
-			plist += [ s for s,m in syms ]
-			sumover += [ (s, m._vars) for s,m in syms ]
-			# TODO: multiple dependencies on same variable
-			local_params_rename[dv] = make_index_expr( [dv] + [ s for s,m in syms ] )
-		    else:
-			raise ValueError
-		    product *= dv
-		local_params_rename[p] = make_index_expr( plist )
-		prodsum = local_params_rename(product)
-		for i,vs in sumover: prodsum = sum( Bindings( { s: v } )( prodsum ) for v in vs )
-		print 'prodsum', latex(product), ':', latex(prodsum)
-		local_subs_expr += [product == prodsum.substitute_function( bm_index_function, apply_apply_subscripts )]
-	    # TODO: figure out what to sum over those things
-	    # note those bindings are independent of 'rate' and could be memoized
-	    return local_vars_rename( local_params_rename( rate.subs_expr( *local_subs_expr ) ) ).substitute_function( bm_index_function, apply_apply_subscripts )
-	self._flow_graph = DiGraph( {
-	    vertex_label_func(v):{
-		vertex_label_func(w):edge_label_func(e)
-		for vv,w,e in self._graph.outgoing_edges(v)
-	    } for v in self._graph.vertices()
-	} )
-	self._flow_graph.set_latex_options( edge_labels=True, vertex_shape='rectangle' )
-	self._flow_graph.set_pos( { vertex_label_func(v):pos for v,pos in positions.items() } )
-	# the list of variables is the graph's vertex list
-	# TODO: in sorted order
-	self._vars = list( self._flow_graph.vertices() )
-	# now generate all the crossed parameters
-	# TODO: do this right
-	self._parameters = set( reduce( union, (r.variables() for f,t,r in self._flow_graph.edges()) ) ).difference( self._vars )
-	#print 'parameters:', self._parameters
-	self._bindings = Bindings()
-
-def flatten( lst ):
-    try:
-	# nonempty list: flatten recursively
-	return flatten( lst[0] ) + flatten( lst[1:] )
-    except:
-	try:
-	    # empty list: return empty list
-	    return lst[:]
-	except:
-	    # not a list: return list of it
-	    return [ lst ]
-
-def cross_product_with_edges( *graphs ):
-    """similar to DiGraph.cartesian.product(), but handles edge labels."""
-    adj_dict = {}
-    import itertools
-    for vst in itertools.product( *(g.vertices() for g in graphs) ):
-	vs = tuple( flatten( vst ) )
-	adj_dict[vs] = {}
-	for i in range(len(vs)):
-	    for v,w,rate in graphs[i].outgoing_edges(vs[i]):
-		ws = list(vs)
-		ws[i] = w
-		erate = [rate, i] + list(vs)
-		adj_dict[vs][tuple(ws)] = tuple(erate)
-    return DiGraph( adj_dict )
-
-</source-file>
-
-## Test it by making an SIR model
+## Test by making an SIR model
 
 <source-file filename="SIR.sage.step">
 # requires: boxmodel.py
@@ -294,7 +80,7 @@ print 'make classes model'
 sys.stdout.flush()
 
 A, B, a, b = SR.var( 'A B a b' )
-classes = BoxModel( DiGraph( { A:{ B:b*B }, B:{ A:A*a } } ), [A,B] )
+classes = BoxModel( DiGraph( { A:{ B:A*a }, B:{ A:B*b } } ), [A,B] )
 
 print 'write latex'
 sys.stdout.flush()
@@ -389,7 +175,324 @@ SIxcross.plot_boxes( 'beta.boxes.tex', figsize=(5,5) )
 
 <project-file filename=beta.boxes.crop.svg/>
 
-## apparatus
+## BoxModel class
+
+Here's a class to represent a box model, and a class to implement the cross
+product. The BoxModel class constructs itself from a directed graph whose
+vertices and arrows are symbolic expressions (state variables and flow rates),
+and can draw itself as a directed graph and translate itself to an ODE.
+
+<source-file filename=boxmodel.py.step lang=python>
+# requires: $(SageDynamics)/dynamicalsystems.py $(SageAdaptiveDynamics)/adaptivedynamics.py
+from sage.all import *
+import os
+import sys
+ 
+sys.path.append( os.environ['SageUtils'] )
+sys.path.append( os.environ['SageDynamics'] )
+from dynamicalsystems import *
+
+from sage.misc.latex import _latex_file_
+#from sage.symbolic.relation import solve
+from sage.symbolic.function_factory import function
+
+# constant 'enum' values for use with indexing
+class deps:
+    index, sumover = range(0,2)
+
+class BoxModel(SageObject):
+    """Parent class for all kinds of box models.
+    Note that since this gets its variables from a graph's vertices,
+    rather than from indexers, it can't be used in adaptive dynamics.
+    Subclasses that generate their boxes, maybe can.
+    """
+    def __init__(self, graph,
+	vars=None,
+	population_vars=None,
+	parameters=None,
+	parameter_dependencies={},
+        bindings=Bindings()):
+	# we are given a directed graph whose vertex labels are state
+	# variables, representing fractions of total population,
+	# and whose edge labels are flow rates.
+	self._graph = graph
+	self._graph.set_latex_options( edge_labels=True )
+	self._graph.set_latex_options( vertex_shape='rectangle' )
+	if vars is None:
+	    vars = graph.vertices()
+	self._vars = vars
+	if parameters is None:
+	    parameters = set( reduce( union, (r.variables() for f,t,r in graph.edges()) ) ).difference( self._vars )
+	self._parameters = parameters
+	#print 'parameters:', parameters
+	self._parameter_dependencies = parameter_dependencies
+	for p in self._parameters:
+	    if p not in self._parameter_dependencies:
+		# infer connections between parameters and compartmentalization
+		# for now, simple rule:
+		# just connect it to the source variable of its arrow
+		# TODO: inference including defined quantities like N
+		print 'infer dependencies for parameter', p
+		for v,w,e in self._graph.edges():
+		    if p in e.variables():
+			pd = [ v ]
+			print 'found', p, 'in arrow', e
+			print 'infer dependency on', v
+			if p in self._parameter_dependencies and self._parameter_dependencies[p] != pd:
+			    print 'but already inferred', self._parameter_dependencies[p]
+			    print 'dependencies of parameter', p, 'are unclear, inferring no dependencies'
+			    pd = []
+			self._parameter_dependencies[p] = pd
+	for p, pd in self._parameter_dependencies.items():
+	    try: [ d[0] for d in pd ]
+	    except: self._parameter_dependencies[p] = [ (d,deps.index) for d in pd ]
+	#print 'parameter dependencies:', self._parameter_dependencies
+	self._bindings = bindings
+	if self._graph.get_pos() is None:
+	    self._graph.set_pos( { v:(i,0) for i,v in enumerate(self._vars) } )
+	self._flow_graph = self._graph
+    def ode(self, time_variable=SR.symbol('t'), bindings=Bindings()):
+	flow = { v:0 for v in self._vars }
+	#print flow
+	for source,target,rate in self._flow_graph.edges():
+	    #print source, '-$%s$->'%latex(rate), target
+	    flow[source] -= rate
+	    flow[target] += rate
+	return ODESystem(
+	    flow,
+            self._vars,
+	    time_variable,
+            bindings = bindings+self._bindings )
+    def tikz_boxes( self, raw=False ):
+	if raw:
+	    return _latex_file_( self._graph, title='' )
+	print 'draw flow graph'
+	return _latex_file_( self._flow_graph, title='' )
+    def plot_boxes( self, filename=None, raw=False, **options ):
+	# new Tikz/SVG code
+	print 'plot to', filename
+        LF = open( filename, 'w' )
+	LT = self.tikz_boxes( raw )
+	LF.write( LT )
+        LF.close()
+	return LT
+
+#import itertools
+#gensym_counter = itertools.count()
+#def gensym():
+#    c = gensym_counter.next()
+#    return SR.symbol( '_bm_gensym_' + str(c),
+#	latex_name='\_bm\_gensym\_' + str(c) )
+
+# this class is used internally to install "innerproduct" notations
+# that help with indexing in the cross product
+from sage.symbolic.expression_conversions import SubstituteFunction
+class SubstituteOperator(SubstituteFunction):
+    def __init__(self, ex, from_op, to_op):
+	self._from = from_op
+	self._to = to_op
+    def composition(self, ex, operator):
+	# override the parent class's function replacing step
+	return operator(*map(self, ex.operands()))
+    def arithmetic(self, ex, operator):
+	# do the operator replacement
+	if operator == self._from:
+	    return self._to( *map(self, ex.operands()) )
+	else:
+	    return reduce( operator, *map(self, ex.operands()) )
+
+class MarkInnerProducts(SubstituteOperator):
+    from sage.symbolic.function_factory import function
+    innerproduct = function( 'innerproduct' )
+    #innerproduct = function( 'innerproduct',
+	#print_latex_func=lambda *args: latex(reduce(lambda x,y:x*y, args)) )
+    def __init__(self, deps):
+	self._deps = deps
+	SubstituteOperator.__init__(
+	    self,
+	    SR(0),
+	    SR('a*b').operator(),
+	    lambda *args: self.check_for_inner_product(*args)
+	)
+    def check_for_inner_product(self, *args):
+	# leave multiplications as is, except in the case of a
+	# parameter dependency marked "sumover": convert that from
+	# a regular multiplication to an inner product.
+	margs = list(args)
+	for v,dd in self._deps.items():
+	    if v in margs:
+		print 'found', v, 'in factors:', args
+		if all( a in margs for a in [ d for d,x in dd ] ):
+		    print 'found all of its deps', [d for d,x in dd], 'as well'
+		    ip = v
+		    for d,x in dd:
+			if x == deps.sumover:
+			    ip = self.innerproduct(ip, d)
+			    margs.remove(d)
+		    margs[margs.index(v)] = ip
+	return reduce( self._from, margs )
+
+def flatten( lst ):
+    try:
+	# nonempty list: flatten recursively
+	return flatten( lst[0] ) + flatten( lst[1:] )
+    except:
+	try:
+	    # empty list: return empty list
+	    return lst[:]
+	except:
+	    # not a list: return list of it
+	    return [ lst ]
+
+class BoxModelCrossProduct(BoxModel):
+    def __init__(self, *models):
+	self._models = models
+	# TODO: it would be more efficient to iterate one model at a time,
+	# and generate the vertex tuples, rate tuples, subscripted state
+	# variables, subscripted parameters, and subscripted rates all in
+	# the same loop.
+
+	# do the cross product of graphs first
+        adj_dict = {}
+        import itertools
+        for vst in itertools.product( *(m._graph.vertices() for m in models) ):
+	    # each vst is a vertex of the product graph
+	    vs = tuple( flatten( vst ) )
+	    adj_dict[vs] = {}
+	    for i in range(len(vs)):
+		# each vertex has outgoing edges from every graph
+	        mip = MarkInnerProducts( models[i]._parameter_dependencies )
+	        for v,w,rate in models[i]._graph.outgoing_edges(vs[i]):
+		    ws = list(vs)
+		    ws[i] = w
+		    iprate = mip(rate) # this is being done redundantly
+		    print 'marked inner products:', rate, '-->', iprate
+		    erate = [iprate, i] + list(vs)
+		    adj_dict[vs][tuple(ws)] = tuple(erate)
+	self._graph = DiGraph( adj_dict )
+	self._graph.set_latex_options( edge_labels=True, vertex_shape='rectangle' )
+	# graphical positions of graph vertices
+	directions = [ 0, pi/2, pi/3, pi/6 ] # will add more as needed, I guess
+	import itertools
+	positions = { tuple(a[1] for a in dtup):[ sum(a[0]*cos(d) for a,d in zip(dtup,directions)), sum(a[0]*sin(d) for a,d in zip(dtup,directions)) ] for dtup in itertools.product( *[ enumerate(model._vars) for model in models ] ) }
+	#print positions
+	self._graph.set_pos( positions )
+
+	# vertices are simple tuples of atomic state variables, i.e. members
+	# of the Cartesian product of graphs' vertex sets.
+	#for v in self._graph.vertices():
+	#    try: v[0]
+	#    except: v = tuple(v)
+
+	# the edges have a special format: (r, i, v, v, ...), where
+	# r is a symbolic expression in the form it came from the original
+	# uncrossed model;
+	# v, v, ... is the tuple representing the edge's source vertex;
+	# i is an integer indexing which model the rate comes from.
+	#for v,w,e in self._graph.edges():
+	#    try: e[0]
+	#    except: e = tuple(e,0,*v)
+
+	# now for consumption by humans and math software, we map vertex
+	# tuples to regular variable names
+	def apply_subscripts( vtuple ):
+	    return SR.symbol( '_'.join( str(v) for v in vtuple ),
+	        latex_name='%s_{%s}'%(latex(vtuple[0]),''.join( latex(v) for v in vtuple[1:] )) )
+	vertex_label_func = apply_subscripts
+
+	# and relabel the flow rates, which is more complex
+	def edge_label_func( etuple ):
+	    """the input is (rate, i, v, v, ...) where rate is an expression, and the
+	    vs are the pre-cross vertex labels."""
+	    rate, i = etuple[:2]
+	    vertex_vars = etuple[2:]
+	    print 'dealing with rate:', rate
+	    local_vars_rename = Bindings( {
+		var : apply_subscripts( list(etuple[2:2+i]) + [var] + list(etuple[2+i+1:]) )
+		for var in models[i]._vars
+	    } )
+	    local_params_rename = Bindings( { } )
+	    local_subs_expr = []
+	    bm_index_function = sage.symbolic.function_factory.function( 'bm_index', latex_name='bm\_index' )
+	    def make_index_expr( terms ):
+		return bm_index_function( *terms )
+	    def apply_apply_subscripts( *args ): return apply_subscripts( args )
+	    ratevars = rate.variables()
+	    for p in models[i]._parameters:
+		if p in ratevars:
+		    plist = [p]
+		    print 'dependencies of', p, 'are', models[i]._parameter_dependencies[p]
+		    sumover = []
+		    product = p
+		    for dv, dtype in models[i]._parameter_dependencies[p]:
+		        if dtype is deps.index:
+			    print 'put index on', dv
+			    plist += list(etuple[2:2+i]) + list( etuple[2+i+1:] )
+		        elif dtype is deps.sumover:
+			    #print 'pass through:', dv
+			    # let inner_product() append its indexes
+			    local_params_rename[dv] = make_index_expr( [dv] )
+		        else:
+			    raise ValueError
+		        #product *= dv
+		    local_params_rename[p] = make_index_expr( plist )
+		    print 'local_params_rename:', local_params_rename
+		    #prodsum = local_params_rename(product)
+		    #print 'after use:', prodsum
+		    #for i,vs in sumover: prodsum = sum( Bindings( { s: v } )( prodsum ) for v in vs )
+		    #print 'prodsum', latex(product), ':', latex(prodsum)
+		    #local_subs_expr += [product == prodsum.substitute_function( bm_index_function, apply_apply_subscripts )]
+	    print 'local_subs_expr:', local_subs_expr
+	    # TODO: figure out what to sum over those things
+	    # note those bindings are independent of 'rate' and could be memoized
+	    rexpr = rate
+	    if local_subs_expr != []:
+		rexpr = rate.subs_expr( *local_subs_expr )
+	    rexpr = local_params_rename( rexpr )
+	    #print 'almost the result:', rexpr
+	    def expand_inner_product( *iargs ):
+		symbs = [ SR.symbol() for i in range(len(vertex_vars)-1) ]
+		term_expression = reduce( lambda x,y: x*y,
+		    # TODO: don't append the symbol to ALL bm_index expr's here,
+		    # only the ones we're summing on!
+		    [ a.substitute_function( bm_index_function,
+			lambda *args: bm_index_function( *(list(args) + symbs) ) )
+			for a in iargs ] )
+		return reduce( lambda x,y: x+y,
+		   ( term_expression.substitute(
+		       { symb: var for symb,var in zip( symbs, vars ) } )
+		       for vars in itertools.product( *( models[j]._vars for j in range(len(vertex_vars)) if j != i ) ) ) )
+	    rexpr = rexpr.substitute_function( MarkInnerProducts.innerproduct,
+		expand_inner_product )
+	    #print 'almost the result:', rexpr
+	    rexpr = rexpr.substitute_function( bm_index_function, apply_apply_subscripts )
+	    #print 'almost the result:', rexpr
+	    rexpr = local_vars_rename( rexpr )
+	    #print 'result:', rexpr
+	    return rexpr
+
+	self._flow_graph = DiGraph( {
+	    vertex_label_func(v):{
+		vertex_label_func(w):edge_label_func(e)
+		for vv,w,e in self._graph.outgoing_edges(v)
+	    } for v in self._graph.vertices()
+	} )
+	self._flow_graph.set_latex_options( edge_labels=True, vertex_shape='rectangle' )
+	self._flow_graph.set_pos( { vertex_label_func(v):pos for v,pos in positions.items() } )
+
+	# the list of variables is the graph's vertex list
+	# TODO: in sorted order
+	self._vars = list( self._flow_graph.vertices() )
+
+	# now generate all the crossed parameters
+	# TODO: do this right
+	self._parameters = set( reduce( union, (r.variables() for f,t,r in self._flow_graph.edges()) ) ).difference( self._vars )
+	#print 'parameters:', self._parameters
+
+	# TODO: inherit bindings in a smart way?
+	self._bindings = Bindings()
+
+</source-file>
 
 <source-file filename=upstream.mk>
 # Makefile to connect the Sage code here with the code in SageDynamics
