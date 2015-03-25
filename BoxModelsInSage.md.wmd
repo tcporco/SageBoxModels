@@ -175,6 +175,209 @@ SIxcross.plot_boxes( 'beta.boxes.tex', figsize=(5,5) )
 
 <project-file filename=beta.boxes.crop.svg/>
 
+## The Adler averaging result
+
+Fred Adler ([1992](http://www.sciencedirect.com/science/article/pii/002555649290080G)) has studied an SI model:
+
+$$\frac{dI_i}{dt} = (\beta\sum_{j=1}^n \lambda_{ij}I_j) S_i$$
+
+$$S_i = T_i - I_i$$
+
+(which is in fact the Rushton-Mautner model, seen in the $$\beta$$ section above).
+
+Adler's result is that removing structure by averaging classes $$i$$ together
+can only decrease or preserve the reproduction ration $$R_0$$, that is, that
+$$R_0$$ is nondecreasing with diversity of the box model.  I'd like to
+reproduce that result in our cross-product framework.
+
+So we begin with a basic SI model, as the horizontal structure for our crosses:
+
+<source-file filename=adler-SI.sage.step display=adler-SI.boxes.crop.svg>
+# requires: boxmodel.py
+# requires: $(SageDynamics)/dynamicalsystems.py
+# produces: adler-SI.boxes.tex adler-SI.sobj
+import sys
+#print 'init'; sys.stdout.flush()
+import os
+sys.path.append( os.environ['SageUtils'] )
+#from latex_output import *
+import boxmodel
+
+S, I, beta = SR.var( 'S I beta' )
+lb = SR.symbol( 'lambda' )
+SI = boxmodel.BoxModel( DiGraph( { S:{ I:lb*beta*S*I } } ), [S,I],
+	parameter_dependencies={ beta:[], lb:[(S,boxmodel.deps.index), (I,boxmodel.deps.sumover)] } )
+
+SI.plot_boxes( 'adler-SI.boxes.tex', figsize=(5,5) )
+
+save_session( 'adler-SI' )
+</source-file>
+
+and cross with a given mixing matrix $$\Lambda$$:
+
+<source-file filename=adler_mixing.py.step lang=py>
+# requires: boxmodel.py $(SageDynamics)/dynamicalsystems.py
+# produces:
+import sys
+import os
+#sys.path.append( os.environ['SageUtils'] )
+#from latex_output import *
+sys.path.append( os.environ['SageDynamics'] )
+import dynamicalsystems
+from boxmodel import *
+
+def mixing_model( Lambda ):
+    # Lambda must be a square matrix;
+    # or a number of states, in case we want to provide the mixing rates later
+    try:
+	dim = Lambda.ncols()
+	if not Lambda.is_square():
+	    # note is_square() actually succeeds if Lambda is a number
+	    # but ncols() doesn't
+	    raise ValueError( "matrix in mixing_model() must be square" )
+        l_in = dynamicalsystems.indexer_2d( 'lambda' )
+	bindings = Bindings( {
+	    l_in[i][j] : Lambda[i, j] for i in range(dim) for j in range(dim)
+	} )
+    except AttributeError: # not a matrix
+	dim = Lambda
+	bindings = Bindings()
+    # create disconnected graph of that many vertices
+    # and bind the lambda values
+    return BoxModel(
+	DiGraph( { i:[] for i in range(dim) } ),
+	bindings = bindings
+    )
+</source-file>
+
+For example:
+
+<source-file filename=adler-example.sage.step display=adler-example.boxes.crop.svg>
+# requires: boxmodel.py $(SageDynamics)/dynamicalsystems.py adler_mixing.py
+# requires: adler-SI.sobj
+# produces: adler-example.boxes.tex adler-example.sobj
+import sys
+#print 'init'; sys.stdout.flush()
+import os
+#sys.path.append( os.environ['SageUtils'] )
+#from latex_output import *
+sys.path.append( os.environ['SageDynamics'] )
+import dynamicalsystems
+import boxmodel
+import adler_mixing
+
+load_session( 'adler-SI' )
+
+L2 = adler_mixing.mixing_model( 2 )
+
+example = boxmodel.BoxModelCrossProduct( SI, L2 )
+
+example.plot_boxes( 'adler-example.boxes.tex', figsize=(5,5) )
+
+save_session( 'adler-example' )
+</source-file>
+
+In this class of models, the total size of each mixing class
+$$T_i=S_i+I_i$$ is conserved.
+
+An average over mixing classes $$i$$ is defined by replacing the groups of
+the vertical model, $$G_i$$, by some smaller set of groups with
+
+$$\bar{G}_s = \cup_{i\in\sigma_s}G_i$$,
+
+where $$\{\sigma_s\}$$ is a partition of the non-averaged groups
+$$\{1,\ldots,i,\ldots,n\}$$.
+
+In the averaged model, the mixing rates $$\lambda_{ij}$$ are replaced by
+
+$$b_{st} = \frac{\sum_{i\in\sigma_s}\sum_{j\in\sigma_t}T_i\lambda_{ij}T_j}{\bar{T}_s\bar{T}_t}$$.
+
+The result is that
+
+* _If the mixing matrix is symmetric and primitive, then the leading eigenvalue
+of the Jacobian matrix associated with the combined system is less than or
+equal to that associated with the full system._
+
+This eigenvalue is closely related to the value of $$R_0$$, so it defines
+the direction of change of the initial rate of infection.
+
+We should be able to study the infection rate more or less directly...
+
+<source-file filename=adler-R0.sage.step display=adler-R0.sage.out.html>
+# requires: boxmodel.py $(SageDynamics)/dynamicalsystems.py
+# requires: $(SageUtils)/latex_output.py
+# requires: adler-example.sobj
+# produces: adler-R0.sage.out.tex adler-R0.sobj
+import sys
+import os
+sys.path.append( os.environ['SageUtils'] )
+from latex_output import *
+sys.path.append( os.environ['SageDynamics'] )
+import dynamicalsystems
+import boxmodel
+#import adler_mixing
+
+# pickling bug
+lb = SR.symbol( 'lambda' )
+[ boxmodel.make_subscripted_var( lb, i, j ) for i in (0,1) for j in (0,1) ]
+
+load_session( 'adler-example' )
+
+ltx = latex_output( "adler-R0.sage.out.tex" )
+
+ODE2 = example.ode()
+
+ltx.write( ODE2 )
+
+#ltx.write( 'equilibria are:' )
+#ltx.write_block( ODE2.equilibria() )
+ltx.write( 'We are interested in the rate of infection near the boundary state' )
+
+dfeq = dict( [
+	( s, SR.symbol( str(s).replace('S','T') ) )
+	for s in example._aggregate_variables[SR('S')]
+    ] + [
+	( i, SR(0) )
+	for i in example._aggregate_variables[SR('I')]
+    ] )
+
+ltx.write_equality( vector( ODE2._vars ), vector( [ dfeq[v] for v in ODE2._vars ] ) )
+
+dfjac = ODE2.jacobian_matrix( at=dfeq )
+
+ltx.write( 'The Jacobian there is' )
+ltx.write_block( dfjac )
+
+dfepss = dict( [
+	( s, - SR.symbol( str(s).replace('S','\epsilon') ) )
+	for s in example._aggregate_variables[SR('S')]
+    ] + [
+	( i, SR.symbol( str(i).replace('I','\epsilon') ) )
+	for i in example._aggregate_variables[SR('I')]
+    ] )
+dfeps = vector( [ dfepss[v] for v in ODE2._vars ] )
+
+ltx.write( 'In the linearization there, the growth rate in the direction' )
+ltx.write_block( dfeps )
+
+ltx.write( 'is' )
+
+growth_vector = (dfjac * dfeps).simplify()
+ltx.write_block( growth_vector )
+
+gr_dict = { v:gv for v,gv in zip(ODE2._vars, growth_vector) }
+gr_I = reduce( lambda x,y: x+y, (gr_dict[i] for i in example._aggregate_variables[SR('I')]) )
+ltx.write( 'so that the growth rate of $I = I_0+I_1$ is $', gr_I, '$.' )
+
+ltx.write( '\n\nMeanwhile, the eigenvalues of the Jacobian there are' )
+ltx.write_block( dfjac.eigenvalues() )
+
+ltx.close()
+
+save_session( 'adler-R0' )
+</source-file>
+
+
 ## BoxModel class
 
 Here's a class to represent a box model, and a class to implement the cross
@@ -222,7 +425,7 @@ class BoxModel(SageObject):
 	    vars = graph.vertices()
 	self._vars = vars
 	if parameters is None:
-	    parameters = set( reduce( union, (r.variables() for f,t,r in graph.edges()) ) ).difference( self._vars )
+	    parameters = set( reduce( union, (r.variables() for f,t,r in graph.edges()), Set([]) ) ).difference( self._vars )
 	self._parameters = parameters
 	#print 'parameters:', parameters
 	self._parameter_dependencies = parameter_dependencies
@@ -284,7 +487,7 @@ class BoxModel(SageObject):
 #    return SR.symbol( '_bm_gensym_' + str(c),
 #	latex_name='\_bm\_gensym\_' + str(c) )
 
-# this class is used internally to install "innerproduct" notations
+# MarkInnerProducts is used internally to install "innerproduct" notations
 # that help with indexing in the cross product
 from sage.symbolic.expression_conversions import SubstituteFunction
 class SubstituteOperator(SubstituteFunction):
@@ -304,8 +507,6 @@ class SubstituteOperator(SubstituteFunction):
 class MarkInnerProducts(SubstituteOperator):
     from sage.symbolic.function_factory import function
     innerproduct = function( 'innerproduct' )
-    #innerproduct = function( 'innerproduct',
-	#print_latex_func=lambda *args: latex(reduce(lambda x,y:x*y, args)) )
     def __init__(self, deps):
 	self._deps = deps
 	SubstituteOperator.__init__(
@@ -344,6 +545,23 @@ def flatten( lst ):
 	    # not a list: return list of it
 	    return [ lst ]
 
+def make_subscripted_var( *vtuple ):
+    if len(vtuple) == 1:
+	# it might be a trivial case of one symbol, or
+	# if could be [ x, y, z ] instead of x, y, z
+	try:
+	    # if this succeeds it's a single symbol, no _ needed
+	    return SR.symbol(vtuple[0])
+	except:
+	    # otherwise assume it's a collection
+	    vtuple = vtuple[0]
+    return SR.symbol(
+	'_'.join( str(v) for v in vtuple ),
+	latex_name = '%s_{%s}' % (
+	    latex(vtuple[0]),
+	    ''.join( latex(v) for v in vtuple[1:] ))
+    )
+
 class BoxModelCrossProduct(BoxModel):
     def __init__(self, *models):
 	self._models = models
@@ -353,11 +571,14 @@ class BoxModelCrossProduct(BoxModel):
 	# the same loop.
 
 	# do the cross product of graphs first
+	self._vars = []
+	self._aggregate_variables = {}
         adj_dict = {}
         import itertools
-        for vst in itertools.product( *(m._graph.vertices() for m in models) ):
+        for vst in itertools.product( *(m._vars for m in models) ):
 	    # each vst is a vertex of the product graph
 	    vs = tuple( flatten( vst ) )
+	    self._vars.append(vs)
 	    adj_dict[vs] = {}
 	    for i in range(len(vs)):
 		# each vertex has outgoing edges from every graph
@@ -369,46 +590,36 @@ class BoxModelCrossProduct(BoxModel):
 		    print 'marked inner products:', rate, '-->', iprate
 		    erate = [iprate, i] + list(vs)
 		    adj_dict[vs][tuple(ws)] = tuple(erate)
+		self._aggregate_variables.setdefault(vs[i], []).append( vs ) 
 	self._graph = DiGraph( adj_dict )
 	self._graph.set_latex_options( edge_labels=True, vertex_shape='rectangle' )
 	# graphical positions of graph vertices
 	directions = [ 0, pi/2, pi/3, pi/6 ] # will add more as needed, I guess
 	import itertools
-	positions = { tuple(a[1] for a in dtup):[ sum(a[0]*cos(d) for a,d in zip(dtup,directions)), sum(a[0]*sin(d) for a,d in zip(dtup,directions)) ] for dtup in itertools.product( *[ enumerate(model._vars) for model in models ] ) }
+	positions = {
+	    tuple(a[1] for a in dtup): [
+		sum(a[0]*cos(d) for a,d in zip(dtup,directions)),
+		- sum(a[0]*sin(d) for a,d in zip(dtup,directions))
+	    ] for dtup in itertools.product(
+		*[ enumerate(m._vars) for m in models ]
+	    )
+	}
 	#print positions
 	self._graph.set_pos( positions )
 
-	# vertices are simple tuples of atomic state variables, i.e. members
-	# of the Cartesian product of graphs' vertex sets.
-	#for v in self._graph.vertices():
-	#    try: v[0]
-	#    except: v = tuple(v)
-
-	# the edges have a special format: (r, i, v, v, ...), where
-	# r is a symbolic expression in the form it came from the original
-	# uncrossed model;
-	# v, v, ... is the tuple representing the edge's source vertex;
-	# i is an integer indexing which model the rate comes from.
-	#for v,w,e in self._graph.edges():
-	#    try: e[0]
-	#    except: e = tuple(e,0,*v)
-
 	# now for consumption by humans and math software, we map vertex
-	# tuples to regular variable names
-	def apply_subscripts( vtuple ):
-	    return SR.symbol( '_'.join( str(v) for v in vtuple ),
-	        latex_name='%s_{%s}'%(latex(vtuple[0]),''.join( latex(v) for v in vtuple[1:] )) )
-	vertex_label_func = apply_subscripts
+	# tuples to regular variable names with subscripts
+	vertex_label_func = make_subscripted_var
 
-	# and relabel the flow rates, which is more complex
+	# and make subscripted flow rates, which is more complex
 	def edge_label_func( etuple ):
-	    """the input is (rate, i, v, v, ...) where rate is an expression, and the
-	    vs are the pre-cross vertex labels."""
+	    """we are given (rate, i, v, v, ...) where rate is an expression,
+	    and the vs are the pre-cross vertex labels."""
 	    rate, i = etuple[:2]
 	    vertex_vars = etuple[2:]
 	    print 'dealing with rate:', rate
 	    local_vars_rename = Bindings( {
-		var : apply_subscripts( list(etuple[2:2+i]) + [var] + list(etuple[2+i+1:]) )
+		var : vertex_label_func( list(etuple[2:2+i]) + [var] + list(etuple[2+i+1:]) )
 		for var in models[i]._vars
 	    } )
 	    local_params_rename = Bindings( { } )
@@ -416,7 +627,7 @@ class BoxModelCrossProduct(BoxModel):
 	    bm_index_function = sage.symbolic.function_factory.function( 'bm_index', latex_name='bm\_index' )
 	    def make_index_expr( terms ):
 		return bm_index_function( *terms )
-	    def apply_apply_subscripts( *args ): return apply_subscripts( args )
+	    def apply_subscripts( *args ): return make_subscripted_var( args )
 	    ratevars = rate.variables()
 	    for p in models[i]._parameters:
 		if p in ratevars:
@@ -437,11 +648,6 @@ class BoxModelCrossProduct(BoxModel):
 		        #product *= dv
 		    local_params_rename[p] = make_index_expr( plist )
 		    print 'local_params_rename:', local_params_rename
-		    #prodsum = local_params_rename(product)
-		    #print 'after use:', prodsum
-		    #for i,vs in sumover: prodsum = sum( Bindings( { s: v } )( prodsum ) for v in vs )
-		    #print 'prodsum', latex(product), ':', latex(prodsum)
-		    #local_subs_expr += [product == prodsum.substitute_function( bm_index_function, apply_apply_subscripts )]
 	    print 'local_subs_expr:', local_subs_expr
 	    # TODO: figure out what to sum over those things
 	    # note those bindings are independent of 'rate' and could be memoized
@@ -465,7 +671,7 @@ class BoxModelCrossProduct(BoxModel):
 	    rexpr = rexpr.substitute_function( MarkInnerProducts.innerproduct,
 		expand_inner_product )
 	    #print 'almost the result:', rexpr
-	    rexpr = rexpr.substitute_function( bm_index_function, apply_apply_subscripts )
+	    rexpr = rexpr.substitute_function( bm_index_function, apply_subscripts )
 	    #print 'almost the result:', rexpr
 	    rexpr = local_vars_rename( rexpr )
 	    #print 'result:', rexpr
@@ -482,7 +688,7 @@ class BoxModelCrossProduct(BoxModel):
 
 	# the list of variables is the graph's vertex list
 	# TODO: in sorted order
-	self._vars = list( self._flow_graph.vertices() )
+	self._vars = [ vertex_label_func(vs) for vs in self._vars ]
 
 	# now generate all the crossed parameters
 	# TODO: do this right
@@ -491,6 +697,11 @@ class BoxModelCrossProduct(BoxModel):
 
 	# TODO: inherit bindings in a smart way?
 	self._bindings = Bindings()
+
+	self._aggregate_variables = {
+	    k : [ vertex_label_func(vs) for vs in v ]
+	    for k,v in self._aggregate_variables.items()
+	}
 
 </source-file>
 
