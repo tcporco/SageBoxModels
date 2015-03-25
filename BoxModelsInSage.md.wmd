@@ -480,13 +480,6 @@ class BoxModel(SageObject):
         LF.close()
 	return LT
 
-#import itertools
-#gensym_counter = itertools.count()
-#def gensym():
-#    c = gensym_counter.next()
-#    return SR.symbol( '_bm_gensym_' + str(c),
-#	latex_name='\_bm\_gensym\_' + str(c) )
-
 # MarkInnerProducts is used internally to install "innerproduct" notations
 # that help with indexing in the cross product
 from sage.symbolic.expression_conversions import SubstituteFunction
