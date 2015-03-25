@@ -429,6 +429,9 @@ the boxmodels library code removed.
    treated-smpos-states-standard
    treated-smpos-states-specialized))
 
+;(format t "~s~%" tb-state-list)
+;(quit)
+
 (add-state-list tbmodel tb-state-list)
 
 (add-state tbmodel (new-gname 'cumul-tb-mort-before-treatment))
@@ -1266,8 +1269,7 @@ the boxmodels library code removed.
 	:from (new-gname 'WWNEG-1111-3) 
 	:to (new-gname 'WWNEG-1111-4) 
 	:rate (s* (new-gname 'WWNEG-1111-3) (new-gname 'overgrowth-ww) ))
-(terpri)(prin1 (concatenate 'string "END BLOCK " (prin1-to-string *count-blox*)))(terpri)(incf *count-blox*)
-(prin1 (concatenate 'string "BEGIN BLOCK " (prin1-to-string *count-blox*)))(terpri)
+
 (add-transition tbmodel  
 	 
 	:from  (new-gname 'YYPOS-1000-1) 
@@ -2371,6 +2373,7 @@ the boxmodels library code removed.
 (add-transition tbmodel   :from (new-gname 'ZZ) :to (new-gname 'MMPRIME-0001-4) :rate (s* (new-gname 'ZZ) (new-gname 'zeta) (new-gname 'lam4) (s- 1 (new-gname 'pfast))))
 (add-transition tbmodel   :from (new-gname 'ZZ) :to (new-gname 'LLPRIME-0001-4) :rate (s* (new-gname 'ZZ) (new-gname 'zeta) (new-gname 'lam4) (new-gname 'pfast)))
 (add-transition tbmodel   :from (new-gname 'QQ) :to (new-gname 'MM-0001-4) :rate (s* (new-gname 'QQ) (new-gname 'zeta) (new-gname 'lam4) (s- 1 (new-gname 'pfast))))
+
 (add-transition tbmodel   :from (new-gname 'QQ) :to (new-gname 'LL-0001-4) :rate (s* (new-gname 'QQ) (new-gname 'zeta) (new-gname 'lam4) (new-gname 'pfast)))
 
 (setf tbmodel-exogenous (deep-copy-model tbmodel))
@@ -2424,6 +2427,7 @@ the boxmodels library code removed.
 (dolist (tt (model-transitions tbmodel))
   (if (incid-smpos-p tt)
       (add-transition tbmodel  :from (new-gname '_SOURCE) :to (new-gname 'cumul-smpos-incidence) :rate (transition-value tt))))
+
 (dolist (tt (model-transitions tbmodel))
   (if (incid-smneg-p tt)
       (add-transition tbmodel  :from (new-gname '_SOURCE) :to (new-gname 'cumul-smneg-incidence) :rate (transition-value tt))))
@@ -2488,8 +2492,14 @@ the boxmodels library code removed.
 
 (defvar nkmodel (cross tbnmodel littleagemodel agetbd))
 
-(finish nkmodel)
+;; Note this finish doesn't actually work currently, due to
+;; a cycle or missing declaration
+;(finish nkmodel)
 </source-file>
+
+(Does gs8 run?)
+
+<project-file filename=gs8.l.out/>
 
 ## translating `gs8` to R
 
@@ -2534,70 +2544,204 @@ models.
 (defun comma-if (thing)
   (add-if ", " thing))
 
-(defun fix-name (name) (substitute #\. #\- name))
+(defun fix-name (name) (substitute #\. #\- (format nil "~(~a~)" name)))
 
-(defun new-gname (name)
-  (fix-name (format nil "~(~a~)" name)))
+;(defun new-gname (name)
+;  (fix-name (format nil "~(~a~)" name)))
 
-(defmacro new-model (name)
-  (format t "~(~a~) <- boxmodel(\"~(~a~)\")~%~%" (eval name) (eval name))
-  name)
+(let ((new-model-proto #'new-model))
+  (defun new-model (name)
+    (format t "~(~a~) <- boxmodel(\"~(~a~)\")~%~%" name name)
+    (funcall new-model-proto name)))
 
-(defmacro add-state (amodel aname)
-  (format t "add.state( ~(~a~), ~(~a~) )~%" amodel (eval aname)))
+(if ()
+;(si:fset 'add-state-proto #'add-state)
+(let ((add-state-proto #'add-state))
+  (declare (si::c-global))
+  (defmacro add-state (amodel aname)
+    `(progn
+      (format t "add.state( ~(~a~), ~(~a~) )~%" ',amodel ,aname)
+      (funcall ,add-state-proto ,amodel ,aname))))
+)
+  (defmacro emu-add-state (amodel aname)
+    `(progn
+      (format t "add.state( ~(~a~), ~(~a~) )~%" ',amodel ,aname)
+      (add-state ,amodel ,aname)))
 
-(defmacro add-parameter (amodel aname)
-  (format t "add.parameter( ~(~a~), ~(~a~) )~%" amodel (eval aname)))
+(if ()
+(let ((add-state-list-proto #'add-state-list))
+  (defmacro add-state-list (model states)
+    `(progn
+      (format t "for (state in c(~{\"~a\"~^, ~})) {~%  add.state( ~(~a~), state )~%}~%"
+        (mapcar #'fix-name ,states) ',model)
+      (funcall ,add-state-list-proto ,model ,states))))
+)
+  (defmacro emu-add-state-list (model states)
+    `(let ((nstates (,@states)))
+      (format t "for ( state in c(~{\"~a\"~^, ~}) ) {~%  add.state( ~(~a~), state )~%}~%"
+        (mapcar #'fix-name nstates) ',model)
+      (add-state-list ,model nstates)))
 
-(defmacro add-definition (amodel aname &key value (tag NIL) (involves-transitions NIL) (add-tag NIL))
-  (format t "add.definition( ~(~a~), ~(~a~), ~(~a~)" amodel (eval aname) (eval value))
-  (format t " )~%")
-  (add-if "# TAG: " tag T)
-  (add-if "# INVOLVES-TRANSITIONS: " (eval involves-transitions) T)
-  (add-if "# ADD-TAG" (eval add-tag) T))
+(if ()
+(let ((add-parameter-proto #'add-parameter))
+  (defmacro add-parameter (amodel aname)
+    `(progn
+      (format t "add.parameter( ~(~a~), ~(~a~) )~%" ',amodel ,aname)
+      (funcall ,add-parameter-proto ,amodel ,aname))))
+)
+  (defmacro emu-add-parameter (amodel aname)
+    `(let ((name ,aname))
+      (format t "add.parameter( ~(~a~), ~(~a~) )~%" ',amodel name)
+      (add-parameter ,amodel name)))
 
-(defmacro add-transition (amodel &key from to rate (tag NIL))
-  (format t "add.transition( ~(~a~), ~(~a~), ~(~a~), ~(~a~) )~%"
-	amodel (eval from) (eval to) (eval rate))
-  (add-if "# TAG: " tag T))
+(if ()
+(let ((add-definition-proto #'add-definition))
+  (defmacro add-definition (amodel aname &key value (tag NIL) (involves-transitions NIL) (add-tag NIL))
+    `(progn
+      (format t "add.definition( ~(~a~), ~(~a~), ~(~a~)" (fix-name ',amodel) (fix-name ,aname) (fix-name ,value))
+      (format t " )~%")
+      (add-if "# TAG: " ,tag T)
+      (add-if "# INVOLVES-TRANSITIONS: " ,involves-transitions T)
+      (add-if "# ADD-TAG" ,add-tag T)
+      (funcall ,add-definition-proto ,amodel ,aname :value ,value :tag ,tag :involves-transitions ,involves-transitions :add-tag ,add-tag))))
+)
+  (defmacro emu-add-definition (amodel aname &key value (tag NIL) (involves-transitions NIL) (add-tag NIL))
+    `(progn
+      (format t "add.definition( ~(~a~), ~(~a~), ~(~a~)" (fix-name ',amodel) (fix-name ,aname) (fix-name ,value))
+      (format t " )~%")
+      (add-if "# TAG: " ,tag T)
+      (add-if "# INVOLVES-TRANSITIONS: " ,involves-transitions T)
+      (add-if "# ADD-TAG" ,add-tag T)
+      (add-definition ,amodel ,aname :value ,value :tag ,tag :involves-transitions ,involves-transitions :add-tag ,add-tag)))
 
+(if ()
+(let ((add-transition-proto #'add-transition))
+  (defmacro add-transition (amodel &key from to rate (tag NIL))
+    `(progn
+      (format t "add.transition( ~(~a~), ~(~a~), ~(~a~), ~(~a~) )~%"
+          ',amodel ,from ,to ,rate)
+      (add-if "# TAG: " tag T)
+      (funcall ,add-transition-proto ,amodel :from ,from :to ,to :rate ,rate :tag ,tag))))
+)
+  (defmacro emu-add-transition (amodel &key from to rate (tag NIL))
+    `(progn
+      (format t "add.transition( ~(~a~), ~(~a~), ~(~a~), ~(~a~) )~%"
+          ',amodel ,from ,to ,rate)
+      (add-if "# TAG: " ,tag T)
+      (add-transition ,amodel :from ,from :to ,to :rate ,rate :tag ,tag)))
+
+(if ()
 (defun indexed (anamestring starting ending)
   (if (consp anamestring)
       (indexed (car anamestring) starting ending)
     (format nil "paste('~(~a~)', seq(~d,~d), sep='')" anamestring starting ending)))
+)
 
-(defmacro add-flow-series (amodel &key states parameter (tag NIL) (stratify T))
-  (format t "add.flow.series( ~(~a~), ~(~a~), ~(~a~), ~:[FALSE~;TRUE~], ~:[FALSE~;TRUE~] )~%"
-	amodel (eval states) (eval parameter) tag stratify))
+(if ()
+(let ((add-flow-series-proto #'add-flow-series))
+  (defmacro add-flow-series (amodel &key states parameter (tag NIL) (stratify T))
+    `(progn
+      (format t "add.flow.series( ~(~a~), ~(~a~), ~(~a~), ~:[FALSE~;TRUE~], ~:[FALSE~;TRUE~] )~%"
+        ',amodel ,states ,parameter ,tag ,stratify)
+      (funcall ,add-flow-series-proto ,amodel :states ,states
+        :parameter ,parameter :tag ,tag :stratify ,stratify))))
+)
 
-;; This has to be done after all the above defining :)
-;(ext:package-lock "CL" nil)
-;(defmacro defun (fname &rest fdef)
-;  (format t "; ~s~%" '(defun ,fname ,@fdef)
-
-(defmacro mdefun (fname &rest rst)
+(defmacro add-print-to-fn (name tmpname)
   `(progn
-    (format t "; ~(~s~)~%" '(defun ,fname ,@rst))
-    (defun ,fname (&rest args) (format nil "~(~a~)(~{~a~^, ~})" ',fname args))))
+    (si:fset ',tmpname (function ,name))
+    (defmacro ,name (&rest rst)
+      `(let
+        ((zigo (format t "# ~(~s~)~%" (append (list ',',name) ',rst)))
+         (retval (,',tmpname ,@rst)))
+        (terpri)
+        retval))))
+
+(defmacro add-print-to-macro (name tmpname)
+  `(let ((orig-fn (macro-function ',name))
+         (new-fn #'(lambda (call env) (format t "# ~(~s~)~%" call) (funcall orig-fn call env))))
+    (setf (macro-function ',name) orig-fn)))
+
+(defmacro print-as-is (name)
+  `(defmacro ,name (&rest rst) `(format t "# ~(~s~)~%" (append (list ',',name) ',rst))))
+
+;; These have to be done after all the above defining :)
+
+(ext:package-lock "CL" nil)
+(add-print-to-macro dolist emu-dolist)
+
+(defun wrap-line (expr) (substitute #\  #\newline (format nil "~(~s~)" expr)))
+
+(if ()
+(let ((defun-official (macro-function 'defun)))
+  (defmacro defun (fname plist &rest fdef)
+    `(progn
+      (format t "# ~(~s~)~%" '(defun ,fname ,plist ,@fdef))
+      (si:fset ',fname #'(ext:lambda-block ,fname (&rest args) (declare (si::c-global))
+        (format nil "~(~a~)(~{~a~^, ~})" ',fname args)
+        ,@fdef)))))
+)
+  (defmacro emu-defun (fname plist &rest fdef)
+    `(progn
+      (format t "# ~a~%" (wrap-line '(defun ,fname ,plist ,@fdef)))
+      (defun ,fname (&rest rst)
+        (let*
+          ((retval (apply #'(lambda ,plist ,@fdef) rst))
+           (zyxq (format t "# ~s~%" (substitute #\  #\newline (format nil "~(~a~)(~{~(~a~)~^, ~}) --> ~(~a~)" ',fname rst retval)))))
+          retval))))
+ 
+  (defmacro emu-defvar (name value)
+    `(progn
+      (format t "# ~a~%" (wrap-line '(defvar ,name ,value)))
+      (defvar ,name ,value)))
 
 </source-file>
 
 <source-file filename=emulate.mk display=link>
-gs8.r test-emulate.r : %.r : boxmodel-emulate.l %.l /proc/uptime
-	ecl -q -load boxmodel-emulate.l -shell $*.l >$@
+BOXMODEL_L = /usr/local/src/r-boxmodel/src/boxmodels.l
 
-#	ecl -q -load boxmodel-emulate.l >$@
+gs8.r test-emulate.r : %.r : boxmodel-emulate.l %.emu.l /proc/uptime
+	ecl -load $(BOXMODEL_L) -load boxmodel-emulate.l -shell $*.emu.l >$@
+
+%.emu.l : %.l
+	cat $< | \
+	sed 's/(add-state /(emu-add-state /g' | \
+	sed 's/(add-state-list /(emu-add-state-list /g' | \
+	sed 's/(add-parameter /(emu-add-parameter /g' | \
+	sed 's/(add-definition /(emu-add-definition /g' | \
+	sed 's/(add-transition /(emu-add-transition /g' | \
+	sed 's/(defvar /(emu-defvar /g' | \
+	sed 's/(defun /(emu-defun /g' | \
+	cat >$@
+
+%.l.out : %.l
+	ecl -load $(BOXMODEL_L) -load $*.l >$@
 </source-file>
 
 <source-file filename=test-emulate.l display=link>
 (defvar tmod (new-model 'tmod))
 
+(add-state tmod (new-gname 'xx))
+
+(add-state-list tmod (list (new-gname 'a1) (new-gname 'a2) (new-gname 'a3)))
+
+(add-parameter tmod (new-gname 'beta))
+
 (add-definition tmod (new-gname 'n-total) :value (new-gname 'beta) :tag (new-gname 'n-total))
 
 (add-flow-series tmod :states (indexed (new-gname 'AGE) 0 4) :parameter (new-gname 'agingrate) :stratify NIL)
 
-(mdefun smpos-p (ss) (member ss smearpositive-states))
+(defun indemnify (a) "AAA1")
+(add-parameter tmod (indemnify (new-gname 'alpha)))
+
+;(dolist (tt (model-transitions tbmodel))
+  ;(if (incid-smpos-p tt)
+      ;(add-transition tbmodel  :from (new-gname '_SOURCE) :to (new-gname 'cumul-smpos-incidence) :rate (transition-value tt))))
 
 </source-file>
 
+And it's too soon to try to translate the code, but let's try anyway...
+
 <project-file filename=test-emulate.r/>
+
+<project-file filename=gs8.r/>
