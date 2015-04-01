@@ -6,7 +6,7 @@ wmd_project: Box_Models
 
 This is testing the 'boxmodels' R library we're developing.
 
-<source-file filename=boxmodel-test.R>
+<source-file filename=boxmodel-test.R display=boxmodel-test.Rout>
 library(boxmodels)
 
 SI <- boxmodel('SI')
@@ -34,9 +34,64 @@ dxdt <- ode( c(0.5,0.5), c(1), c(0), c(1), dxdt )$dxdt
 dxdt
 </source-file>
 
-<project-file filename=boxmodel-test.Rout/>
-
 <source-file filename=R.mk>
 boxmodel-test.Rout : /usr/local/lib/R/site-library/boxmodels/R/boxmodels \
     /usr/local/lib/R/site-library/boxmodels/libs/libboxmodels.so
 </source-file>
+
+To solve: what will it take to get the above to stratify $$\lambda$$,
+essentially, so that it will multiple $$S_i$$ by
+$$\sum_j \beta_{ij}I_j$$ rather than by $$\beta_i I_i$$.
+
+cross a,b does:
+
+* stratify-group (pa a) (st b)
+* stratify-group (pa b) (st a)
+* stratify-defs (def a) (st b)
+* stratify-defs (def b) (st a)
+* hdefs-a: regenerate-tags (?? a) (?? b)
+* outermap stratify-transition (trans a) (st b)
+* outermap stratify-transition (trans b) (st a)
+* gen-transtags modeltransitions # definitions involving transitions
+* cross-product (st a) (st b)
+* combine stratified defs, hdefs, transtags
+* merge the inner functions
+
+so
+
+* what are tags
+* what does it do with definitions
+* where do inner functions come in
+* do any of these things get used in stratify-transition
+
+stratify-transition:
+
+* production-function to make new source and target
+* stratify-expression to make rate
+* bring transition-tags along from original transition
+
+stratify-expression:
+
+* recursively apply stratify-name to all gnames in expression
+
+stratify-defs:
+
+* conditionally use stratify-definition based on "nd" (no-dependence)
+
+stratify-definition:
+
+* if definition-involves-transitions: skip it, do elsewhere
+* definition's sform
+* if it's a list: skip
+* else stratify-expression
+
+definition-involves-transitions is an attribute of the definition
+
+* it's set for definitions that are a list of things, I think
+
+Investigate in lisp: [stratify-defs.html]({{site.baseurl}}/stratify-defs.html)
+
+inner functions:
+
+* model's innerfunctions is a hash table
+* they aren't used
