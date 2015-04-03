@@ -1,0 +1,54 @@
+---
+layout: page
+title: Definitions of Box Model objects
+wmd_project: Notes
+wmd_prerequisite_projects:
+  BoxModels: Box_Models
+---
+
+## Box Model
+
+A `box model` is a directed graph whose vertices are `compartments` and
+edges are `transitions`, with two objects added to it: 
+each compartment has a `size`, which is a
+time-varying positive number, and each transition has a `rate`, 
+which is a function of the compartments' sizes.
+
+A box model is associated with an `ODE`, whose state variables are the
+compartment sizes, and whose flow vector field is derived from the
+transitions:
+
+$$\frac{dX}{dt} = \sum_{\text{edges }e\text{ entering }X}\text{rate}(e) - \sum_{\text{edges }e\text{ leaving }X}\text{rate}(e)\quad$$ for each compartment $$X$$.
+
+There are also an SDE, a diffusion equation, individual-based models, 
+and possibly other models that can be automatically generated to model
+the behavior of this system.
+
+**Example:** SI model
+
+<project-file filename=SI.boxes.crop.svg/>
+
+This box model has two compartments, S and I.  There is one transition
+from S to I, with rate $$\beta S I$$.  Its ODE is
+
+$$\frac{dS}{dt} = -\beta S I$$
+
+$$\frac{dS}{dt} = \beta S I$$.
+
+## Cross product
+
+A `cross product` of box models is a box model whose graph is the
+cross product, or
+[Cartesian product](https://en.wikipedia.org/wiki/Cartesian_product#Graph_theory),
+of the component box models' graphs.  That is,
+
+* The compartments of the cross product are tuples $$\{(c_1,\ldots,c_n)|\text{ each }c_i\text{ is a compartment of box model }i\}$$.
+* There is a transition from $$(c_1,\ldots,s,\ldots,c_n)$$ to
+$$(c_1,\ldots,t,\ldots,c_n)$$ if and only if the two tuples are identical
+except for $$s$$ and $$t$$ in the $$i$$th position and there is a transition
+from $$s$$ to $$t$$ in component model $$i$$.
+
+This definition does not determine the rates associated with the product
+model's transitions, so some extra work is needed to define those.  In fact,
+there are multiple ways to define the rates, depending on the biology of
+the model.

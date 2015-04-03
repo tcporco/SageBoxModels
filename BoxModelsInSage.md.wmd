@@ -455,6 +455,7 @@ class BoxModel(SageObject):
 	    self._graph.set_pos( { v:(i,0) for i,v in enumerate(self._vars) } )
 	self._flow_graph = self._graph
     def bind(self, bindings):
+	bindings = dynamicalsystems.Bindings( bindings )
 	# TODO: this will not bind cross product correctly
 	return BoxModel(
 	    DiGraph( {
@@ -571,18 +572,17 @@ def default_state_combiner(*args):
 # subscripting the first with the others
 def default_vertex_namer( vtuple ):
     ss = dynamicalsystems.subscriptedsymbol( *vtuple )
-    print 'name of', vtuple, 'is', latex(ss)
     return ss
 
 # and make subscripted flow rates, which is more complex
+internal_vertex_name_base = None
 def default_edge_renamer( etuple, models, vertex_namer, param_namer, state_combiner ):
     """we are given (rate, i, (v, v, ...)) where rate is an expression
     describing a transition of models[i],
     and the vs are the Cartesian product of vertices at the arrow's
     source (not processed by the state combiner)."""
-    print 'etuple is', etuple
     rate, i, vertex_vars = etuple
-    #print 'dealing with rate:', rate
+    print 'dealing with rate:', etuple
     # TODO: get smart about not constructing this vertex renaming
     # over and over for all rates exiting a given crossed vertex
     local_vars_rename = dynamicalsystems.Bindings( {
@@ -601,22 +601,25 @@ def default_edge_renamer( etuple, models, vertex_namer, param_namer, state_combi
     for p in models[i]._parameters:
 	if p in ratevars:
 	    plist = [p]
-	    #print 'dependencies of', p, 'are', models[i]._parameter_dependencies[p]
+	    print 'dependencies of', p, 'are', models[i]._parameter_dependencies[p]
 	    sumover = []
 	    product = p
 	    for dv, dtype in models[i]._parameter_dependencies[p]:
 		if dtype is deps.index:
-		    #print 'put index on', dv
 		    # TODO: something with state_combiner??
-		    plist += list(vertex_vars[:i]) + list(vertex_vars[i+1:])
+		    sl = list(vertex_vars[:i]) + list(vertex_vars[i+1:])
+		    plist += sl
+		    print 'put index on', p, ':', plist
 		elif dtype is deps.sumover:
 		    # let inner_product() append its indexes
-		    local_params_rename[dv] = make_index_state( [dv] )
+		    sl = make_index_state( [dv] )
+		    print 'put inner product with', dv, 'on', p
+		    local_params_rename[dv] = sl
 		else:
 		    raise ValueError
 		#product *= dv
 	    local_params_rename[p] = make_index_param( plist )
-	    #print 'local_params_rename:', local_params_rename
+	    print 'local_params_rename:', local_params_rename
     #print 'local_subs_expr:', local_subs_expr
     # TODO: figure out what to sum over those things
     # note those bindings are independent of 'rate' and could be memoized
@@ -639,18 +642,19 @@ def default_edge_renamer( etuple, models, vertex_namer, param_namer, state_combi
 	    ]
 	)
 	import itertools
-	return reduce( lambda x,y: x+y,
+	ip = reduce( lambda x,y: x+y,
 	   ( term_expression.substitute(
 	       { symb: var for symb,var in zip( symbs, vars ) } )
 	       for vars in itertools.product( *( models[j]._vars for j in range(len(vertex_vars)) if j != i ) ) )
 	)
+	print 'expand inner product', iargs, ':', ip
+	return ip
     rexpr = rexpr.substitute_function(
 	MarkInnerProducts.innerproduct,
 	expand_inner_product
     )
     rexpr = rexpr.substitute_function(
 	bm_index_state_function,
-	# TODO: is this right with state_combiner??
 	lambda *args: vertex_namer( state_combiner( *args ) )
     )
     rexpr = rexpr.substitute_function(
@@ -672,6 +676,7 @@ class BoxModelCrossProduct(BoxModel):
 	param_namer =    kwargs.pop( 'param_namer',    default_vertex_namer )
 	edge_renamer =   kwargs.pop( 'edge_renamer',   default_edge_renamer )
 	if kwargs: raise TypeError, "Unknown named arguments to BoxModelCrossProduct: %s" % str(kwargs)
+
 	# TODO: it would be more efficient to iterate one model at a time,
 	# and generate the vertex tuples, rate tuples, subscripted state
 	# variables, subscripted parameters, and subscripted rates all in
@@ -681,11 +686,13 @@ class BoxModelCrossProduct(BoxModel):
 	self._vars = []
 	self._aggregate_variables = {}
         graph_dict = {}
+	vars_combine = {}
         import itertools
         for vst in itertools.product( *(m._vars for m in models) ):
 	    # each vst is a vertex of the product graph
 	    vs = tuple( flatten( vst ) )
 	    vs_combined = state_combiner( *vs )
+	    vars_combine.setdefault( vs_combined, [] ).append(vs)
 	    if vs_combined not in self._vars: self._vars.append(vs_combined)
 	    graph_dict.setdefault(vs_combined, {})
 	    for i in range(len(vs)):
@@ -723,13 +730,53 @@ class BoxModelCrossProduct(BoxModel):
 
 	# now for consumption by humans and math software, we map vertex
 	# tuples to regular variable names with subscripts
-
-	self._flow_graph = DiGraph( {
+	print 'vars combine:', vars_combine
+	if not any( len(v) > 1 for v in vars_combine.values() ):
+	    evn = vertex_namer
+	    esc = state_combiner
+	    vars_combine = None
+	else:
+	    global internal_vertex_name_base
+	    if internal_vertex_name_base is None:
+	        #internal_vertex_name_base = SR.symbol()
+	        internal_vertex_name_base = 'Z'
+	    print 'do internal state variables,', internal_vertex_name_base
+	    evn = lambda args: dynamicalsystems.subscriptedsymbol(
+		internal_vertex_name_base,
+		*args
+	    )
+	    esc = default_state_combiner
+	flow_dict = {
 	    vertex_namer(v):{
-		vertex_namer(w):sum(edge_renamer(e, models, vertex_namer, param_namer, state_combiner) for e in el)
+		vertex_namer(w):sum(edge_renamer(e, models, evn, param_namer, esc ) for e in el)
 		for vv,w,el in self._graph.outgoing_edges(v)
 	    } for v in self._graph.vertices()
-	} )
+	}
+        if vars_combine is not None:
+	    # do substitutions to make the aggregate rates
+	    vc_eqns, vc_symbols = [], []
+	    vc_subs = dynamicalsystems.Bindings()
+	    for v,c in vars_combine.items():
+		print 'will combine', sum( evn(zv) for zv in c ), '==', vertex_namer(v)
+		vc_symbols.append( evn(c[0]) )
+		vc_eqns.append( evn(c[0]) == vertex_namer(v) - sum( evn(zv) for zv in c[1:] ) )
+	    nfd = {}
+	    for v, ve in flow_dict.items():
+		nfd[v] = {}
+		for w, e in ve.items():
+		    sym = SR.symbol()
+		    print e,
+		    solns = solve( [ sym == e ] + vc_eqns, sym, *vc_symbols, solution_dict=True )
+		    #print 'solve', [ sym == e ] + vc_eqns, ',', [sym] + vc_symbols, '\n  ', solns
+		    if len(solns) == 1:
+		        #print '  ', maxima(sym), [str(k) == str(sym) for k in solns[0].keys()]
+		        el = [ex for k,ex in solns[0].items() if str(k) == str(sym)]
+		        print '==>', el[0]
+			nfd[v][w] = el[0]
+		    else:
+		        raise RuntimeError, 'Could not simplify expression ' + str(e)
+	    flow_dict = nfd
+	self._flow_graph = DiGraph( flow_dict )
 	self._flow_graph.set_latex_options( edge_labels=True, vertex_shape='rectangle' )
 	self._flow_graph.set_pos( { vertex_namer(state_combiner(*v)):pos for v,pos in positions.items() } )
 
@@ -748,6 +795,24 @@ class BoxModelCrossProduct(BoxModel):
 	    k : [ vertex_namer(vs) for vs in v ]
 	    for k,v in self._aggregate_variables.items()
 	}
+    def bind(self, bindings):
+	bindings = dynamicalsystems.Bindings( bindings )
+	# TODO: this produces a regular BoxModel, destroys information
+	# about the cross product
+	return BoxModel(
+	    self._flow_graph,
+	    vars = [ bindings(v) for v in self._vars ],
+	    parameters = [ bindings(p) for p in self._parameters ],
+	    #parameter_dependencies = {
+	    #	bindings(p):[(bindings(d),t) for d,t in pd] for p,pd in self._parameter_dependencies.items()
+	    #},
+	    flow_graph = DiGraph( {
+		bindings(v): {
+		    bindings(w):bindings(e) for _,w,e in self._flow_graph.outgoing_edge_iterator(v)
+		} for v in self._flow_graph.vertex_iterator()
+	    } ),
+	    bindings = self._bindings + bindings
+	)
 
 </source-file>
 

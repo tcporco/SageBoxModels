@@ -23,7 +23,7 @@ S, I, R, mu, alpha = SR.var( 'S I R mu alpha' )
 SIR = boxmodel.BoxModel( DiGraph( { S:{ I:alpha*S*I }, I:{ R:mu*I } } ), [S,I,R] )
 
 def primevar( var ):
-    return SR.symbol( str(var)+'prime', latex_name = "{%s}^\'" % latex(var) )
+    return SR.symbol( str(var)+'prime', latex_name = "{%s}^{\'}" % latex(var) )
 
 prime_rates = dynamicalsystems.Bindings( { mu:primevar(mu), alpha:primevar(alpha) } )
 
@@ -63,7 +63,11 @@ import dynamicalsystems
 
 S, I, R, mu, alpha = SR.var( 'S I R mu alpha' )
 
-SIR = boxmodel.BoxModel( DiGraph( { S:{ I:alpha*S*I }, I:{ R:mu*I } } ), [S,I,R] )
+SIR = boxmodel.BoxModel(
+    DiGraph( { S:{ I:alpha*S*I }, I:{ R:mu*I } } ),
+    [S,I,R],
+    parameter_dependencies={alpha:[(S, boxmodel.deps.index), (I, boxmodel.deps.sumover)]}
+)
 
 # the state combiner I'll use
 # sort the states in S,I,R order
@@ -79,6 +83,10 @@ up = boxmodel.BoxModelCrossProduct( SIR, SIR,
     state_combiner=sort_combiner,
     vertex_namer=x_namer
 )
+
+# just to see if this works, temporarily
+up = up.bind( { dynamicalsystems.subscriptedsymbol( 'alpha', x, y ):alpha
+	for x in (S,I,R) for y in (S,I,R) } )
 
 pair_ode = up.ode()
 
@@ -96,6 +104,89 @@ sys.exit(0r)
 <project-file filename="unordered-pair.sage.out.html"/>
 
 <project-file filename="unordered-pair.boxes.crop.svg"/>
+
+## SI Quotient
+
+<source-file filename="SI-quotient.sage.step">
+# requires: $(SageDynamics)/dynamicalsystems.py boxmodel.py
+# requires: $(SageUtils)/latex_output.py
+# produces: SI-quotient.sage.out.tex
+# produces: SI-quotient-ordered.boxes.tex SI-quotient-unordered.boxes.tex
+import os, sys
+sys.path.append( os.environ['SageUtils'] )
+import latex_output
+import boxmodel
+import dynamicalsystems
+
+S, I, alpha = SR.var( 'S I alpha' )
+
+SI = boxmodel.BoxModel(
+    DiGraph( { S:{ I:alpha*S*I } } ),
+    [S,I],
+    parameter_dependencies={alpha:[(S, boxmodel.deps.index), (I, boxmodel.deps.sumover)]}
+)
+
+# alternative naming: instead of S_I, X_{SI}
+def x_namer( ss ):
+    return dynamicalsystems.subscriptedsymbol( 'X', *ss )
+
+# put primes on the second SI, to distinguish what's what
+def primevar( var ):
+    return SR.symbol( str(var)+'prime', latex_name = "{%s}^{\'}" % latex(var) )
+
+prime_rates = dynamicalsystems.Bindings( { alpha:primevar(alpha) } )
+prime_vars = dynamicalsystems.Bindings( { x:primevar(x) for x in SI._vars } )
+
+op = boxmodel.BoxModelCrossProduct( SI, SI.bind(prime_rates + prime_vars),
+    vertex_namer=x_namer
+)
+
+pair_ode = op.ode()
+
+ltx = latex_output.latex_output( "SI-quotient.sage.out.tex" )
+
+ltx.write( 'SI square:\n', pair_ode )
+
+op.plot_boxes( 'SI-quotient-ordered.boxes.tex', figsize=(5,5) )
+
+# the state combiner I'll use
+# sort the state pair in S,I order
+SI_order = { v:i for i,v in enumerate( SI._vars ) }
+def sort_combiner( *vs ):
+    return tuple( sorted( vs, key=lambda v: SI_order[v] ) )
+
+def state_orderer( bm ):
+    state_order = { v:i for i,v in enumerate( bm._vars ) }
+    def orderer( *vs ):
+	return tuple( sorted( vs, key=lambda v: state_order[v] ) )
+    return orderer
+
+up = boxmodel.BoxModelCrossProduct( SI, SI,
+    state_combiner=state_orderer(SI),
+    vertex_namer=x_namer
+)
+
+# just to see if this works, temporarily
+#up = up.bind( { dynamicalsystems.subscriptedsymbol( 'alpha', x, y ):alpha
+#	for x in (S,I) for y in (S,I) } )
+
+pair_ode = up.ode()
+
+ltx.write( 'SI triangle:\n', pair_ode )
+
+ltx.close()
+
+up.plot_boxes( 'SI-quotient-unordered.boxes.tex', figsize=(5,5) )
+
+sys.exit(0r)
+</source-file>
+
+<project-file filename="SI-quotient.sage.out.html"/>
+
+<project-file filename="SI-quotient-ordered.boxes.crop.svg"/>
+
+<project-file filename="SI-quotient-unordered.boxes.crop.svg"/>
+
 
 ## Notes on the quotient operation
 
