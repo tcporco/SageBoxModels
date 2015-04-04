@@ -27,7 +27,13 @@ def primevar( var ):
 
 prime_rates = dynamicalsystems.Bindings( { mu:primevar(mu), alpha:primevar(alpha) } )
 
-op = boxmodel.BoxModelCrossProduct( SIR, SIR.bind(prime_rates) )
+# alternative naming: instead of S_I, X_{SI}
+def x_namer( ss ):
+    return dynamicalsystems.subscriptedsymbol( 'X', *ss )
+
+op = boxmodel.BoxModelCrossProduct( SIR, SIR.bind(prime_rates),
+    vertex_namer=x_namer
+)
 
 pair_ode = op.ode()
 
@@ -75,13 +81,13 @@ SIR_order = { v:i for i,v in enumerate( SIR._vars ) }
 def sort_combiner( *vs ):
     return tuple( sorted( vs, key=lambda v: SIR_order[v] ) )
 
-# alternative naming: instead of S_I, X_{SI}
-def x_namer( ss ):
-    return dynamicalsystems.subscriptedsymbol( 'X', *ss )
+# for the combined variables, 'Z'
+def z_namer( ss ):
+    return dynamicalsystems.subscriptedsymbol( 'Z', *ss )
 
 up = boxmodel.BoxModelCrossProduct( SIR, SIR,
     state_combiner=sort_combiner,
-    vertex_namer=x_namer
+    vertex_namer=z_namer
 )
 
 # just to see if this works, temporarily
@@ -137,7 +143,7 @@ def primevar( var ):
 prime_rates = dynamicalsystems.Bindings( { alpha:primevar(alpha) } )
 prime_vars = dynamicalsystems.Bindings( { x:primevar(x) for x in SI._vars } )
 
-op = boxmodel.BoxModelCrossProduct( SI, SI.bind(prime_rates + prime_vars),
+op = boxmodel.BoxModelCrossProduct( SI, SI, #.bind(prime_rates + prime_vars),
     vertex_namer=x_namer
 )
 
@@ -161,9 +167,13 @@ def state_orderer( bm ):
 	return tuple( sorted( vs, key=lambda v: state_order[v] ) )
     return orderer
 
+# for the combined variables, 'Z'
+def z_namer( ss ):
+    return dynamicalsystems.subscriptedsymbol( 'Z', *ss )
+
 up = boxmodel.BoxModelCrossProduct( SI, SI,
     state_combiner=state_orderer(SI),
-    vertex_namer=x_namer
+    vertex_namer=z_namer
 )
 
 # just to see if this works, temporarily

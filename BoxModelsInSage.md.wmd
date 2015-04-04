@@ -394,6 +394,7 @@ import sys
 sys.path.append( os.environ['SageUtils'] )
 sys.path.append( os.environ['SageDynamics'] )
 import dynamicalsystems
+import latex_output
 
 from sage.misc.latex import _latex_file_
 #from sage.symbolic.relation import solve
@@ -500,52 +501,119 @@ class BoxModel(SageObject):
 	LF.write( LT )
         LF.close()
 	return LT
+    def micro_transitions( self ):
+	# This could produce micro transitions but it isn't right so far
+	ltx = latex_output.latex_output_base( latex_output.write_to_string() )
+	lines = []
+	for source, target, rate in self._flow_graph.edge_iterator():
+	    lines += [ r'  & \sigma(x)\mapsto' + latex(target)
+		+ r' \text{ at rate } '
+		+ latex( MakeMicro( self, source )( rate ) )
+	    ]
+	ltx.write_align( *lines )
+	return ltx._output._str
 
-# MarkInnerProducts is used internally to install "innerproduct" notations
-# that help with indexing in the cross product
+# useful parent class: expression converter that doesn't
+# do anything
 from sage.symbolic.expression_conversions import SubstituteFunction
-class SubstituteOperator(SubstituteFunction):
-    def __init__(self, ex, from_op, to_op):
-	self._from = from_op
-	self._to = to_op
+class IdentityConverter(SubstituteFunction):
+    def __init__(self):
+	pass
     def composition(self, ex, operator):
 	# override the parent class's function replacing step
 	return operator(*map(self, ex.operands()))
+
+class MakeMicro(IdentityConverter):
+    from sage.symbolic.function_factory import function
+    delta_fn = function('delta', latex_name='\delta')
+    sigma_fn = function('sigma', latex_name='\sigma')
+    def __init__(self, model, source):
+	self._model = model
+	self._source = source
+	self._working = False
+    def __call__(self, ex):
+	if self._working:
+	    return super(MakeMicro,self).__call__(ex)
+	self._working = True
+	rx = super(MakeMicro,self).__call__(
+	    self.delta_fn( self.sigma_fn( SR.symbol('x') ), self._source )
+	      * ex / self._source
+	)
+	self._working = False
+	return rx
+
+# StratifyExpression is used during the cross product when it needs
+# to sum over certain products of parameters and compartments
+class StratifyExpression(IdentityConverter):
+    from sage.symbolic.function_factory import function
+    bm_index_state = function( 'bm_index_state' )
+    bm_index_param = function( 'bm_index_param' )
+    sumover = function( 'sumover' )
+    _mul = SR('a*b').operator()
+    def __init__(self, i, vs, models, vertex_namer, param_namer, state_combiner ):
+	self._deps = models[i]._parameter_dependencies
+	self._general_replacements = {
+	    var : vertex_namer( state_combiner( *(list(vs[:i]) + [var] + list(vs[i+1:]) ) ) )
+	    for var in models[i]._vars
+        }
+	self._i = i
+	self._vs = vs
+	self._models = models
+	self._vertex_namer = vertex_namer
+	self._param_namer = param_namer
+	self._state_combiner = state_combiner
     def arithmetic(self, ex, operator):
 	# do the operator replacement
-	if operator == self._from:
-	    return self._to( *map(self, ex.operands()) )
+	if operator == self._mul:
+	    return self.do_inner_product( *map(self, ex.operands()) )
 	else:
 	    return reduce( operator, *map(self, ex.operands()) )
-
-class MarkInnerProducts(SubstituteOperator):
-    from sage.symbolic.function_factory import function
-    innerproduct = function( 'innerproduct' )
-    def __init__(self, deps):
-	self._deps = deps
-	SubstituteOperator.__init__(
-	    self,
-	    SR(0),
-	    SR('a*b').operator(),
-	    lambda *args: self.check_for_inner_product(*args)
-	)
-    def check_for_inner_product(self, *args):
+    def do_inner_product(self, *args):
 	# leave multiplications as is, except in the case of a
 	# parameter dependency marked "sumover": convert that from
 	# a regular multiplication to an inner product.
+	print 'processing product', args
 	margs = list(args)
-	for v,dd in self._deps.items():
-	    if v in margs:
-		#print 'found', v, 'in factors:', args
-		if all( a in margs for a in [ d for d,x in dd ] ):
-		    #print 'found all of its deps', [d for d,x in dd], 'as well'
-		    ip = v
-		    for d,x in dd:
+	sumover = []
+	for p,pd in self._deps.items():
+	    if p in margs:
+		print 'found', p, 'in factors:', args
+		if all( d in margs for d,x in pd ):
+		    #print 'found all of its deps', [d for d,x in pd], 'as well'
+		    p_indices = []
+		    for d,x in pd:
 			if x == deps.sumover:
-			    ip = self.innerproduct(ip, d)
-			    margs.remove(d)
-		    margs[margs.index(v)] = ip
-	return reduce( self._from, margs )
+			    dummys_before = [ SR.symbol() for x in self._vs[:self._i] ]
+			    dummys_after  = [ SR.symbol() for x in self._vs[self._i+1:] ]
+			    p_indices += dummys_before + dummys_after
+			    margs[margs.index(d)] = self.bm_index_state( *(dummys_before + [d] + dummys_after) )
+			    sumover += [ (d, self._models[j]._vars) for j,d in enumerate(dummys_before) ]
+			    sumover += [ (d, self._models[j]._vars) for j,d in enumerate(dummys_after, self._i+1) ]
+			    print 'will sum over', x
+			else:
+			    p_indices += list(self._vs[:self._i]) + list(self._vs[self._i+1:])
+		    margs[margs.index(p)] = self.bm_index_param( p, *p_indices )
+		    print margs
+		else:
+		    raise RuntimeError, (
+			"Missing parameter dependencies in expression " +
+			str( reduce( self._mul, args ) )
+		    )
+	expr = reduce( self._mul, margs )
+	for d, ss in sumover:
+	    expr = sum( expr.subs( { d:s } ) for s in ss )
+	print 'once summed:', expr
+        expr = expr.substitute_function(
+	    self.bm_index_state,
+	    lambda *args: self._vertex_namer( self._state_combiner( *args ) )
+        )
+        expr = expr.substitute_function(
+	    self.bm_index_param,
+	    lambda *args: self._param_namer( args )
+        )
+	expr = expr.subs( self._general_replacements )
+	print 'becomes', expr
+	return expr
 
 def flatten( lst ):
     try:
@@ -575,7 +643,6 @@ def default_vertex_namer( vtuple ):
     return ss
 
 # and make subscripted flow rates, which is more complex
-internal_vertex_name_base = None
 def default_edge_renamer( etuple, models, vertex_namer, param_namer, state_combiner ):
     """we are given (rate, i, (v, v, ...)) where rate is an expression
     describing a transition of models[i],
@@ -583,86 +650,13 @@ def default_edge_renamer( etuple, models, vertex_namer, param_namer, state_combi
     source (not processed by the state combiner)."""
     rate, i, vertex_vars = etuple
     print 'dealing with rate:', etuple
-    # TODO: get smart about not constructing this vertex renaming
-    # over and over for all rates exiting a given crossed vertex
-    local_vars_rename = dynamicalsystems.Bindings( {
-	var : vertex_namer( state_combiner( *(list(vertex_vars[:i]) + [var] + list(vertex_vars[i+1:]) ) ) )
-	for var in models[i]._vars
-    } )
-    local_params_rename = dynamicalsystems.Bindings( { } )
-    local_subs_expr = []
-    bm_index_state_function = sage.symbolic.function_factory.function( 'bm_index_state', latex_name='bm\_index\_state' )
-    bm_index_param_function = sage.symbolic.function_factory.function( 'bm_index_param', latex_name='bm\_index\_param' )
-    def make_index_state( terms ):
-	return bm_index_state_function( *terms )
-    def make_index_param( terms ):
-	return bm_index_param_function( *terms )
-    ratevars = rate.variables()
-    for p in models[i]._parameters:
-	if p in ratevars:
-	    plist = [p]
-	    print 'dependencies of', p, 'are', models[i]._parameter_dependencies[p]
-	    sumover = []
-	    product = p
-	    for dv, dtype in models[i]._parameter_dependencies[p]:
-		if dtype is deps.index:
-		    # TODO: something with state_combiner??
-		    sl = list(vertex_vars[:i]) + list(vertex_vars[i+1:])
-		    plist += sl
-		    print 'put index on', p, ':', plist
-		elif dtype is deps.sumover:
-		    # let inner_product() append its indexes
-		    sl = make_index_state( [dv] )
-		    print 'put inner product with', dv, 'on', p
-		    local_params_rename[dv] = sl
-		else:
-		    raise ValueError
-		#product *= dv
-	    local_params_rename[p] = make_index_param( plist )
-	    print 'local_params_rename:', local_params_rename
-    #print 'local_subs_expr:', local_subs_expr
-    # TODO: figure out what to sum over those things
-    # note those bindings are independent of 'rate' and could be memoized
-    rexpr = rate
-    if local_subs_expr != []:
-	rexpr = rate.subs_expr( *local_subs_expr )
-    rexpr = local_params_rename( rexpr )
-    def expand_inner_product( *iargs ):
-	symbs = [ SR.symbol() for i in range(len(vertex_vars)-1) ]
-	term_expression = reduce( lambda x,y: x*y,
-	    # TODO: don't append the symbol to ALL bm_index expr's here,
-	    # only the ones we're summing on!
-	    [ a.substitute_function(
-		bm_index_state_function,
-		lambda *args: bm_index_state_function( *(list(args) + symbs) )
-              ).substitute_function(
-		bm_index_param_function,
-		lambda *args: bm_index_param_function( *(list(args) + symbs) )
-              ) for a in iargs
-	    ]
-	)
-	import itertools
-	ip = reduce( lambda x,y: x+y,
-	   ( term_expression.substitute(
-	       { symb: var for symb,var in zip( symbs, vars ) } )
-	       for vars in itertools.product( *( models[j]._vars for j in range(len(vertex_vars)) if j != i ) ) )
-	)
-	print 'expand inner product', iargs, ':', ip
-	return ip
-    rexpr = rexpr.substitute_function(
-	MarkInnerProducts.innerproduct,
-	expand_inner_product
-    )
-    rexpr = rexpr.substitute_function(
-	bm_index_state_function,
-	lambda *args: vertex_namer( state_combiner( *args ) )
-    )
-    rexpr = rexpr.substitute_function(
-	bm_index_param_function,
-	lambda *args: param_namer( args )
-    )
-    rexpr = local_vars_rename( rexpr )
-    return rexpr
+    eip = StratifyExpression( i, vertex_vars, models, vertex_namer, param_namer, state_combiner )
+    rate = eip( rate )
+    return rate
+
+# letter or whatever for making names of states of full cross product,
+# when they're used as an intermediate step in a combined-state product
+internal_vertex_name_base = None
 
 class BoxModelCrossProduct(BoxModel):
     def __init__(
@@ -697,13 +691,13 @@ class BoxModelCrossProduct(BoxModel):
 	    graph_dict.setdefault(vs_combined, {})
 	    for i in range(len(vs)):
 		# each vertex has outgoing edges from every graph
-	        mip = MarkInnerProducts( models[i]._parameter_dependencies )
+	        #mip = MarkInnerProducts( models[i]._parameter_dependencies )
 	        for v,w,rate in models[i]._graph.outgoing_edges(vs[i]):
 		    ws = list(vs)
 		    ws[i] = w
-		    iprate = mip(rate) # this is being done redundantly
+		    #iprate = mip(rate) # this is being done redundantly
 		    #print 'marked inner products:', rate, '-->', iprate
-		    erate = [iprate, i, vs]
+		    erate = [rate, i, vs]
 		    ws_combined = state_combiner( *ws )
 		    graph_dict[vs_combined].setdefault(tuple(ws_combined),[]).append(tuple(erate))
 		self._aggregate_variables.setdefault(vs[i], []).append( vs_combined )
@@ -739,7 +733,7 @@ class BoxModelCrossProduct(BoxModel):
 	    global internal_vertex_name_base
 	    if internal_vertex_name_base is None:
 	        #internal_vertex_name_base = SR.symbol()
-	        internal_vertex_name_base = 'Z'
+	        internal_vertex_name_base = 'X'
 	    print 'do internal state variables,', internal_vertex_name_base
 	    evn = lambda args: dynamicalsystems.subscriptedsymbol(
 		internal_vertex_name_base,
@@ -774,7 +768,7 @@ class BoxModelCrossProduct(BoxModel):
 		        print '==>', el[0]
 			nfd[v][w] = el[0]
 		    else:
-		        raise RuntimeError, 'Could not simplify expression ' + str(e)
+		        raise RuntimeError, 'Could not simplify expression ' + str(e) + ':' + str(solns)
 	    flow_dict = nfd
 	self._flow_graph = DiGraph( flow_dict )
 	self._flow_graph.set_latex_options( edge_labels=True, vertex_shape='rectangle' )

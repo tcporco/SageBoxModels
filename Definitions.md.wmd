@@ -52,3 +52,26 @@ This definition does not determine the rates associated with the product
 model's transitions, so some extra work is needed to define those.  In fact,
 there are multiple ways to define the rates, depending on the biology of
 the model.
+
+[tbd]
+
+## Microscopic model
+
+<source-file filename=SI-micro.sage.step display=SI-micro.sage.out.html>
+# requires: SI.sobj
+# produces: SI-micro.sage.out.tex
+import os, sys
+sys.path.append( os.environ['BoxModels'] )
+sys.path.append( os.environ['SageUtils'] )
+from boxmodel import *
+from latex_output import *
+
+load_session( 'SI' )
+
+ltx = latex_output.latex_output( 'SI-micro.sage.out.tex' )
+
+ltx.write( SI.micro_transitions() )
+
+ltx.close()
+</source-file>
+

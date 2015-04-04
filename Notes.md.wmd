@@ -43,7 +43,7 @@ For this box model:
 # requires: $(BoxModels)/boxmodel.py
 # requires: $(SageDynamics)/dynamicalsystems.py
 # requires: $(SageAdaptiveDynamics)/adaptivedynamics.py
-# produces: SI.sage.out.tex SI.boxes.tex
+# produces: SI.sage.out.tex SI.boxes.tex SI.sobj
 import os
 import sys
 sys.path.append( os.environ['BoxModels'] )
@@ -56,6 +56,8 @@ S, I, beta = SR.var( 'S I beta' )
 SI = BoxModel( DiGraph( { S:{ I:beta*S*I } } ), [S,I] )
 
 SI.plot_boxes( 'SI.boxes.tex', figsize=(5,5) )
+
+save_session( 'SI' )
 </source-file>
 
 We might have these tables:
