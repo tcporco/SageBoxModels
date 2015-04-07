@@ -8,7 +8,7 @@ When order does/doesn't matter in pair model.
 
 ## First the plain cross, for when order does matter.
 
-<source-file filename="ordered-pair.sage.step">
+<source-file filename="ordered-pair.sage.step" texdisplay=none>
 # requires: $(SageDynamics)/dynamicalsystems.py boxmodel.py
 # requires: $(SageUtils)/latex_output.py
 # produces: ordered-pair.sage.out.tex ordered-pair.boxes.tex
@@ -48,7 +48,7 @@ op.plot_boxes( 'ordered-pair.boxes.tex', figsize=(5,5) )
 sys.exit(0r)
 </source-file>
 
-<project-file filename="ordered-pair.sage.out.html"/>
+<project-file filename="ordered-pair.sage.out.tex"/>
 
 <project-file filename="ordered-pair.boxes.crop.svg"/>
 
@@ -57,7 +57,7 @@ sys.exit(0r)
 Here we try to get BoxModelCrossProduct to give us a reduced model, by
 combining pairs of states without regard to order.
 
-<source-file filename="unordered-pair.sage.step">
+<source-file filename="unordered-pair.sage.step" texdisplay=none>
 # requires: $(SageDynamics)/dynamicalsystems.py boxmodel.py
 # requires: $(SageUtils)/latex_output.py
 # produces: unordered-pair.sage.out.tex unordered-pair.boxes.tex
@@ -107,13 +107,13 @@ up.plot_boxes( 'unordered-pair.boxes.tex', figsize=(5,5) )
 sys.exit(0r)
 </source-file>
 
-<project-file filename="unordered-pair.sage.out.html"/>
+<project-file filename="unordered-pair.sage.out.tex"/>
 
 <project-file filename="unordered-pair.boxes.crop.svg"/>
 
 ## SI Quotient
 
-<source-file filename="SI-quotient.sage.step">
+<source-file filename="SI-quotient.sage.step" texdisplay=none>
 # requires: $(SageDynamics)/dynamicalsystems.py boxmodel.py
 # requires: $(SageUtils)/latex_output.py
 # produces: SI-quotient.sage.out.tex
@@ -191,7 +191,7 @@ up.plot_boxes( 'SI-quotient-unordered.boxes.tex', figsize=(5,5) )
 sys.exit(0r)
 </source-file>
 
-<project-file filename="SI-quotient.sage.out.html"/>
+<project-file filename="SI-quotient.sage.out.tex"/>
 
 <project-file filename="SI-quotient-ordered.boxes.crop.svg"/>
 
