@@ -21,8 +21,8 @@ The BoxModel and BoxModelCrossProduct classes are at the end of this page.
 import os
 import sys
 sys.path.append( os.environ['SageUtils'] )
-from latex_output import *
 from boxmodel import *
+from latex_output import *
 
 S, I, R, mu, alpha = SR.var( 'S I R mu alpha' )
 
@@ -67,8 +67,8 @@ import sys
 #print 'init'; sys.stdout.flush()
 import os
 sys.path.append( os.environ['SageUtils'] )
-from latex_output import *
 from boxmodel import *
+from latex_output import *
 
 #print 'make SIR model'
 sys.stdout.flush()
@@ -122,8 +122,8 @@ import sys
 #print 'init'; sys.stdout.flush()
 import os
 sys.path.append( os.environ['SageUtils'] )
-from latex_output import *
 from boxmodel import *
+from latex_output import *
 
 #print 'make SI model'
 sys.stdout.flush()
@@ -506,9 +506,12 @@ class BoxModel(SageObject):
 	ltx = latex_output.latex_output_base( latex_output.write_to_string() )
 	lines = []
 	for source, target, rate in self._flow_graph.edge_iterator():
-	    lines += [ r'  & \sigma(x)\mapsto' + latex(target)
-		+ r' \text{ at rate } '
-		+ latex( MakeMicro( self, source )( rate ) )
+	    mu = MakeMicro( self, source )
+	    ut = mu( rate )
+	    print str(ut); sys.stdout.flush()
+	    lines += [ r'  & ' + latex(mu.sigma_fn(SR('x'))) + r'\to' + latex(target)
+		+ r' \quad\text{ at rate } '
+		+ latex( ut )
 	    ]
 	ltx.write_align( *lines )
 	return ltx._output._str
@@ -524,23 +527,82 @@ class IdentityConverter(SubstituteFunction):
 	return operator(*map(self, ex.operands()))
 
 class MakeMicro(IdentityConverter):
+    _mul = SR('a*b').operator()
     from sage.symbolic.function_factory import function
-    delta_fn = function('delta', latex_name='\delta')
-    sigma_fn = function('sigma', latex_name='\sigma')
+    delta_fn = function('delta', latex_name=r'\delta')
+    sigma_fn = function('sigma', print_latex_func=lambda self, x:r'\sigma_{%s}' % latex(x))
+    bm_sum = function( 'sum', print_latex_func=lambda self, x, s, ex:r'\sum_{%s\in %s}%s' %( latex(x), latex(s), latex(ex) ) )
+    bm_indicator = function( 'indicator', print_latex_func=lambda self, ev:r'\mathbb{1}\left(%s\right)' % latex(ev) )
+    bm_index_param = function( 'bm_index_param' )
     def __init__(self, model, source):
 	self._model = model
 	self._source = source
 	self._working = False
+	self._tags = { s : SR.symbol( 'text'+str(s), latex_name=r'\texttt{%s}'%str(s) ) for s in self._model._vars }
     def __call__(self, ex):
 	if self._working:
 	    return super(MakeMicro,self).__call__(ex)
 	self._working = True
-	rx = super(MakeMicro,self).__call__(
-	    self.delta_fn( self.sigma_fn( SR.symbol('x') ), self._source )
-	      * ex / self._source
-	)
+	tx = super(MakeMicro,self).__call__( ex / self._source )
 	self._working = False
-	return rx
+	return (
+	   self.bm_indicator( self.sigma_fn( SR.symbol('x') ) == self._tags[self._source] ) *
+	   tx.subs( { s : self.bm_sum( SR.symbol('y'), SR.symbol('X'), 1 / SR('N') * self.bm_indicator( self.sigma_fn( SR('y') ) == self._tags[s] ) ) for s in self._model._vars } )
+	)
+    def arithmetic(self, ex, operator):
+	# do special handling to products of things, before processing the
+	# things, to catch inner products
+	if operator == self._mul:
+	    return self.do_inner_product( *ex.operands() )
+	else:
+	    return reduce( operator, *map(self, ex.operands()) )
+    def symbol(self, s):
+	return self.do_inner_product( s ) # just in case
+    def do_inner_product(self, *args):
+	# leave multiplications as is, except in the case of a
+	# parameter dependency marked "sumover": convert that from
+	# a regular multiplication to an inner product.
+	print 'processing product', args
+	margs = list(args)
+	sumover = []
+	dummy_list = ['y', 'z', 'u', 'v', 'w', 's', 't', 'p', 'q', 'r']
+	for p,pd in self._model._parameter_dependencies.items():
+	    if p in margs:
+		print 'found', p, 'in factors:', args
+		if all( d in margs + [self._source] for d,x in pd ):
+		    print 'found all of its deps', [d for d,x in pd], 'as well'
+		    indices_for_p = []
+		    p_times = SR(1)
+		    for d,ss in pd:
+			if ss == deps.sumover:
+			    dummy_var = SR.symbol( dummy_list.pop(0) )
+			    indices_for_p.append( dummy_var )
+			    sumover.append( dummy_var )
+			    print 'will sum over', dummy_var, 'in', d; sys.stdout.flush()
+			    margs[margs.index(d)] = 1
+			    p_times *= self.bm_indicator( self.sigma_fn( dummy_var ) == self._tags[d] )
+			    print 'made it through equality'; sys.stdout.flush()
+			elif d == self._source:
+			    indices_for_p += [SR('x')]
+			else:
+			    raise ValueError, 'I am confused about dependence on ' + str(d)
+		    index_of_p = margs.index(p)
+		    margs[index_of_p] = self.bm_index_param( p, *indices_for_p ) * p_times
+		    for dv in reversed(sumover):
+			margs[index_of_p] = self.bm_sum( dv, SR.symbol('X'), 1 / SR('N') * margs[index_of_p] )
+		    margs[index_of_p] = margs[index_of_p].substitute_function(
+			self.bm_index_param,
+			lambda *args: dynamicalsystems.subscriptedsymbol( *args )
+		    )
+		    print margs
+		else:
+		    raise RuntimeError, (
+			"Missing parameter dependencies in expression " +
+			str( reduce( self._mul, args ) )
+		    )
+	expr = reduce( self._mul, margs )
+	print 'becomes', expr
+	return expr
 
 # StratifyExpression is used during the cross product when it needs
 # to sum over certain products of parameters and compartments

@@ -57,20 +57,26 @@ the model.
 
 ## Microscopic model
 
-<source-file filename=SI-micro.sage.step display=SI-micro.sage.out.html>
-# requires: SI.sobj
-# produces: SI-micro.sage.out.tex
+<source-file filename=SIR-micro.sage.step display=SIR-micro.sage.out.html>
+# requires: $(BoxModels)/boxmodel.py $(SageUtils)/latex_output.py
+# produces: SIR-micro.sage.out.tex
 import os, sys
 sys.path.append( os.environ['BoxModels'] )
 sys.path.append( os.environ['SageUtils'] )
 from boxmodel import *
 from latex_output import *
 
-load_session( 'SI' )
+S, I, R, beta, alpha = SR.var( 'S I R beta alpha' )
+SIR = BoxModel( DiGraph( { S: {I : beta*S*I}, I: {R : alpha*I} } ), [S, I, R],
+	parameter_dependencies = {
+	    beta: [(S, deps.index), (I, deps.sumover)],
+	    alpha: [(I, deps.index)]
+	}
+)
 
-ltx = latex_output.latex_output( 'SI-micro.sage.out.tex' )
+ltx = latex_output( 'SIR-micro.sage.out.tex' )
 
-ltx.write( SI.micro_transitions() )
+ltx.write( SIR.micro_transitions() )
 
 ltx.close()
 </source-file>
