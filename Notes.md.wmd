@@ -14,7 +14,7 @@ some of the time to make sure I'm thinking clearly:
 
 <source-file filename="boxmodel-schema-1.cd" display="boxmodel-schema-1.cd.crop.svg">
 % code borrowed from http://lalashan.mcmaster.ca/theobio/worden/index.php/Commutative_Diagram
-\begin{tikzpicture}[baseline= (operator in expression).base]
+\begin{tikzpicture}[baseline=(a).base]
 \node[scale=0.95] (a) at (0,0) {
 \begin{tikzcd}[swap, math mode=false, column sep=huge, row sep=large]
   box model \\
@@ -130,7 +130,7 @@ pe1 & oe1 & pa1
 which is equivalent to this graph, aside from the 'box model' table:
 
 <source-file filename="boxmodel-instance-graph-1.cd" display="boxmodel-instance-graph-1.cd.crop.svg">
-\begin{tikzpicture}[baseline= (operator in expression).base]
+\begin{tikzpicture}[baseline=(a).base]
 \node[scale=0.95] (a) at (0,0) {
 \begin{tikzcd}[swap, math mode=false, column sep=huge, row sep=large]
   $\cdot$ \arrow{r}{from} \arrow[bend left]{rr}[swap]{to}
@@ -180,10 +180,13 @@ SI2 = BoxModel(
 SI2.plot_boxes( 'SI2.boxes.tex', figsize=(5,5) )
 </source-file>
 
+<source-file filename="vfill.tex" display=none texdisplay="vfill.tex">
+\vspace{24pt}
+</source-file>
 That is, we want the original model to be understood as something like
 
 <source-file filename="boxmodel-instance-graph-inferred.cd" display="boxmodel-instance-graph-inferred.cd.crop.svg">
-\begin{tikzpicture}[baseline= (operator in expression).base]
+\begin{tikzpicture}[baseline=(a).base]
 \node[scale=0.95] (a) at (0,0) {
 \begin{tikzcd}[swap, math mode=false, column sep=huge, row sep=large]
   $\cdot$ \arrow{r}{from} \arrow[bend left]{rr}[swap]{to}
@@ -295,7 +298,7 @@ pe4 & oe8 & pa4
 </source-file>
 
 <source-file filename="boxmodel-instance-graph-2.cd" display="boxmodel-instance-graph-2.cd.crop.svg">
-\begin{tikzpicture}[baseline= (operator in expression).base]
+\begin{tikzpicture}[baseline=(a).base]
 \node[scale=0.95] (a) at (0,0) {
 \begin{tikzcd}[swap, math mode=false, column sep=small, row sep=large]
     $S_1$
@@ -494,7 +497,7 @@ aside transitions for now), is about constructing the Cartesian product of
 these partitions.
 
 <source-file filename="crossed-state-instance-1.cd" display="crossed-state-instance-1.cd.crop.svg">
-\begin{landscape}
+%\begin{landscape}
 \begin{tikzpicture}[baseline= (a).base]
 \node[scale=0.95] (a) at (0,0) {
 \begin{tikzcd}[swap, math mode=false, column sep=small, row sep=large]
@@ -534,7 +537,8 @@ these partitions.
     $(S,A)$ \ar{ddr}[near end]{subscript}
   &
   &
-  & \mathllap{$\{\mathbf{X}\cap\mathbf{Y}|(\mathbf{X},\mathbf{Y})$}$\in$\mathrlap{$\left\{\mathbf{S},\mathbf{I}\right\}\times\left\{\mathbf{A},\mathbf{B}\right\}\}$}
+  %& \mathllap{$\{\mathbf{X}\cap\mathbf{Y}|(\mathbf{X},\mathbf{Y})$}$\in$\mathrlap{$\left\{\mathbf{S},\mathbf{I}\right\}\times\left\{\mathbf{A},\mathbf{B}\right\}\}$}
+  & $\{\mathbf{X}\cap\mathbf{Y}|(\mathbf{X},\mathbf{Y})\in\left\{\mathbf{S},\mathbf{I}\right\}\times\left\{\mathbf{A},\mathbf{B}\right\}\}$
        \arrow[bend left=50, pos=0.8]{uuuu}{partition of}
   \\
   & $\mathbf{S}\cap\mathbf{A}$ \arrow{urr}{$\in$} \arrow[xshift=-2pt]{d}
@@ -551,7 +555,7 @@ these partitions.
 \end{tikzcd}
 };
 \end{tikzpicture}
-\end{landscape}
+%\end{landscape}
 </source-file>
 
 Arrows are omitted asserting that $$\mathbf{S}\cap\mathbf{A}$$ and
@@ -680,7 +684,7 @@ the microstate transition rates over the population...
 
 The crossed model we've been discussing above is the Rushton-Mautner one:
 
-$$\[ \frac{dS_i}{dt} = \sum_j \beta_{ij}S_iI_j \]$$
+<latex>\[ \frac{dS_i}{dt} = \sum_j \beta_{ij}S_iI_j \]</latex>
 
 with $$I_j = N_j-S_j$$.
 
@@ -757,6 +761,7 @@ SI4 = BoxModel(
 SI4.plot_boxes( 'SI4.boxes.tex', figsize=(5,5) )
 </source-file>
 
+<project-file filename="vfill.tex" display=none texdisplay="vfill.tex"/>
 -- two isolated subcommunities. 
 Though this can be seen as a special case of one of the above ones, with
 off-diagonal $$\beta_{ij}$$ entries set to zero.

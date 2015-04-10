@@ -17,7 +17,7 @@ The BoxModel and BoxModelCrossProduct classes are at the end of this page.
 # requires: boxmodel.py
 # requires: $(SageDynamics)/dynamicalsystems.py
 # requires: $(SageAdaptiveDynamics)/adaptivedynamics.py
-# produces: SIR.sage.out.tex SIR.boxes.tex SIR.trajectory.png
+# produces: SIR.sage.out.tex SIR.boxes.tex SIR.trajectory.png SIR.sobj
 import os
 import sys
 sys.path.append( os.environ['SageUtils'] )
@@ -27,6 +27,8 @@ from latex_output import *
 S, I, R, mu, alpha = SR.var( 'S I R mu alpha' )
 
 SIR = BoxModel( DiGraph( { S:{ I:alpha*S*I }, I:{ R:mu*I } } ), [S,I,R] )
+
+save_session( 'SIR.sobj' )
 
 ltx = latex_output( "SIR.sage.out.tex" )
 
@@ -59,7 +61,7 @@ sys.exit(0r)
 ## test the cross product
 
 <source-file filename=cross.sage.step lang=sage>
-# requires: boxmodel.py
+# requires: boxmodel.py crossproduct.py
 # requires: $(SageDynamics)/dynamicalsystems.py
 # requires: $(SageAdaptiveDynamics)/adaptivedynamics.py
 # produces: cross.sage.out.tex classes.boxes.tex SIR2.boxes.tex
@@ -68,6 +70,7 @@ import sys
 import os
 sys.path.append( os.environ['SageUtils'] )
 from boxmodel import *
+from crossproduct import *
 from latex_output import *
 
 #print 'make SIR model'
@@ -115,14 +118,15 @@ SIR2.plot_boxes( 'SIR2.boxes.tex', figsize=(5,5) )
 ## The $$\beta$$ problem
 
 <source-file filename=beta.sage.step lang=sage>
-# requires: boxmodel.py
+# requires: boxmodel.py crossproduct.py
 # requires: $(SageDynamics)/dynamicalsystems.py
-# produces: beta.sage.out.tex beta.boxes.tex
+# produces: beta.sage.out.tex beta.boxes.tex SI.sobj
 import sys
 #print 'init'; sys.stdout.flush()
 import os
 sys.path.append( os.environ['SageUtils'] )
 from boxmodel import *
+from crossproduct import *
 from latex_output import *
 
 #print 'make SI model'
@@ -130,6 +134,8 @@ sys.stdout.flush()
 
 S, I, beta = SR.var( 'S I beta' )
 SI = BoxModel( DiGraph( { S:{ I:beta*S*I } } ), [S,I] )
+
+save_session( 'SI.sobj' )
 
 #print 'make classes model'
 sys.stdout.flush()
@@ -253,7 +259,8 @@ def mixing_model( Lambda ):
 For example:
 
 <source-file filename=adler-example.sage.step display=adler-example.boxes.crop.svg>
-# requires: boxmodel.py $(SageDynamics)/dynamicalsystems.py adler_mixing.py
+# requires: boxmodel.py crossproduct.py $(SageDynamics)/dynamicalsystems.py
+# requires: adler_mixing.py
 # requires: adler-SI.sobj
 # produces: adler-example.boxes.tex adler-example.sobj
 import sys
@@ -263,14 +270,14 @@ import os
 #from latex_output import *
 sys.path.append( os.environ['SageDynamics'] )
 import dynamicalsystems
-import boxmodel
+import boxmodel, crossproduct
 import adler_mixing
 
 load_session( 'adler-SI' )
 
 L2 = adler_mixing.mixing_model( 2 )
 
-example = boxmodel.BoxModelCrossProduct( SI, L2 )
+example = crossproduct.BoxModelCrossProduct( SI, L2 )
 
 example.plot_boxes( 'adler-example.boxes.tex', figsize=(5,5) )
 
@@ -476,28 +483,34 @@ class BoxModel(SageObject):
 	    } ),
 	    bindings = self._bindings + bindings
 	)
-    def ode(self, time_variable=SR.symbol('t'), bindings=dynamicalsystems.Bindings()):
+    def ode_flow(self):
 	flow = { v:0 for v in self._vars }
 	#print flow
 	for source,target,rate in self._flow_graph.edges():
 	    #print source, '-$%s$->'%latex(rate), target
 	    flow[source] -= rate
 	    flow[target] += rate
+	return flow
+    def ode(self, time_variable=SR.symbol('t'), bindings=dynamicalsystems.Bindings()):
 	return dynamicalsystems.ODESystem(
-	    flow,
+	    self.ode_flow(),
             self._vars,
 	    time_variable,
             bindings = bindings+self._bindings )
-    def tikz_boxes( self, raw=False ):
+    def tikz_boxes( self, raw=False, inline=False ):
 	if raw:
-	    return _latex_file_( self._graph, title='' )
-	#print 'draw flow graph'
-	return _latex_file_( self._flow_graph, title='' )
-    def plot_boxes( self, filename=None, raw=False, **options ):
+	    g = self._graph
+	else:
+	    g = self._flow_graph
+	if inline:
+	    g.set_latex_options( graphic_size=(6,6), margins=(0.5,0.5,0.5,0.5) )
+	    return '\n\\vspace{24pt}\n' + latex( g ) + '\n\\vspace{24pt}\n'
+	return _latex_file_( g, title='' )
+    def plot_boxes( self, filename=None, raw=False, inline=False, **options ):
 	# new Tikz/SVG code
 	#print 'plot to', filename
         LF = open( filename, 'w' )
-	LT = self.tikz_boxes( raw )
+	LT = self.tikz_boxes( raw, inline )
 	LF.write( LT )
         LF.close()
 	return LT
@@ -603,10 +616,16 @@ class MakeMicro(IdentityConverter):
 	expr = reduce( self._mul, margs )
 	print 'becomes', expr
 	return expr
+</source-file>
+
+<source-file filename=crossproduct.py.step lang=python>
+# requires: boxmodel.py
+from sage.all import *
+import dynamicalsystems, boxmodel
 
 # StratifyExpression is used during the cross product when it needs
 # to sum over certain products of parameters and compartments
-class StratifyExpression(IdentityConverter):
+class StratifyExpression(boxmodel.IdentityConverter):
     from sage.symbolic.function_factory import function
     bm_index_state = function( 'bm_index_state' )
     bm_index_param = function( 'bm_index_param' )
@@ -644,7 +663,7 @@ class StratifyExpression(IdentityConverter):
 		    #print 'found all of its deps', [d for d,x in pd], 'as well'
 		    p_indices = []
 		    for d,x in pd:
-			if x == deps.sumover:
+			if x == boxmodel.deps.sumover:
 			    dummys_before = [ SR.symbol() for x in self._vs[:self._i] ]
 			    dummys_after  = [ SR.symbol() for x in self._vs[self._i+1:] ]
 			    p_indices += dummys_before + dummys_after
@@ -720,7 +739,8 @@ def default_edge_renamer( etuple, models, vertex_namer, param_namer, state_combi
 # when they're used as an intermediate step in a combined-state product
 internal_vertex_name_base = None
 
-class BoxModelCrossProduct(BoxModel):
+class BoxModelCrossProduct(boxmodel.BoxModel):
+    directions = [ 0, pi/2, pi/3, pi/6 ] # will add more as needed, I guess
     def __init__(
 	    self,
 	    *models,
@@ -771,12 +791,11 @@ class BoxModelCrossProduct(BoxModel):
 	    for _,w,el in self._graph.outgoing_edges(v):
 		print v,w,el
 	# graphical positions of graph vertices
-	directions = [ 0, pi/2, pi/3, pi/6 ] # will add more as needed, I guess
 	import itertools
 	positions = {
 	    tuple(a[1] for a in dtup): [
-		sum(a[0]*cos(d) for a,d in zip(dtup,directions)),
-		- sum(a[0]*sin(d) for a,d in zip(dtup,directions))
+		sum(a[0]*cos(d) for a,d in zip(dtup,self.directions)),
+		- sum(a[0]*sin(d) for a,d in zip(dtup,self.directions))
 	    ] for dtup in itertools.product(
 		*[ enumerate(m._vars) for m in models ]
 	    )
@@ -832,6 +851,7 @@ class BoxModelCrossProduct(BoxModel):
 		    else:
 		        raise RuntimeError, 'Could not simplify expression ' + str(e) + ':' + str(solns)
 	    flow_dict = nfd
+	    self._vc_eqns = vc_eqns
 	self._flow_graph = DiGraph( flow_dict )
 	self._flow_graph.set_latex_options( edge_labels=True, vertex_shape='rectangle' )
 	self._flow_graph.set_pos( { vertex_namer(state_combiner(*v)):pos for v,pos in positions.items() } )
@@ -855,7 +875,7 @@ class BoxModelCrossProduct(BoxModel):
 	bindings = dynamicalsystems.Bindings( bindings )
 	# TODO: this produces a regular BoxModel, destroys information
 	# about the cross product
-	return BoxModel(
+	return boxmodel.BoxModel(
 	    self._flow_graph,
 	    vars = [ bindings(v) for v in self._vars ],
 	    parameters = [ bindings(p) for p in self._parameters ],
@@ -869,7 +889,6 @@ class BoxModelCrossProduct(BoxModel):
 	    } ),
 	    bindings = self._bindings + bindings
 	)
-
 </source-file>
 
 <source-file filename=upstream.mk>

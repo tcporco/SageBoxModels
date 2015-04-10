@@ -1,0 +1,235 @@
+---
+layout: page
+title: Stochastic Box Models
+wmd_project: Box_Models
+---
+
+<source-file filename=kolmogorov.py.step texdisplay=none>
+"""Forward, backward Kolmogorov equations for things"""
+import dynamicalsystems
+
+class km_indexer_nd:
+    km_symb_counter = 0
+    km_cache = {}
+    def __init__(self, n, f, args=[]):
+	self._f = f
+	self._n = n
+	self._args = args
+    def __getitem__(self, i):
+	if self._n == 1:
+	    args = self._args + [i]
+	    c_args = tuple([self._f] + args)
+	    if c_args in km_indexer_nd.km_cache: return km_indexer_nd.km_cache[c_args]
+	    sstmp = dynamicalsystems.subscriptedsymbol( self._f, *args )
+	    from sage.symbolic.ring import SR
+	    from sage.misc.latex import latex
+	    symb = SR.symbol( 'km_symb_' + str(km_indexer_nd.km_symb_counter), latex_name=latex(sstmp) )
+	    km_indexer_nd.km_symb_counter += 1
+	    km_indexer_nd.km_cache[c_args] = symb
+	    return symb
+	return km_indexer_nd(self._n-1, self._f, self._args + [i])
+
+from sage.symbolic.function_factory import function
+km_p = function('kolmogorov_p', latex_name='p')
+
+class KolmogorovForwardODE( dynamicalsystems.ODESystem ):
+    def __init__(self, flow, states, state_indexer=None, state_namer=None):
+	"""Unlike ODE_system, the 'states' here are instances of the
+	"Kolmogorov p" function, and the flow is also written in terms
+	of this function.  States are shorthanded as vectors.
+
+	For example, the states might be
+	[vector(0,0),vector(0,1),vector(1,0),vector(1,1)],
+	in which case the flow would be a dictionary of the form
+	{ vector(0,0) : (alpha + 1) * km_p(1,0) - alpha * km_p(0,0), ... }."""
+	self._km_flow = flow
+	self._km_states = states
+	if state_indexer is None:
+	    state_indexer = km_indexer_nd( len( states[0] ), 'p' )
+	if state_namer is None:
+	    from sage.symbolic.expression_conversions import SubstituteFunction
+	    state_namer = SubstituteFunction( None, km_p,
+		lambda *args: reduce( lambda x,y:x[y], args, state_indexer )
+	    )
+	super( KolmogorovForwardODE, self ).__init__(
+	    { state_namer(km_p(*t)) : state_namer(rhs) for t,rhs in flow.items() },
+	    [ state_namer(km_p(*t)) for t in states ]
+	)
+</source-file>
+
+<source-file filename=boxkolmogorov.py.step texdisplay=none>
+# requires: boxmodel.py kolmogorov.py
+from sage.all import *
+import boxmodel, kolmogorov
+
+# prosthetic method for BoxModel
+def bm_forward_equations( self, N ):
+    # before beginning, test for conserved total
+    total_flux = sum( self.ode_flow().values() )
+    print 'total flux is', total_flux
+    if total_flux == 0:
+	vars = self._vars[:-1]
+	print 'Reducing dimension to', tuple(vars)
+	omitted_state = self._vars[-1]
+    else:
+	vars = self._vars
+	omitted_state = None
+    #
+    state_index = { s:i for i,s in enumerate(vars) }
+    import itertools
+    km_states = [ vector(l) for l in itertools.product( *((i/N for i in range(N+1)) for s in vars) ) if sum(l) <= 1 ]
+    for s in km_states: s.set_immutable() # so it can be a key
+    km_flow = { s : SR(0) for s in km_states }
+    warned_about_states = False
+    for v, w, e in self._flow_graph.edge_iterator():
+	for vs in km_states:
+	    #if vs[ state_index[v] ] == 0: continue
+	    vsubs = { s:vs[state_index[s]] for s in vars }
+	    if omitted_state is not None:
+		vsubs[omitted_state] = 1 - sum( vs )
+	    ee = kolmogorov.km_p( *vs ) * e.subs( vsubs )
+	    #print vs, ',', v, '->', w, ':', ee
+	    if ee == 0: continue # should take care of (N+1)/N, -1/N
+	    ws = copy(vs)
+	    if v in state_index:
+		ws[ state_index[v] ] -= 1/N
+	    if w in state_index:
+		ws[ state_index[w] ] += 1/N
+	    ws.set_immutable() # so it can be a key
+	    km_flow[vs] -= ee
+	    if ws in km_flow:
+		km_flow[ws] += ee
+	    elif not warned_about_states:
+		print 'Warning: probability flow to uncharted states'
+		warned_about_states = True
+    print 'KM states:', km_states
+    print 'KM flow:', km_flow
+    return kolmogorov.KolmogorovForwardODE( km_flow, km_states )
+
+boxmodel.BoxModel.forward_equations = bm_forward_equations
+
+def bm_backward_equations( self, N ):
+    # before beginning, test for conserved total
+    total_flux = sum( self.ode_flow().values() )
+    print 'total flux is', total_flux
+    if total_flux == 0:
+	vars = self._vars[:-1]
+	print 'Reducing dimension to', tuple(vars)
+	omitted_state = self._vars[-1]
+    else:
+	vars = self._vars
+	omitted_state = None
+    #
+    state_index = { s:i for i,s in enumerate(vars) }
+    import itertools
+    km_states = [ vector(l) for l in itertools.product( *((i/N for i in range(N+1)) for s in vars) ) if sum(l) <= 1 ]
+    for s in km_states: s.set_immutable() # so it can be a key
+    km_flow = { s : SR(0) for s in km_states }
+    warned_about_states = False
+    for v, w, e in self._flow_graph.edge_iterator():
+	for vs in km_states:
+	    #if vs[ state_index[v] ] == 0: continue
+	    vsubs = { s:vs[state_index[s]] for s in vars }
+	    if omitted_state is not None:
+		vsubs[omitted_state] = 1 - sum( vs )
+	    #print vs, ',', v, '->', w, ':', ee
+	    ws = copy(vs)
+	    if v in state_index:
+		ws[ state_index[v] ] -= 1/N
+	    if w in state_index:
+		ws[ state_index[w] ] += 1/N
+	    ws.set_immutable() # so it can be a key
+	    ee = kolmogorov.km_p( *ws ) * e.subs( vsubs )
+	    if ee == 0: continue # should help with (N+1)/N, -1/N
+	    km_flow[vs] -= ee
+	    if ws in km_flow:
+		km_flow[ws] += ee
+	    elif not warned_about_states:
+		print 'Warning: probability flow from uncharted states'
+		warned_about_states = True
+    print 'KM states:', km_states
+    print 'KM flow:', km_flow
+    # TODO: KolmogorovBackwardODE :)
+    return kolmogorov.KolmogorovForwardODE( km_flow, km_states,
+	    state_indexer = kolmogorov.km_indexer_nd( len( vars ), 'q' )
+    )
+
+boxmodel.BoxModel.backward_equations = bm_backward_equations
+
+</source-file>
+
+Here we construct Kolmogorov forward equations for an SI model,
+assuming the granularity of $$S$$ and $$I$$ is $$\frac13$$.
+
+The Sage code automatically reduces the state space from $$(S,I)$$
+to just $$(S)$$ before building the forward equations, 
+after verifying that $$S+I\equiv1$$.  Thus the
+variable $$p_{\frac13}$$ is the probability that $$S=\frac13$$ and
+$$I=\frac23$$ at time $$t$$, etc.
+
+<source-file filename=SI-forward.sage.step>
+# requires: boxmodel.py boxkolmogorov.py kolmogorov.py SI.sobj
+# produces: SI-forward.tex SI-backward.tex SI-forward.png
+from sage.all import *
+import boxmodel, boxkolmogorov
+load_session( 'SI.sobj' )
+
+SIf = SI.forward_equations(3)
+SIf.write_latex( 'SI-forward.tex' )
+
+fsol = SIf.bind( { beta:1 } ).solve( [0,0,1,0] )
+colors= rainbow(4)
+P = Graphics()
+for v in SIf._vars:
+    P += fsol.plot( 't', v, color=colors.pop(), legend_label='$%s$'%latex(v) )
+P.save( 'SI-forward.svg', figsize=(4,3) )
+
+SI.backward_equations(3).write_latex( 'SI-backward.tex' )
+</source-file>
+
+Here are the SI forward equations:
+
+<project-file filename=SI-forward.tex/>
+
+Evolution of forward equations:
+
+<project-file filename=SI-forward.svg/>
+
+And backward equations for SI:
+
+<project-file filename=SI-backward.tex/>
+
+Here are forward equations for SIR (with the state space reduced
+to $$(S,I)$$).
+
+<source-file filename=SIR-forward.sage.step>
+# requires: boxmodel.py boxkolmogorov.py kolmogorov.py SIR.sobj
+# produces: SIR-forward.tex
+from sage.all import *
+import boxmodel, boxkolmogorov
+load_session( 'SIR.sobj' )
+
+SIRf = SIR.forward_equations(3)
+SIRf.write_latex( 'SIR-forward.tex' ) 
+
+print SIRf._vars
+print latex(SIRf._vars)
+print SIRf._flow
+</source-file>
+
+<project-file filename=SIR-forward.tex/>
+
+Partial to do list:
+
+* Backward equations, extinction time, etc.
+
+* Of course, we would like to produce and run forward (or backward?) 
+equations for $$(SIR)^{100}$$.  First we have to figure out what
+$$(SIR)^{100}$$ is though...
+
+* Also, we could take the PDE limit of these as the granularity goes to zero
+(i.e. population size $$\to\infty$$), but I don't think that's a priority right now.
+
+## Links
+
+Keeling, M. J. and J. V. Ross, 2008. [On methods for studying stochastic disease dynamics](http://dx.doi.org/10.1098%2Frsif.2007.1106), J. Royal Society Interface 5(19):171--181.
