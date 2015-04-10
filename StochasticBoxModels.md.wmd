@@ -23,7 +23,7 @@ class km_indexer_nd:
 	    sstmp = dynamicalsystems.subscriptedsymbol( self._f, *args )
 	    from sage.symbolic.ring import SR
 	    from sage.misc.latex import latex
-	    symb = SR.symbol( 'km_symb_' + str(km_indexer_nd.km_symb_counter), latex_name=latex(sstmp) )
+	    symb = SR.symbol( str(km_indexer_nd.km_symb_counter).replace( '/', '_' ), latex_name=latex(sstmp) )
 	    km_indexer_nd.km_symb_counter += 1
 	    km_indexer_nd.km_cache[c_args] = symb
 	    return symb
