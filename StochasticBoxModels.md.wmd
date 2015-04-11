@@ -156,6 +156,57 @@ def bm_backward_equations( self, N ):
 
 boxmodel.BoxModel.backward_equations = bm_backward_equations
 
+from itertools import product
+from dynamicalsystems import Bindings
+
+def p_var( *args ):
+    return SR.symbol( 'p_'+ '_'.join( str(a).replace('/','_') for a in args ),
+	latex_name = 'p_{%s}' % (''.join(latex(a) for a in args)) )
+
+def km_pos( states ):
+    try:
+        return { p_var(*s) : (s[0],-s[1]) for s in states }
+    except:
+	return { p_var(*s) : (s[0],s[0]) for s in states }
+
+def bm_forward_bm( self, N ):
+    # to convert states' names to integers for indexing
+    state_index = { s:i for i,s in enumerate(self._vars) }
+    # before beginning, test for conserved total mass
+    if sum( self.ode_flow().values() ) == 0:
+	# list of relevant state variables
+	vars = self._vars[:-1]
+	print 'Reducing dimension to', tuple(vars)
+	omitted_state = self._vars[-1]
+	# to bind state variables to their values in a given state s
+        bind_state = lambda s: ( Bindings( { sn:sv for sn,sv in zip( vars, s ) } ) +
+	    Bindings( { omitted_state: 1-sum(s) } ) )
+    else:
+	vars = self._vars
+	omitted_state = None
+        bind_state = lambda s: Bindings( { sn:sv for sn,sv in zip( vars, s ) } )
+    # discretize the state space
+    km_states = [ vector(l) for l in product( *((i/N for i in range(N+1)) for s in vars) ) if sum(l) <= 1 ]
+    # standard basis vectors, with cheat entry for omitted state
+    B = list(km_states[0].parent().basis()) + [ 0*km_states[0] ]
+    # construct the forward equations, as a box model, from the state grid
+    # and transitions of the original box model.
+    km_graph_dict = {
+	# for every s in the discretized grid, and every transition e from v to w,
+	# a flow of probability mass from s to s - 1/N v + 1/N w
+        # at rate e p(s)
+	p_var( *s ) : {
+	    p_var( *(s - B[ state_index[v] ] / N + B[ state_index[w] ] / N) ) :
+		p_var( *s ) * bind_state(s)(e)
+		for v,w,e in self._flow_graph.edge_iterator()
+		if bind_state(s)(e) != 0
+	} for s in km_states
+    }
+    return boxmodel.BoxModel( DiGraph( km_graph_dict, pos=km_pos( km_states ) ),
+	[ p_var( *s ) for s in km_states ] )
+
+boxmodel.BoxModel.forward_boxmodel = bm_forward_bm
+
 </source-file>
 
 Here we construct Kolmogorov forward equations for an SI model,
@@ -170,12 +221,16 @@ $$I=\frac23$$ at time $$t$$, etc.
 <source-file filename=SI-forward.sage.step>
 # requires: boxmodel.py boxkolmogorov.py kolmogorov.py SI.sobj
 # produces: SI-forward.tex SI-backward.tex SI-forward.png
+# produces: SI-forward-boxmodel-ode.tex
 from sage.all import *
 import boxmodel, boxkolmogorov
 load_session( 'SI.sobj' )
 
 SIf = SI.forward_equations(3)
 SIf.write_latex( 'SI-forward.tex' )
+
+SIfb = SI.forward_boxmodel(3)
+SIfb.ode().write_latex( 'SI-forward-boxmodel-ode.tex' )
 
 fsol = SIf.bind( { beta:1 } ).solve( [0,0,1,0] )
 colors= rainbow(4)
@@ -190,6 +245,8 @@ SI.backward_equations(3).write_latex( 'SI-backward.tex' )
 Here are the SI forward equations:
 
 <project-file filename=SI-forward.tex/>
+
+<project-file filename=SI-forward-boxmodel-ode.tex/>
 
 Evolution of forward equations:
 
@@ -209,15 +266,18 @@ from sage.all import *
 import boxmodel, boxkolmogorov
 load_session( 'SIR.sobj' )
 
-SIRf = SIR.forward_equations(3)
-SIRf.write_latex( 'SIR-forward.tex' ) 
+#SIRf = SIR.forward_equations(3)
+#SIRf.write_latex( 'SIR-forward.tex' ) 
 
-print SIRf._vars
-print latex(SIRf._vars)
-print SIRf._flow
+SIRf = SIR.forward_boxmodel(4)
+SIRf.ode().write_latex( 'SIR-forward.tex' )
+SIRf._flow_graph.set_latex_options( edge_labels=False )
+SIRf.plot_boxes( 'SIR-forward-boxes.tex' )
 </source-file>
 
 <project-file filename=SIR-forward.tex/>
+
+<project-file filename=SIR-forward-boxes.tex/>
 
 Partial to do list:
 
