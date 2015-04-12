@@ -61,104 +61,8 @@ class KolmogorovForwardODE( dynamicalsystems.ODESystem ):
 # requires: boxmodel.py kolmogorov.py
 from sage.all import *
 import boxmodel, kolmogorov
-
-# prosthetic method for BoxModel
-def bm_forward_equations( self, N ):
-    # before beginning, test for conserved total
-    total_flux = sum( self.ode_flow().values() )
-    print 'total flux is', total_flux
-    if total_flux == 0:
-	vars = self._vars[:-1]
-	print 'Reducing dimension to', tuple(vars)
-	omitted_state = self._vars[-1]
-    else:
-	vars = self._vars
-	omitted_state = None
-    #
-    state_index = { s:i for i,s in enumerate(vars) }
-    import itertools
-    km_states = [ vector(l) for l in itertools.product( *((i/N for i in range(N+1)) for s in vars) ) if sum(l) <= 1 ]
-    for s in km_states: s.set_immutable() # so it can be a key
-    km_flow = { s : SR(0) for s in km_states }
-    warned_about_states = False
-    for v, w, e in self._flow_graph.edge_iterator():
-	for vs in km_states:
-	    #if vs[ state_index[v] ] == 0: continue
-	    vsubs = { s:vs[state_index[s]] for s in vars }
-	    if omitted_state is not None:
-		vsubs[omitted_state] = 1 - sum( vs )
-	    ee = kolmogorov.km_p( *vs ) * e.subs( vsubs )
-	    #print vs, ',', v, '->', w, ':', ee
-	    if ee == 0: continue # should take care of (N+1)/N, -1/N
-	    ws = copy(vs)
-	    if v in state_index:
-		ws[ state_index[v] ] -= 1/N
-	    if w in state_index:
-		ws[ state_index[w] ] += 1/N
-	    ws.set_immutable() # so it can be a key
-	    km_flow[vs] -= ee
-	    if ws in km_flow:
-		km_flow[ws] += ee
-	    elif not warned_about_states:
-		print 'Warning: probability flow to uncharted states'
-		warned_about_states = True
-    print 'KM states:', km_states
-    print 'KM flow:', km_flow
-    return kolmogorov.KolmogorovForwardODE( km_flow, km_states )
-
-boxmodel.BoxModel.forward_equations = bm_forward_equations
-
-def bm_backward_equations( self, N ):
-    # before beginning, test for conserved total
-    total_flux = sum( self.ode_flow().values() )
-    print 'total flux is', total_flux
-    if total_flux == 0:
-	vars = self._vars[:-1]
-	print 'Reducing dimension to', tuple(vars)
-	omitted_state = self._vars[-1]
-    else:
-	vars = self._vars
-	omitted_state = None
-    #
-    state_index = { s:i for i,s in enumerate(vars) }
-    import itertools
-    km_states = [ vector(l) for l in itertools.product( *((i/N for i in range(N+1)) for s in vars) ) if sum(l) <= 1 ]
-    for s in km_states: s.set_immutable() # so it can be a key
-    km_flow = { s : SR(0) for s in km_states }
-    warned_about_states = False
-    for v, w, e in self._flow_graph.edge_iterator():
-	for vs in km_states:
-	    #if vs[ state_index[v] ] == 0: continue
-	    vsubs = { s:vs[state_index[s]] for s in vars }
-	    if omitted_state is not None:
-		vsubs[omitted_state] = 1 - sum( vs )
-	    #print vs, ',', v, '->', w, ':', ee
-	    ws = copy(vs)
-	    if v in state_index:
-		ws[ state_index[v] ] -= 1/N
-	    if w in state_index:
-		ws[ state_index[w] ] += 1/N
-	    ws.set_immutable() # so it can be a key
-	    ee = kolmogorov.km_p( *ws ) * e.subs( vsubs )
-	    if ee == 0: continue # should help with (N+1)/N, -1/N
-	    km_flow[vs] -= ee
-	    if ws in km_flow:
-		km_flow[ws] += ee
-	    elif not warned_about_states:
-		print 'Warning: probability flow from uncharted states'
-		warned_about_states = True
-    print 'KM states:', km_states
-    print 'KM flow:', km_flow
-    # TODO: KolmogorovBackwardODE :)
-    return kolmogorov.KolmogorovForwardODE( km_flow, km_states,
-	    state_indexer = kolmogorov.km_indexer_nd( len( vars ), 'q' )
-    )
-
-boxmodel.BoxModel.backward_equations = bm_backward_equations
-
 from itertools import product
-from dynamicalsystems import Bindings
-import dynamicalsystems
+from dynamicalsystems import Bindings, ODESystem
 
 def bm_kolmogorov_eqns( self, N, callback ):
     # to convert states' names to integers for indexing
@@ -222,11 +126,12 @@ def backward_callback( self, N, km_states, bind_state, state_index, B ):
 	    if bind_state(s)(e) != 0 )
 	for s in km_states
     }
-    return dynamicalsystems.ODESystem( 
+    return ODESystem(
 	km_flow,
-	[ q_var( *s ) for s in km_states ] )
+	[ q_var( *s ) for s in km_states ]
+    )
 
-boxmodel.BoxModel.backward_ode = lambda self, N: bm_kolmogorov_eqns( self, N, backward_callback )
+boxmodel.BoxModel.backward_equations = lambda self, N: bm_kolmogorov_eqns( self, N, backward_callback )
 
 </source-file>
 
@@ -257,7 +162,6 @@ for v in SIf._vars:
 P.save( 'SI-forward.svg', figsize=(4,3) )
 
 SI.backward_equations(3).write_latex( 'SI-backward.tex' )
-SI.backward_ode(3).write_latex( 'SI-backward-ode.tex' )
 </source-file>
 
 Here are the SI forward equations:
@@ -271,8 +175,6 @@ Evolution of forward equations:
 And backward equations for SI:
 
 <project-file filename=SI-backward.tex/>
-
-<project-file filename=SI-backward-ode.tex/>
 
 Here are forward equations for SIR (with the state space reduced
 to $$(S,I)$$).
@@ -289,14 +191,28 @@ SIRf.ode().write_latex( 'SIR-forward.tex' )
 SIRf._flow_graph.set_latex_options( edge_labels=False )
 SIRf.plot_boxes( 'SIR-forward-boxes.tex' )
 
-#SIRb = SIR.backward_boxmodel(4)
-#SIRb._flow_graph.set_latex_options( edge_labels=False )
-#SIRb.plot_boxes( 'SIR-backward-boxes.tex' )
+#SIR20 = SIR.forward_boxmodel(20)
+
+sb = SIRf.ode().bind( { alpha:1, mu:1 } )
+init_cond = { v:0 for v in sb._vars }
+init_cond[ boxkolmogorov.km_var( 'p', 3/4, 1/4, 0 ) ] = 1
+init_vect = [ init_cond[v] for v in sb._vars ]
+print init_cond
+print init_vect
+fsol = sb.solve_gsl( init_vect, end_time=100 )
+colors= rainbow(240)
+P = Graphics()
+for v in sb._vars:
+    P += fsol.plot( 't', v, color=colors.pop() )
+P.save( 'SIR-forward.svg', figsize=(4,3) )
+
 </source-file>
 
 <project-file filename=SIR-forward.tex/>
 
 <project-file filename=SIR-forward-boxes.tex/>
+
+<project-file filename=SIR-forward.svg/>
 
 Partial to do list:
 
