@@ -40,7 +40,7 @@ boxmodel-test.Rout : /usr/local/lib/R/site-library/boxmodels/R/boxmodels \
 </source-file>
 
 To solve: what will it take to get the above to stratify $$\lambda$$,
-essentially, so that it will multiple $$S_i$$ by
+essentially, so that it will multiply $$S_i$$ by
 $$\sum_j \beta_{ij}I_j$$ rather than by $$\beta_i I_i$$.
 
 cross a,b does:
@@ -63,6 +63,7 @@ so
 * what does it do with definitions
 * where do inner functions come in
 * do any of these things get used in stratify-transition
+* what would it take to get stratify-group to produce twice as many betas
 
 stratify-transition:
 
@@ -95,3 +96,10 @@ inner functions:
 
 * model's innerfunctions is a hash table
 * they aren't used
+
+stratify-group:
+
+* uses the production-function given to cross (which defaults to merge-names-fn)
+* passes it to (stratify-name pp ss nodep production-function)
+* nodep is cross's exclude-dict
+

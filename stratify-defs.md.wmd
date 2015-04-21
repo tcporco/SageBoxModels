@@ -24,6 +24,19 @@ get it [to double-index $$\beta$$]({{site.baseurl}}/BoxModelsInR.html).
 (defvar siab (cross si ab (make-hash-table :test #'equal)))
 
 (format t "~(~a~)~%" (to-lisp-ode siab))
+
+(terpri)
+(defparameter *h* (make-hash-table :test #'equal))
+(defparameter *states* (list (new-gname 'x) (new-gname 'y)))
+(defparameter *pars* (list (new-gname 'beta)))
+(defparameter *ht* (make-hash-table :test #'equal))
+(setf (gethash (new-gname 'beta) *h*) 2)
+(stratify-group *pars* *h* *states* #'merge-names-fn *ht*)
+;(maphash #'(lambda (k v) (format t "~a => ~a~%" k v)) *ht*)
+
+(defvar sixab (cross si ab *h*))
+
+;(format t "~(~a~)~%" (to-lisp-ode sixab))
 </source-file>
 
 <project-file filename=stratify-defs.l.out/>

@@ -182,37 +182,104 @@ to $$(S,I)$$).
 <source-file filename=SIR-forward.sage.step>
 # requires: boxmodel.py boxkolmogorov.py kolmogorov.py SIR.sobj
 # produces: SIR-forward.tex SIR-forward-boxes.tex SIR-backward-boxes.tex
+# produces: SIR-forward.sobj
 from sage.all import *
-import boxmodel, boxkolmogorov
+import os, sys
+sys.path.append( os.environ['SageUtils'] )
+import latex_output, boxmodel, boxkolmogorov
 load_session( 'SIR.sobj' )
 
 SIRf = SIR.forward_boxmodel(4)
-SIRf.ode().write_latex( 'SIR-forward.tex' )
+ltx = latex_output.latex_output( 'SIR-forward.tex' )
+ltx.write( SIRf.ode() )
+ltx.close()
 SIRf._flow_graph.set_latex_options( edge_labels=False )
 SIRf.plot_boxes( 'SIR-forward-boxes.tex' )
 
-#SIR20 = SIR.forward_boxmodel(20)
+N = 10
+SIRN = SIR.forward_boxmodel(N)
 
-sb = SIRf.ode().bind( { alpha:1, mu:1 } )
+sb = SIRN.ode().bind( { alpha:1, mu:0.2 } )
 init_cond = { v:0 for v in sb._vars }
-init_cond[ boxkolmogorov.km_var( 'p', 3/4, 1/4, 0 ) ] = 1
+init_cond[ boxkolmogorov.km_var( 'p', 1-1/N, 1/N, 0 ) ] = 1
 init_vect = [ init_cond[v] for v in sb._vars ]
 print init_cond
 print init_vect
-fsol = sb.solve_gsl( init_vect, end_time=100 )
-colors= rainbow(240)
+fsol = sb.solve_gsl( init_vect, end_time=200 )
+sb._gsl_system = None # can't pickle
+save_session( 'SIR-forward' )
+</source-file>
+
+<source-file filename=SIR-forward-plot.sage.step>
+# requires: boxmodel.py boxkolmogorov.py kolmogorov.py SIR.sobj
+# requires: SIR-forward.sobj
+# produces: SIR-forward.svg
+from sage.all import *
+import boxmodel, boxkolmogorov
+load_session( 'SIR-forward.sobj' )
+
+colors= rainbow(len(sb._vars))
 P = Graphics()
 for v in sb._vars:
     P += fsol.plot( 't', v, color=colors.pop() )
 P.save( 'SIR-forward.svg', figsize=(4,3) )
+</source-file>
 
+<source-file filename=SIR-forward-heat.sage.step>
+# requires: boxmodel.py boxkolmogorov.py kolmogorov.py SIR.sobj
+# requires: SIR-forward.sobj
+# produces: SIR-forward-heat.pdf
+from sage.all import *
+import boxmodel, boxkolmogorov
+from boxkolmogorov import p_var
+from dynamicalsystems import Bindings
+
+load_session( 'SIR-forward.sobj' )
+
+il = [ i/N for i in range(N+1) ]
+marginals = Bindings( {
+    p_var( 'S', i ) :
+	sum( p_var( i, j, k ) for j in il for k in il if i + j + k == 1 )
+	for i in il
+} ) + Bindings( {
+    p_var( 'I', j ) :
+	sum( p_var( i, j, k ) for i in il for k in il if i + j + k == 1 )
+	for j in il
+} ) + Bindings( {
+    p_var( 'R', k ) :
+	sum( p_var( i, j, k ) for i in il for j in il if i + j + k == 1 )
+	for k in il
+} )
+
+f = lambda c: sqrt(float(c))
+
+im_arr = [ [ [
+	    f( pp( marginals( p_var('S', i) ) ) ),
+	    f( pp( marginals( p_var('I', i) ) ) ),
+	    f( pp( marginals( p_var('R', i) ) ) )
+	] for pp in fsol._timeseries
+    ] for i in il
+]
+
+from matplotlib import pyplot, patches
+fig, ax1 = pyplot.subplots(nrows=1, figsize=(5.5,3))
+tmax = float(fsol._timeseries[-1]('t'))
+ax1.imshow( im_arr, origin='lower', extent=(0,tmax,0,1), aspect=0.75*tmax )
+handles = (
+    patches.Patch( color=(1r,0r,0r), label='S' ),
+    patches.Patch( color=(0r,1r,0r), label='I' ),
+    patches.Patch( color=(0r,0r,1r), label='R' )
+)
+pyplot.legend( handles, ('S','I','R'), bbox_to_anchor=(1.05,1), loc=2, borderaxespad=0. )
+pyplot.savefig( 'SIR-forward-heat.pdf' )
+pyplot.savefig( 'SIR-forward-heat.png' )
 </source-file>
 
 <project-file filename=SIR-forward.tex/>
 
-<project-file filename=SIR-forward-boxes.tex/>
+<project-file filename=SIR-forward-boxes.crop.svg/>
 
-<project-file filename=SIR-forward.svg/>
+<project-file filename=SIR-forward-heat.pdf/>
 
 Partial to do list:
 

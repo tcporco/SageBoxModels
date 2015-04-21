@@ -16,8 +16,8 @@ sync :
 # and pandoc disagree on locations within the page text, with and without
 # the YAML header included).
 WW = /usr/local/src/workingwiki
-PROJECT=Box_Models
-TITLE="Stochastic Box Models"
+PROJECT=Notes
+TITLE="C(i) model"
 _pandoc/%.md : %.md.wmd wmd_files/.workingwiki/.wmd.data
 	php $(WW)/wmd/wmd.php --pre --title=$(TITLE) --default-project-name=$(PROJECT) --cache-dir=wmd_files --data-store=.wmd.data --modification-time=`date +%Y%m%d%H%M%s` --process-inline-math=1 --output-format=tex < $< > $@
 
