@@ -31,11 +31,10 @@ get it [to double-index $$\beta$$]({{site.baseurl}}/BoxModelsInR.html).
 (defparameter *pars* (list (new-gname 'beta)))
 (defparameter *ht* (make-hash-table :test #'equal))
 (setf (gethash (new-gname 'beta) *h*) 2)
-(stratify-group *pars* *h* *states* #'merge-names-fn *ht*)
-;(maphash #'(lambda (k v) (format t "~a => ~a~%" k v)) *ht*)
+(setq sgx (stratify-group *pars* *h* *states* #'merge-names-fn *ht*))
+(maphash #'(lambda (k v) (format t "~a => ~a~%" k v)) sgx)
 
-(defvar sixab (cross si ab *h*))
-
+;(defvar sixab (cross si ab *h*))
 ;(format t "~(~a~)~%" (to-lisp-ode sixab))
 </source-file>
 

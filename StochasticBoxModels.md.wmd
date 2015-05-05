@@ -292,6 +292,32 @@ $$(SIR)^{100}$$ is though...
 * Also, we could take the PDE limit of these as the granularity goes to zero
 (i.e. population size $$\to\infty$$), but I don't think that's a priority right now.
 
+## Microscopic model
+
+<source-file filename=SIR-micro.sage.step display=SIR-micro.sage.out.tex>
+# requires: $(BoxModels)/boxmodel.py $(SageUtils)/latex_output.py 
+# produces: SIR-micro.sage.out.tex
+import os, sys
+sys.path.append( os.environ['BoxModels'] )
+sys.path.append( os.environ['SageUtils'] )
+from boxmodel import *
+from latex_output import *
+
+S, I, R, beta, alpha = SR.var( 'S I R beta alpha' )
+SIR = BoxModel( DiGraph( { S: {I : beta*S*I}, I: {R : alpha*I} } ), [S, I, R],
+	parameter_dependencies = {
+	    beta: [(S, deps.index), (I, deps.sumover)],
+	    alpha: [(I, deps.index)]
+	}
+)
+
+ltx = latex_output( 'SIR-micro.sage.out.tex' )
+
+ltx.write( SIR.micro_transitions() )
+
+ltx.close()
+</source-file>
+
 ## Links
 
 Keeling, M. J. and J. V. Ross, 2008. [On methods for studying stochastic disease dynamics](http://dx.doi.org/10.1098%2Frsif.2007.1106), J. Royal Society Interface 5(19):171--181.

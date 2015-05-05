@@ -17,7 +17,7 @@ sync :
 # the YAML header included).
 WW = /usr/local/src/workingwiki
 PROJECT=Notes
-TITLE="C(i) model"
+TITLE="Definitions of Box Model objects"
 _pandoc/%.md : %.md.wmd wmd_files/.workingwiki/.wmd.data
 	php $(WW)/wmd/wmd.php --pre --title=$(TITLE) --default-project-name=$(PROJECT) --cache-dir=wmd_files --data-store=.wmd.data --modification-time=`date +%Y%m%d%H%M%s` --process-inline-math=1 --output-format=tex < $< > $@
 

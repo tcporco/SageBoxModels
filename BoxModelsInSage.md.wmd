@@ -514,6 +514,16 @@ class BoxModel(SageObject):
 	LF.write( LT )
         LF.close()
 	return LT
+    def plot( self, *args, **aargs ):
+	def lx(s): return '$%s$'%latex(s)
+	lfg = DiGraph( [[lx(s) for s in tup] for tup in self._flow_graph.edge_iterator() ] )
+	vargs = {
+	    'edge_labels' : True,
+	    'pos' : { lx(v) : p for v,p in self._flow_graph.get_pos().items() },
+	    'talk' : True
+	}
+	vargs.update( aargs )
+	return lfg.plot( *args, **vargs )
     def micro_transitions( self ):
 	# This could produce micro transitions but it isn't right so far
 	ltx = latex_output.latex_output_base( latex_output.write_to_string() )

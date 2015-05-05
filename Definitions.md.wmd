@@ -8,23 +8,24 @@ wmd_prerequisite_projects:
 
 ## Box Model
 
-A `box model` is a directed graph whose vertices are `compartments` and
-edges are `transitions`, with two objects added to it: 
-each compartment has a `size`, which is a
-time-varying positive number, and each transition has a `rate`, 
-which is a function of the compartments' sizes.
+A **box model** is a directed graph whose vertices are **compartments** and
+edges are **transitions**.
+Each compartment has a **name**, which is a mathematical variable such as $$X$$.
+Each transition has a **rate**, which is a function of the compartments' names.
+Any variable involved in a transition rate that is not the name of a
+compartment is a **parameter** of the model.
 
-A box model is associated with an `ODE`, whose state variables are the
-compartment sizes, and whose flow vector field is derived from the
-transitions:
+A box model is associated with an **ODE**, whose state variables are the
+compartments' names, and whose flow vector field is constructed from the
+transition rates:
 
 $$\frac{dX}{dt} = \sum_{\text{edges }e\text{ entering }X}\text{rate}(e) - \sum_{\text{edges }e\text{ leaving }X}\text{rate}(e)\quad$$ for each compartment $$X$$.
 
 There are also an SDE, a diffusion equation, individual-based models, 
-and possibly other models that can be automatically generated to model
+and possibly other models that can be automatically generated to describe
 the behavior of this system.
 
-**Example:** SI model
+**Example: SI model.**
 
 <project-file filename=SI.boxes.crop.svg/>
 
@@ -33,51 +34,260 @@ from S to I, with rate $$\beta S I$$.  Its ODE is
 
 $$\frac{dS}{dt} = -\beta S I$$
 
-$$\frac{dS}{dt} = \beta S I$$.
+$$\frac{dI}{dt} = \beta S I$$.
 
-## Cross product
+## Products of box models
 
-A `cross product` of box models is a box model whose graph is the
+A **product** of box models, written $$M_1\times \cdots\times M_n$$, where
+each $$M_i$$ is a box model, is a box model whose set of compartments is the
 cross product, or
 [Cartesian product](https://en.wikipedia.org/wiki/Cartesian_product#Graph_theory),
-of the component box models' graphs.  That is,
+of the component box models' sets of compartments.  The transitions include
+the edges of the Cartesian product of the components' graphs, but the product
+may include more transitions as well.
 
-* The compartments of the cross product are tuples $$\{(c_1,\ldots,c_n)|\text{ each }c_i\text{ is a compartment of box model }i\}$$.
-* There is a transition from $$(c_1,\ldots,s,\ldots,c_n)$$ to
-$$(c_1,\ldots,t,\ldots,c_n)$$ if and only if the two tuples are identical
-except for $$s$$ and $$t$$ in the $$i$$th position and there is a transition
-from $$s$$ to $$t$$ in component model $$i$$.
+* The compartments of the cross product are tuples $$(c_1,\ldots,c_n)$$
+where each $$c_i$$ is a compartment of $$M_i$$.  The name of
+compartment $$(c,d,e,\ldots,w)$$ may be $$c_{de\ldots w}$$, or it may
+be named $$X_{cde\ldots w}$$, or some other naming may be used.
+* For each transition $$T$$ of component model $$M_i$$, with source $$s$$,
+target $$t$$, and rate $$r$$, there is a transition from each compartment
+$$(c_1,\ldots,c_{i-1},s,c_{i+1},\ldots,c_n)$$ of the product model to
+$$(c_1,\ldots,c_{i-1},t,c_{i+1},\ldots,c_n)$$.
+Its transition rate is derived from $$r$$.  The product may include other
+transitions derived from $$T$$ as well.
 
-This definition does not determine the rates associated with the product
-model's transitions, so some extra work is needed to define those.  In fact,
-there are multiple ways to define the rates, depending on the biology of
-the model.
+I believe there are a few different products that are appropriate
+depending on the biology of the model, differing in what transitions
+are included and how their rates are constructed.
 
-[tbd]
+Before providing examples, here are some useful definitions:
 
-## Microscopic model
+* A **stratification** $$S(X)$$ of a variable $$X$$ in a product of models
+$$M_1\times\cdots\times M_n$$, where $$X$$ is a compartment 
+of model $$M_i$$, is a compartment
+$$(c_1,\ldots,c_{i-1},X,c_{i+1},\ldots,c_n)$$,
+where each $$c_j$$ is a compartment of $$M_j$$.  
 
-<source-file filename=SIR-micro.sage.step display=SIR-micro.sage.out.html>
-# requires: $(BoxModels)/boxmodel.py $(SageUtils)/latex_output.py
-# produces: SIR-micro.sage.out.tex
-import os, sys
+* A stratification $$S(P)$$
+of a parameter $$P$$ of model $$M_i$$, where $$S$$ is defined as above,
+is the ordered pair $$(P,(c_1,\ldots,c_{i-1},c_{i+1},\ldots,c_n))$$.
+The name given to that stratified parameter may be
+$$P_{c_1\ldots c_{i-1}c_{i+1}\ldots c_n}$$,
+or some other naming may be used.  As we will see, parameters may be
+stratified multiple times, which corresponds to adding more subscripts.
+
+**Example: Simple Cartesian Product**
+
+In many cases each model provides strata for the other(s), in some sense. 
+Sometime it's sufficient to construct a product model with one transition
+for each edge of the graph Cartesian product.  Assume each component
+transition rate involves no compartments other than its source compartment.
+The compartments are labeled using subscripts, and transitions are copied
+to each stratum, by substituting the subscripted name of the source compartment
+and subscripting all parameters.  For example, given a model with
+transition from X to Y at rate $$\lambda X$$, stratified by crossing with
+a model of two states a and b, we would construct a model
+
+<source-file filename="XYab.sage.step" display="XYab.boxes.crop.svg">
+# requires: $(BoxModels)/boxmodel.py
+# requires: $(SageDynamics)/dynamicalsystems.py
+# requires: $(SageAdaptiveDynamics)/adaptivedynamics.py
+# produces: XYab.sage.out.tex XYab.boxes.tex
+import os
+import sys
 sys.path.append( os.environ['BoxModels'] )
 sys.path.append( os.environ['SageUtils'] )
-from boxmodel import *
 from latex_output import *
+from boxmodel import *
+Ss, Is, betas = {}, {}, {}
+for i in ('a','b'):
+    Ss[i] = SR.symbol('X_'+i)
+    Is[i] = SR.symbol('Y_'+i)
+    betas[i] = SR.symbol('lambda_'+i, latex_name='\\lambda_{'+i+'}')
+XYab = BoxModel(
+    DiGraph(
+        { Ss[i]:{ Is[i]: Ss[i]*betas[i] } for i in ('a','b') },
+        pos = { Ss['a']:[ 0,1 ], Ss['b']:[ 0,0 ], Is['a']:[ 1/2,1 ], Is['b']:[ 1/2,0 ] }
+    ), [ Ss['a'], Ss['b'], Is['a'], Is['b'] ] )
+XYab.plot_boxes( 'XYab.boxes.tex', figsize=(5,5) )
+</source-file>.
 
-S, I, R, beta, alpha = SR.var( 'S I R beta alpha' )
-SIR = BoxModel( DiGraph( { S: {I : beta*S*I}, I: {R : alpha*I} } ), [S, I, R],
-	parameter_dependencies = {
-	    beta: [(S, deps.index), (I, deps.sumover)],
-	    alpha: [(I, deps.index)]
-	}
+In the simple Cartesian product of models, we construct transitions by
+the following rule:
+
+* for each component model $$B_i$$
+    * for each transition of $$B_i$$, from $$s$$ to $$t$$ with rate $$r$$
+        * for each stratification $$S(s)$$ of $$s$$
+            * include a transition from $$S(s)$$ to $$S(t)$$,
+whose transition rate
+is constructed from $$r$$ by replacing $$s$$ by $$S(s)$$ and replacing all
+parameters $$P$$ by $$S(P)$$.
+
+**Example: Stratifying multiple interacting compartments**
+
+The above stratification is not suitable for even a simple SI example with
+transition rate $$\beta S I$$, because this model violates the assumption that
+the rate involves no compartments other than $$S$$.  In this model it's
+reasonable to believe that either stratified $$S$$ class can be infected by
+individuals of both stratified $$I$$ classeds.  This requires the $$S$$ and
+$$I$$ variables in that transition rate to be stratified separately, and a
+transition to be constructed for every combination
+of stratified compartments.  The correct product model is this one:
+
+<source-file filename="SIab2.sage.step" display="SIab2.png">
+# requires: $(BoxModels)/boxmodel.py
+# requires: $(SageDynamics)/dynamicalsystems.py
+# requires: $(SageAdaptiveDynamics)/adaptivedynamics.py
+# produces: SIab2.sage.out.tex SIab2.png
+#SIab2.boxes.tex
+import os
+import sys
+sys.path.append( os.environ['BoxModels'] )
+sys.path.append( os.environ['SageUtils'] )
+from latex_output import *
+from boxmodel import *
+Ss, Is, betas = {}, {}, {}
+for i in ('a','b'):
+    Ss[i] = SR.symbol('S_'+i)
+    Is[i] = SR.symbol('I_'+i)
+    betas[i] = {
+	'a':SR.symbol('beta_'+i+'_a', latex_name='\\beta_{'+i+'a}'),
+	'b':SR.symbol('beta_'+i+'_b', latex_name='\\beta_{'+i+'b}')
+    }
+SIab = BoxModel(
+    DiGraph(
+	[ (Ss[i], Is[i], Ss[i]*betas[i][j]*Is[j]) for i in ('a','b') for j in ('a','b') ],
+        #{ Ss[i]:{ Is[i]: Ss[i]*(betas[i]['a']*Is['a']+betas[i]['b']*Is['b']) } for i in ('a','b') },
+        pos = { Ss['a']:[ 0,1/2 ], Ss['b']:[ 0,0 ], Is['a']:[ 1,1/2 ], Is['b']:[ 1,0 ] }
+    ), [ Ss['a'], Ss['b'], Is['a'], Is['b'] ] )
+#SIab.plot_boxes( 'SIab2.boxes.tex', figsize=(5,5) )
+SIab.plot().save( filename='SIab2.png', figsize=(5,5), fig_tight=False )
+</source-file>.
+
+If we used the simple Cartesian product, we would not generate the correct
+sum over $$\beta$$ and $$I$$ variables.
+
+To get this right, we may need to construct transitions as follows:
+
+* for each component model $$B_i$$
+    * for each transition of $$B_i$$, from $$s$$ to $$t$$ with rate $$r$$
+        * for every tuple of stratifications $$(S(s),S_1(X_1),\ldots,S_k(X_k))$$,
+where $$(X_1,\ldots,X_k)$$ is all the compartments whose names appear in $$r$$
+not including $$s$$
+            * include a transition from $$S(s)$$ to $$S(t)$$
+whose rate is constructed from $$r$$ by replacing $$s$$ by $$S(s)$$,
+each $$X_j$$ by $$S_j(X_j)$$, and each parameter
+$$P$$ by $$S_n(\cdots S_1(S(P))\cdots)$$.
+
+That would suffice for the above example.  It defines a model with a separate
+transition for each term, where the diagram above shows a sum of terms.  These
+two formulations should probably be considered equivalent for some purposes. 
+
+## Example: Infectious dynamics of couples
+
+Unfortunately, that multiple stratification isn't enough for a model of
+pairs (or larger groupings) of people.  For example, if we want to study
+SI dynamics of individuals in pairs, our two classes become four and the one
+infection transition becomes many, not just two or four.  Each S individual
+in either position of any paired compartment can be infected by any I
+individual in either position of any compartment: there are four such S types
+and four such I types, so we need to generate 16 infection transitions.
+
+Actually we need to generate two more in addition to those, for within-pair
+infection events.  In total, we'll generate this model:
+
+<source-file filename="defpairs.sage.step" display="SI2.png">
+# requires: $(BoxModels)/boxmodel.py
+# requires: $(SageDynamics)/dynamicalsystems.py
+# requires: $(SageAdaptiveDynamics)/adaptivedynamics.py
+# produces: defpairs.sage.out.tex SI2.png
+import os
+import sys
+sys.path.append( os.environ['BoxModels'] )
+sys.path.append( os.environ['SageUtils'] )
+from latex_output import *
+import boxmodel
+import crossproduct
+from dynamicalsystems import subscriptedsymbol
+# alternative naming: instead of S_I, X_{SI}
+def x_namer( *ss ):
+    return subscriptedsymbol( 'X', *ss )
+def SI_combiner( s, pos, *ss ): # transform e.g. (S, 2, I) to (I, S)
+    cs = list( ss )
+    cs.insert( int(pos), s )
+    return tuple(cs)
+S, I, beta = SR.var( 'S I beta' )
+SI = boxmodel.BoxModel( DiGraph( [ (S, I, beta*S*I) ] ), [S, I] )
+SI2 = crossproduct.BoxModelCrossProduct( 
+    SI, boxmodel.BoxModel( DiGraph( { 1:[], 2:[] } ), [1, 2] ), SI,
+    state_combiner = SI_combiner,
+    vertex_namer = x_namer
 )
+SI2.plot().save( filename='SI2.png', figsize=(5,5), fig_tight=False )
+exit(0r)
+SIpairs = BoxModel(
+    DiGraph(
+	{ Xss : { Xsi: irate( 'S','S' )*Xss, Xis: irate( 'S','S' )*Xss },
+	  Xsi : { Xii: irate( 'S','I' )*Xsi },
+	  Xis : { Xii: irate( 'I','S' )*Xis } },
+        pos = { Xss:[ 0,1 ], Xis:[ 0,0 ], Xsi:[ 1/2,1 ], Xii:[ 1/2,0 ] }
+    ), [ Xss, Xis, Xsi, Xii ] )
+SIpairs.plot_boxes( 'defpairs.boxes.tex', figsize=(5,5) )
+</source-file>.
 
-ltx = latex_output( 'SIR-micro.sage.out.tex' )
+<latex>\vspace{24pt}</latex>
 
-ltx.write( SIR.micro_transitions() )
+We can do this in three steps:
 
-ltx.close()
-</source-file>
+* Stratify the SI model doubly, by position in the pair (first or second), and
+by partner's infectious class.  This produces 8 compartments and 16
+transitions.  Compartments are of the form $$S_{1I}$$ (susceptible first
+partner, with an infectious counterpart), $$S_{2S}$$ (susceptible second
+partner, with a susceptible counterpart), etc.
+
+* Identify equivalent classes with each other, such as $$S_{1I}$$ and
+$$I_{2S}$$, etc.  This reduces the 16 compartments to 8, giving us the
+square we want.
+
+* Add the two within-pair infection events, from $$SI$$ and $$IS$$ to $$II$$.
+
+To come:
+
+* construct mean field SI model stratified by pair position
+* pair them up by some kind of crossing
+
+## Forward equations for a box model
+
+Given a box model, rather than ODE as defined above, we can generate
+Kolmogorov forward and backward equations for the model.  Both are
+ODEs, but the forward equations are the
+ODE of a box model, so we define it as a box model.
+
+Given an integer
+number $$N$$ of total individuals, the compartments, that is the state
+variables, for the forward
+equations are $$p_{(\frac{i_1}{N},\ldots,\frac{i_n}{N})}$$ for each
+$$(i_1,\ldots,i_n)\in\{0,1,\ldots,N\}^n$$, where $$n$$ is the number of
+compartments.  If total mass is conserved, as it often is in box models,
+we reduce the dimension by eliminating the last of the model's
+compartments, under the assumption that the sum of all compartments is 1.
+
+For each compartment $$X$$ let $$\mathbf{e}_X$$ be the vector
+$$(0,\ldots,0,1,0,\ldots,0)$$ with 1 in the place corresponding to 
+compartment $$X$$.
+
+The transitions are
+
+$$ (p_S,p_{S-\frac{\mathbf{e}_s}{N}+\frac{\mathbf{e}_t}{N}},r(S) p_S) $$
+
+for each transition with source, target, and rate $$s,t,r$$ of the original
+box model, where $$r(S)$$ is the rate $$r$$ evaluated at the state $$S$$.
+
+The forward equations themselves are the ODE of this box model, as defined
+above.
+
+For example, for a simple SI model with transition $$\beta S I$$, the
+forward equations for $$N=3$$ are
+
 

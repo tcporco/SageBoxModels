@@ -6,8 +6,8 @@ wmd_project: Box_Models
 
 This is testing the 'boxmodels' R library we're developing.
 
-<source-file filename=boxmodel-test.R display=boxmodel-test.Rout>
-library(boxmodels)
+<source-file filename=boxmodel-test.R display=boxmodel-test.Routput>
+library(boxmodel)
 
 SI <- boxmodel('SI')
 add.state(SI, S)
@@ -27,16 +27,14 @@ add.transition(ab, b, a, from)
 SIab <- cross(SI, ab)
 SIab
 
-ode <- compile.ode.to.c(SI)
+ode <- lsoda.fn(SI)
 ode
-dxdt <- c(0,0)
-dxdt <- ode( c(0.5,0.5), c(1), c(0), c(1), dxdt )$dxdt
-dxdt
+ode( c(0), c(0.5,0.5), c(1) )
 </source-file>
 
 <source-file filename=R.mk>
-boxmodel-test.Rout : /usr/local/lib/R/site-library/boxmodels/R/boxmodels \
-    /usr/local/lib/R/site-library/boxmodels/libs/libboxmodels.so
+boxmodel-test.Rout : /usr/local/lib/R/site-library/boxmodel/R/boxmodel \
+    /usr/local/lib/R/site-library/boxmodel/libs/libboxmodel.so
 </source-file>
 
 To solve: what will it take to get the above to stratify $$\lambda$$,
