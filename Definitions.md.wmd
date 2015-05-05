@@ -173,20 +173,21 @@ To get this right, we may need to construct transitions as follows:
 * for each component model $$B_i$$
     * for each transition of $$B_i$$, from $$s$$ to $$t$$ with rate $$r$$
         * for every tuple of stratifications $$(S(s),S_1(X_1),\ldots,S_k(X_k))$$,
-where $$(X_1,\ldots,X_k)$$ is all the compartments whose names appear in $$r$$
-not including $$s$$
+where $$X_1,\ldots,X_k$$ are all the compartments other than $$S$$ whose
+names appear in $$r$$
             * include a transition from $$S(s)$$ to $$S(t)$$
 whose rate is constructed from $$r$$ by replacing $$s$$ by $$S(s)$$,
 each $$X_j$$ by $$S_j(X_j)$$, and each parameter
 $$P$$ by $$S_n(\cdots S_1(S(P))\cdots)$$.
 
-That would suffice for the above example.  It defines a model with a separate
-transition for each term, where the diagram above shows a sum of terms.  These
-two formulations should probably be considered equivalent for some purposes. 
+That would suffice for the above example.  Still, transitions whose rates
+are arbitrary functions of compartment sizes will probably not be handled
+adequately by this rule, and we'll need to allow users to supply their
+own rules for creation of transitions in the product model.
 
 ## Example: Infectious dynamics of couples
 
-Unfortunately, that multiple stratification isn't enough for a model of
+Also, that multiple stratification isn't right for a model of
 pairs (or larger groupings) of people.  For example, if we want to study
 SI dynamics of individuals in pairs, our two classes become four and the one
 infection transition becomes many, not just two or four.  Each S individual
@@ -197,11 +198,11 @@ and four such I types, so we need to generate 16 infection transitions.
 Actually we need to generate two more in addition to those, for within-pair
 infection events.  In total, we'll generate this model:
 
-<source-file filename="defpairs.sage.step" display="SI2.png">
-# requires: $(BoxModels)/boxmodel.py
+<source-file filename="defpairs.sage.step" display=none>
+# requires: $(BoxModels)/boxmodel.py $(BoxModels)/crossproduct.py
 # requires: $(SageDynamics)/dynamicalsystems.py
 # requires: $(SageAdaptiveDynamics)/adaptivedynamics.py
-# produces: defpairs.sage.out.tex SI2.png
+# produces: defpairs.sage.out.tex SI-pair-step1.svg SI-pair-step2.svg
 import os
 import sys
 sys.path.append( os.environ['BoxModels'] )
@@ -211,30 +212,40 @@ import boxmodel
 import crossproduct
 from dynamicalsystems import subscriptedsymbol
 # alternative naming: instead of S_I, X_{SI}
-def x_namer( *ss ):
+def x_namer( ss ):
     return subscriptedsymbol( 'X', *ss )
 def SI_combiner( s, pos, *ss ): # transform e.g. (S, 2, I) to (I, S)
     cs = list( ss )
-    cs.insert( int(pos), s )
+    cs.insert( int(pos)-1, s )
+    print 'combine', s, pos, ss, ':', tuple(cs)
     return tuple(cs)
 S, I, beta = SR.var( 'S I beta' )
 SI = boxmodel.BoxModel( DiGraph( [ (S, I, beta*S*I) ] ), [S, I] )
+# step 1
 SI2 = crossproduct.BoxModelCrossProduct( 
-    SI, boxmodel.BoxModel( DiGraph( { 1:[], 2:[] } ), [1, 2] ), SI,
+    SI,
+    boxmodel.BoxModel( DiGraph( { 1:[], 2:[] } ), [1, 2] ),
+    boxmodel.BoxModel( DiGraph( { S:[], I:[] } ), [S, I] ),
+    vertex_namer = x_namer
+)
+SI2.plot().save( filename='SI-pair-step1.svg', figsize=(5,5), fig_tight=False )
+
+# step 2
+SI2 = crossproduct.BoxModelCrossProduct( 
+    SI,
+    boxmodel.BoxModel( DiGraph( { 1:[], 2:[] } ), [1, 2] ),
+    boxmodel.BoxModel( DiGraph( { S:[], I:[] } ), [S, I] ),
     state_combiner = SI_combiner,
     vertex_namer = x_namer
 )
-SI2.plot().save( filename='SI2.png', figsize=(5,5), fig_tight=False )
+SI2.plot().save( filename='SI-pair-step2.svg', figsize=(5,5), fig_tight=False )
+
 exit(0r)
-SIpairs = BoxModel(
-    DiGraph(
-	{ Xss : { Xsi: irate( 'S','S' )*Xss, Xis: irate( 'S','S' )*Xss },
-	  Xsi : { Xii: irate( 'S','I' )*Xsi },
-	  Xis : { Xii: irate( 'I','S' )*Xis } },
-        pos = { Xss:[ 0,1 ], Xis:[ 0,0 ], Xsi:[ 1/2,1 ], Xii:[ 1/2,0 ] }
-    ), [ Xss, Xis, Xsi, Xii ] )
-SIpairs.plot_boxes( 'defpairs.boxes.tex', figsize=(5,5) )
 </source-file>.
+
+<project-file filename="SI-pair-step1.svg"/>
+
+<project-file filename="SI-pair-step2.svg"/>
 
 <latex>\vspace{24pt}</latex>
 
@@ -242,20 +253,16 @@ We can do this in three steps:
 
 * Stratify the SI model doubly, by position in the pair (first or second), and
 by partner's infectious class.  This produces 8 compartments and 16
-transitions.  Compartments are of the form $$S_{1I}$$ (susceptible first
-partner, with an infectious counterpart), $$S_{2S}$$ (susceptible second
+transitions.  Compartments are of the form $$(S,1,I)$$ (susceptible first
+partner, with an infectious counterpart), $$(S,2,S)$$ (susceptible second
 partner, with a susceptible counterpart), etc.
 
-* Identify equivalent classes with each other, such as $$S_{1I}$$ and
-$$I_{2S}$$, etc.  This reduces the 16 compartments to 8, giving us the
+* Merge equivalent classes, redefining $$(S,1,I)$$ and $$(I,2,S)$$ as
+$$(S,I)$$, etc.  This reduces the 8 compartments to 4, giving us the
 square we want.
 
-* Add the two within-pair infection events, from $$SI$$ and $$IS$$ to $$II$$.
-
-To come:
-
-* construct mean field SI model stratified by pair position
-* pair them up by some kind of crossing
+* Add the two within-pair infection events, from $$(S,I)$$ and $$(I,S)$$
+to $$(I,I)$$.
 
 ## Forward equations for a box model
 
