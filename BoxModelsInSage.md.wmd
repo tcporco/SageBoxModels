@@ -9,7 +9,7 @@ wmd_prerequisite_projects:
 This is a preliminary stab at automating construction of compartment (box)
 models in Sage.
 
-The BoxModel and BoxModelCrossProduct classes are at the end of this page.
+The BoxModel and BoxModelProduct classes are at the end of this page.
 
 ## Test by making an SIR model
 
@@ -61,7 +61,7 @@ sys.exit(0r)
 ## test the cross product
 
 <source-file filename=cross.sage.step lang=sage>
-# requires: boxmodel.py crossproduct.py
+# requires: boxmodel.py boxmodelproduct.py
 # requires: $(SageDynamics)/dynamicalsystems.py
 # requires: $(SageAdaptiveDynamics)/adaptivedynamics.py
 # produces: cross.sage.out.tex classes.boxes.tex SIR2.boxes.tex
@@ -70,7 +70,7 @@ import sys
 import os
 sys.path.append( os.environ['SageUtils'] )
 from boxmodel import *
-from crossproduct import *
+from boxmodelproduct import *
 from latex_output import *
 
 #print 'make SIR model'
@@ -94,7 +94,7 @@ ltx.write( 'SIR model:\n', SIR.ode() )
 
 ltx.write( 'classes:\n', classes.ode() ) 
 
-SIR2 = BoxModelCrossProduct( SIR, classes )
+SIR2 = BoxModelProduct( SIR, classes )
 
 ltx.write( 'cross:\n', SIR2.ode() )
 
@@ -121,7 +121,7 @@ except NotImplementedError:
 ## The $$\beta$$ problem
 
 <source-file filename=beta.sage.step lang=sage>
-# requires: boxmodel.py crossproduct.py
+# requires: boxmodel.py boxmodelproduct.py
 # requires: $(SageDynamics)/dynamicalsystems.py
 # produces: beta.sage.out.tex beta.boxes.tex SI.sobj
 import sys
@@ -129,7 +129,7 @@ import sys
 import os
 sys.path.append( os.environ['SageUtils'] )
 from boxmodel import *
-from crossproduct import *
+from boxmodelproduct import *
 from latex_output import *
 
 #print 'make SI model'
@@ -155,19 +155,19 @@ ltx.write( 'SI model:\n', SI.ode() )
 
 ltx.write( 'classes:\n', classes.ode() ) 
 
-SIcross = BoxModelCrossProduct( SI, classes )
+SIcross = BoxModelProduct( SI, classes )
 
 ltx.write( 'cross:\n', SIcross.ode() )
 
 SI2 = BoxModel( DiGraph( { S:{ I:beta*S*I } } ), [S,I],
 	parameter_dependencies={ beta:[S,I] } )
-SI2cross = BoxModelCrossProduct( SI2, classes )
+SI2cross = BoxModelProduct( SI2, classes )
 
 ltx.write( 'cross with double-indexing:', SI2cross.ode() )
 
 SIx = BoxModel( DiGraph( { S:{ I:beta*S*I } } ), [S,I],
 	parameter_dependencies={ beta:[(S,deps.index),(I,deps.sumover)] } )
-SIxcross = BoxModelCrossProduct( SIx, classes )
+SIxcross = BoxModelProduct( SIx, classes )
 
 ltx.write( 'and the cross with correct double-indexing:', SIxcross.ode() )
 
@@ -264,7 +264,7 @@ def mixing_model( Lambda ):
 For example:
 
 <source-file filename=adler-example.sage.step display=adler-example.boxes.crop.svg>
-# requires: boxmodel.py crossproduct.py $(SageDynamics)/dynamicalsystems.py
+# requires: boxmodel.py boxmodelproduct.py $(SageDynamics)/dynamicalsystems.py
 # requires: adler_mixing.py
 # requires: adler-SI.sobj
 # produces: adler-example.boxes.tex adler-example.sobj
@@ -275,14 +275,14 @@ import os
 #from latex_output import *
 sys.path.append( os.environ['SageDynamics'] )
 import dynamicalsystems
-import boxmodel, crossproduct
+import boxmodel, boxmodelproduct
 import adler_mixing
 
 load_session( 'adler-SI' )
 
 L2 = adler_mixing.mixing_model( 2 )
 
-example = crossproduct.BoxModelCrossProduct( SI, L2 )
+example = boxmodelproduct.BoxModelProduct( SI, L2 )
 
 try:
     example.plot_boxes( 'adler-example.boxes.tex', figsize=(5,5) )
@@ -354,6 +354,7 @@ dfeq = dict( [
 	( i, SR(0) )
 	for i in example._aggregate_variables[SR('I')]
     ] )
+print dfeq
 
 ltx.write_equality( vector( ODE2._vars ), vector( [ dfeq[v] for v in ODE2._vars ] ) )
 
@@ -490,6 +491,14 @@ class BoxModel(SageObject):
 	    } ),
 	    bindings = self._bindings + bindings
 	)
+    def add_transitions( self, trs ):
+	# We take BoxModel to be an immutable object, so this operation
+	# returns a new BoxModel.  trs is a list of (source,target,rate)
+	# tuples suitable for adding to self._graph (rather than _flow_graph).
+	nbm = deepcopy(self)
+	nbm._graph.add_edges( trs )
+	nbm._flow_graph.add_edges( trs )
+	return nbm
     def ode_flow(self):
 	flow = { v:0 for v in self._vars }
 	#print flow
@@ -635,83 +644,10 @@ class MakeMicro(IdentityConverter):
 	return expr
 </source-file>
 
-<source-file filename=crossproduct.py.step lang=python>
+<source-file filename=boxmodelproduct.py.step lang=python>
 # requires: boxmodel.py
 from sage.all import *
 import dynamicalsystems, boxmodel
-
-# StratifyExpression is used during the cross product when it needs
-# to sum over certain products of parameters and compartments
-class StratifyExpression(boxmodel.IdentityConverter):
-    from sage.symbolic.function_factory import function
-    bm_index_state = function( 'bm_index_state' )
-    bm_index_param = function( 'bm_index_param' )
-    sumover = function( 'sumover' )
-    _mul = SR('a*b').operator()
-    def __init__(self, i, vs, models, vertex_namer, param_namer, state_combiner ):
-	self._deps = models[i]._parameter_dependencies
-	self._general_replacements = {
-	    var : vertex_namer( state_combiner( *(list(vs[:i]) + [var] + list(vs[i+1:]) ) ) )
-	    for var in models[i]._vars
-        }
-	self._i = i
-	self._vs = vs
-	self._models = models
-	self._vertex_namer = vertex_namer
-	self._param_namer = param_namer
-	self._state_combiner = state_combiner
-    def arithmetic(self, ex, operator):
-	# do the operator replacement
-	if operator == self._mul:
-	    return self.do_inner_product( *map(self, ex.operands()) )
-	else:
-	    return reduce( operator, *map(self, ex.operands()) )
-    def do_inner_product(self, *args):
-	# leave multiplications as is, except in the case of a
-	# parameter dependency marked "sumover": convert that from
-	# a regular multiplication to an inner product.
-	print 'processing product', args
-	margs = list(args)
-	sumover = []
-	for p,pd in self._deps.items():
-	    if p in margs:
-		print 'found', p, 'in factors:', args
-		if all( d in margs for d,x in pd ):
-		    #print 'found all of its deps', [d for d,x in pd], 'as well'
-		    p_indices = []
-		    for d,x in pd:
-			if x == boxmodel.deps.sumover:
-			    dummys_before = [ SR.symbol() for x in self._vs[:self._i] ]
-			    dummys_after  = [ SR.symbol() for x in self._vs[self._i+1:] ]
-			    p_indices += dummys_before + dummys_after
-			    margs[margs.index(d)] = self.bm_index_state( *(dummys_before + [d] + dummys_after) )
-			    sumover += [ (d, self._models[j]._vars) for j,d in enumerate(dummys_before) ]
-			    sumover += [ (d, self._models[j]._vars) for j,d in enumerate(dummys_after, self._i+1) ]
-			    print 'will sum over', x
-			else:
-			    p_indices += list(self._vs[:self._i]) + list(self._vs[self._i+1:])
-		    margs[margs.index(p)] = self.bm_index_param( p, *p_indices )
-		    print margs
-		else:
-		    raise RuntimeError, (
-			"Missing parameter dependencies in expression " +
-			str( reduce( self._mul, args ) )
-		    )
-	expr = reduce( self._mul, margs )
-	for d, ss in sumover:
-	    expr = sum( expr.subs( { d:s } ) for s in ss )
-	print 'once summed:', expr
-        expr = expr.substitute_function(
-	    self.bm_index_state,
-	    lambda *args: self._vertex_namer( self._state_combiner( *args ) )
-        )
-        expr = expr.substitute_function(
-	    self.bm_index_param,
-	    lambda *args: self._param_namer( args )
-        )
-	expr = expr.subs( self._general_replacements )
-	print 'becomes', expr
-	return expr
 
 def flatten( lst ):
     try:
@@ -725,82 +661,110 @@ def flatten( lst ):
 	    # not a list: return list of it
 	    return [ lst ]
 
-def cross( *models ):
-    return BoxModelCrossProduct( *models )
-
 # The general cross product represents its states as tuples of the
 # original model's states.  This function can be replaced by another
-# one to, for example, combine some of these derived compartments together.
-def default_state_combiner(*args):
+# one to, for example, make some of these derived compartments synonyms
+# for one another, or simply to give them different names.
+# This is distinct from a compartment aggregation function, see below,
+# which adds compartments together instead of declaring them equivalent.
+def default_compartment_renaming(*args):
+    return tuple(args)
+
+# A mapping from composite compartment names (tuples) into aggregate
+# quantities, for the purpose of summing compartments.  This is distinct
+# from a compartment renaming function, above.
+def default_compartment_aggregation(*args):
     return tuple(args)
 
 # we make tuples of state variables into combined state variables by
 # subscripting the first with the others
-def default_vertex_namer( vtuple ):
+def default_vertex_namer( *vtuple ):
     ss = dynamicalsystems.subscriptedsymbol( *vtuple )
     return ss
 
 # and make stratified transitions according to an appropriate rule
-def default_edge_stratifier( source, target, rate, i, models, vertex_namer, param_namer, state_combiner ):
+def default_edge_stratifier( source, target, rate, i, models, vertex_namer, param_namer, compartment_renaming ):
     """we are given (rate, i, (v, v, ...)) where rate is an expression
     describing a transition of models[i],
     and the vs are the Cartesian product of vertices at the arrow's
     source (not processed by the state combiner).
     This function assumes the rate is a product of parameters and
     state variables, and will do weird and wrong stuff if that's not true."""
-    print 'dealing with rate:', rate
+    #print 'dealing with rate:', rate
+    ## list all compartments involved in the transition rate
     rate_vars = rate.variables()
     import itertools
+    ## list all the ways a compartment (of the relevant model) can be stratified
     raw_strats = [ list(vst) for vst in itertools.product( *(models[j]._vars for j in range(len(models)) if j != i) ) ]
     #print 'raw_strats:', raw_strats
+    ## make list of all stratifications of all relevant variables
     all_strats = [ [] ]
     for x in models[i]._vars:
 	if x in rate_vars or x is source:
 	    all_strats = [ str + [ (x,xstr) ] for str in all_strats for xstr in raw_strats ]
     #print 'all_strats:', all_strats
+    ## produce a stratified edge for each of those
     edges = []
     for str in all_strats:
-	# TODO: will fail if source variable isn't part of rate
-	stup = state_combiner( *[ tuple( sstr[:i] + [source] + sstr[i:] ) for x,sstr in str if x is source ][0] )
+	#stup = compartment_renaming( *[ tuple( sstr[:i] + [source] + sstr[i:] ) for x,sstr in str if x is source ][0] )
+	stup = bm_state( *compartment_renaming( *[ tuple( sstr[:i] + [source] + sstr[i:] ) for x,sstr in str if x is source ][0] ) )
 	#print 'stup, from', [ tuple( sstr[:i] + [source] + sstr[i:] ) for x,sstr in str if x is source ], 'to', stup
-	ttup = state_combiner( *[ tuple( sstr[:i] + [target] + sstr[i:] ) for x,sstr in str if x is source ][0] )
-	repl = { x: vertex_namer( state_combiner( *(xstr[:i] + [x] + xstr[i:]) ) ) for x,xstr in str }
+	#ttup = compartment_renaming( *[ tuple( sstr[:i] + [target] + sstr[i:] ) for x,sstr in str if x is source ][0] )
+	ttup = bm_state( *compartment_renaming( *[ tuple( sstr[:i] + [target] + sstr[i:] ) for x,sstr in str if x is source ][0] ) )
+	repl = { x: bm_state( *compartment_renaming( *(xstr[:i] + [x] + xstr[i:]) ) ) for x,xstr in str }
 	psubs = reduce( lambda x,y:x+y, (xstr for x,xstr in str) )
-        repl.update( { p: param_namer( [ p ] + psubs ) for p in models[i]._parameters } )
+        #repl.update( { p: param_namer( [ p ] + psubs ) for p in models[i]._parameters } )
+        repl.update( { p: bm_param( *([ p ] + psubs) ) for p in models[i]._parameters } )
 	#print 'repl:', repl
         edges += [ ( stup, ttup, rate.subs( repl ) ) ]
     #print 'edges:', edges
     return edges
 
-# and make subscripted flow rates, which is more complex
-def default_edge_renamer( etuple, models, vertex_namer, param_namer, state_combiner ):
-    """we are given (rate, i, (v, v, ...)) where rate is an expression
-    describing a transition of models[i],
-    and the vs are the Cartesian product of vertices at the arrow's
-    source (not processed by the state combiner)."""
-    rate, i, vertex_vars = etuple
-    print 'dealing with rate:', etuple
-    eip = StratifyExpression( i, vertex_vars, models, vertex_namer, param_namer, state_combiner )
-    rate = eip( rate )
-    return rate
+# function names used by the edge stratifier: we can't put tuples into
+# symbolic expressions directly so we represent them by instances like
+# bm_state( S, a ), bm_param( beta, S, I ), etc.
+from sage.symbolic.function_factory import function
+bm_state = function( 'bm_state' )
+bm_param = function( 'bm_param' )
+
+def default_vertex_positioner( graph, models, compartment_renaming ):
+    directions = [ 0, pi/2, pi/6, pi/3 ] # will add more as needed, I guess
+    seq = { v:i for m in models for i,v in enumerate(m._vars) }
+    positions = {
+	t: [
+	    sum(seq[v]*cos(d) for v,d in zip(t.operands(), directions)),
+	    - sum(seq[v]*sin(d) for v,d in zip(t.operands(), directions))
+        ] for t in graph.vertex_iterator()
+    }
+    print positions
+    return positions
+    import itertools
+    positions = {
+        tuple(a[1] for a in dtup): [
+	    sum(a[0]*cos(d) for a,d in zip(dtup,self.directions)),
+	    - sum(a[0]*sin(d) for a,d in zip(dtup,self.directions))
+        ] for dtup in itertools.product(
+	    *[ enumerate(m._vars) for m in models ]
+        )
+    }
 
 # letter or whatever for making names of states of full cross product,
 # when they're used as an intermediate step in a combined-state product
 internal_vertex_name_base = None
 
-class BoxModelCrossProduct(boxmodel.BoxModel):
-    directions = [ 0, pi/2, pi/6, pi/3 ] # will add more as needed, I guess
+class BoxModelProduct(boxmodel.BoxModel):
     def __init__(
 	    self,
 	    *models,
 	    **kwargs
 	):
 	self._models = models
-	state_combiner =  kwargs.pop( 'state_combiner',  default_state_combiner )
+	compartment_renaming =  kwargs.pop( 'compartment_renaming',  default_compartment_renaming )
 	vertex_namer =    kwargs.pop( 'vertex_namer',    default_vertex_namer )
 	param_namer =     kwargs.pop( 'param_namer',     default_vertex_namer )
 	edge_stratifier = kwargs.pop( 'edge_stratifier', default_edge_stratifier )
-	if kwargs: raise TypeError, "Unknown named arguments to BoxModelCrossProduct: %s" % str(kwargs)
+	vertex_positioner = kwargs.pop( 'vertex_positioner', default_vertex_positioner )
+	if kwargs: raise TypeError, "Unknown named arguments to BoxModelProduct: %s" % str(kwargs)
 
 	# TODO: it would be more efficient to iterate one model at a time,
 	# and generate the vertex tuples, rate tuples, subscripted state
@@ -808,11 +772,18 @@ class BoxModelCrossProduct(boxmodel.BoxModel):
 	# the same loop.
 
 	edges = reduce( lambda x,y:x+y, (
-	    edge_stratifier( v, w, e, i, models, vertex_namer, param_namer, state_combiner )
+	    edge_stratifier( v, w, e, i, models, vertex_namer, param_namer, compartment_renaming )
 	    for i in range(len(models)) for v,w,e in models[i]._flow_graph.edge_iterator()
 	) )
-	#print 'all edges:', edges
+	print 'edges:', edges
 	self._graph = DiGraph( edges )
+	print 'edges of graph:', self._graph.edges()
+
+	self._aggregate_tuples = {}
+	for vbm in self._graph.vertex_iterator():
+	    vs = vbm.operands()
+	    for v in vs:
+	        self._aggregate_tuples.setdefault(v, []).append( vs )
 
 	if False:
 	    # do the cross product of graphs first
@@ -824,7 +795,7 @@ class BoxModelCrossProduct(boxmodel.BoxModel):
             for vst in itertools.product( *(m._vars for m in models) ):
 	        # each vst is a vertex of the product graph
 	        vs = tuple( flatten( vst ) )
-	        vs_combined = state_combiner( *vs )
+	        vs_combined = compartment_renaming( *vs )
 	        vars_combine.setdefault( vs_combined, [] ).append(vs)
 	        if vs_combined not in self._vars: self._vars.append(vs_combined)
 	        graph_dict.setdefault(vs_combined, {})
@@ -837,7 +808,7 @@ class BoxModelCrossProduct(boxmodel.BoxModel):
 		        #iprate = mip(rate) # this is being done redundantly
 		        #print 'marked inner products:', rate, '-->', iprate
 		        erate = [rate, i, vs]
-		        ws_combined = state_combiner( *ws )
+		        ws_combined = compartment_renaming( *ws )
 		        graph_dict[vs_combined].setdefault(tuple(ws_combined),[]).append(tuple(erate))
 		    self._aggregate_variables.setdefault(vs[i], []).append( vs_combined )
 	    print 'graph dict is', graph_dict
@@ -850,32 +821,29 @@ class BoxModelCrossProduct(boxmodel.BoxModel):
 	#	print v,w,el
 
 	# graphical positions of graph vertices
-	# TODO: when not all of the input models should count here
-	# due to state combining
-	import itertools
-	positions = {
-	    tuple(a[1] for a in dtup): [
-		sum(a[0]*cos(d) for a,d in zip(dtup,self.directions)),
-		- sum(a[0]*sin(d) for a,d in zip(dtup,self.directions))
-	    ] for dtup in itertools.product(
-		*[ enumerate(m._vars) for m in models ]
-	    )
-	}
-	#print positions
+	positions = vertex_positioner( self._graph, models, compartment_renaming )
 	self._graph.set_pos( positions )
 
 	# now for consumption by humans and math software, we map vertex
 	# tuples to regular variable names with subscripts
+	bm_to_vars = lambda e: e.substitute_function( bm_state, vertex_namer).substitute_function( bm_param, param_namer )
         flow_edges = [
-	    [ vertex_namer(v), vertex_namer(w), e ]
+	    [ bm_to_vars(v), bm_to_vars(w), bm_to_vars(e) ]
 	    for v, w, e in edges
 	]
+	print 'flow edges:', flow_edges
+	print self._aggregate_tuples
+	self._aggregate_variables = {
+	    k:[vertex_namer(*v) for v in vl]
+	    for k,vl in self._aggregate_tuples.iteritems()
+	}
 
 	if False: # skip this for now
+	    ## maintain inverse image of each aggregate compartment
 	    print 'vars combine:', vars_combine
 	    if not any( len(v) > 1 for v in vars_combine.values() ):
 	        evn = vertex_namer
-	        esc = state_combiner
+	        esc = compartment_renaming
 	        vars_combine = None
 	    else:
 	        global internal_vertex_name_base
@@ -887,7 +855,7 @@ class BoxModelCrossProduct(boxmodel.BoxModel):
 		    internal_vertex_name_base,
 		    *args
 	        )
-	        esc = default_state_combiner
+	        esc = default_compartment_renaming
 	    flow_dict = {
 	        vertex_namer(v):{
 		    vertex_namer(w):sum(edge_renamer(e, models, evn, param_namer, esc ) for e in el)
@@ -923,10 +891,17 @@ class BoxModelCrossProduct(boxmodel.BoxModel):
 
 	self._flow_graph = DiGraph( flow_edges )
 	self._flow_graph.set_latex_options( edge_labels=True, vertex_shape='rectangle' )
-	self._flow_graph.set_pos( { vertex_namer(state_combiner(*v)):pos for v,pos in positions.items() } )
+	self._flow_graph.set_pos( { bm_to_vars(v):pos for v,pos in positions.items() } )
 
 	# make list of variables, in order, by taking product
-	self._vars = [ vertex_namer(vs) for vs in itertools.product( *(m._vars for m in models) ) ]
+        import itertools
+	varset = set()
+	self._vars = []
+	for vs in itertools.product( *(m._vars for m in models) ):
+	    v = vertex_namer( *compartment_renaming( *vs ) )
+	    if v not in varset:
+		varset.add(v)
+		self._vars.append(v)
 
 	# now generate all the crossed parameters
 	# TODO: do this right
@@ -940,6 +915,20 @@ class BoxModelCrossProduct(boxmodel.BoxModel):
 	#    k : [ vertex_namer(vs) for vs in v ]
 	#    for k,v in self._aggregate_variables.items()
 	#}
+	self._vertex_namer = vertex_namer
+	self._param_namer = param_namer
+    def add_transitions( self, trs ):
+	# it's an immutable object, so this operation
+	# returns a new BoxModel.  trs is a list of (source,target,rate)
+	# tuples suitable for adding to self._graph (rather than _flow_graph).
+	fg = deepcopy(self._flow_graph)
+	bm_to_vars = lambda e: e.substitute_function( bm_state, self._vertex_namer).substitute_function( bm_param, self._param_namer )
+	fg.add_edges( [ (bm_to_vars(v), bm_to_vars(w), bm_to_vars(e)) for v,w,e in trs ] )
+	return boxmodel.BoxModel(
+	    fg,
+	    vars = self._vars,
+	    bindings = self._bindings
+        )
     def bind(self, bindings):
 	bindings = dynamicalsystems.Bindings( bindings )
 	# TODO: this produces a regular BoxModel, destroys information
@@ -958,6 +947,62 @@ class BoxModelCrossProduct(boxmodel.BoxModel):
 	    } ),
 	    bindings = self._bindings + bindings
 	)
+
+def cross( *models ):
+    return BoxModelProduct( *models )
+
+def x_namer( *ss ):
+    return dynamicalsystems.subscriptedsymbol( 'X', *ss )
+
+def power_compartment_renaming( s, pos, *ss ): # e.g. transform (S, 2, I) to (I, S)
+    cs = list( ss )
+    print 'power, combine:', s, pos, ss
+    cs.insert( int(pos)-1, s )
+    #print 'combine', s, pos, ss, ':', tuple(cs)
+    return tuple(cs)
+
+def power_edge_stratifier( source, target, rate, i, models, vertex_namer, param_namer, compartment_renaming ):
+    ## the power model has all the edges of the cross
+    edges = default_edge_stratifier( source, target, rate, i, models, vertex_namer, param_namer, compartment_renaming )
+    ## plus extra edges for within-group interactions.
+    ## I don't even want to think about interactions of more than two
+    ## classes, which could be partly within-group and partly between-groups.
+    ## The case we handle is a transition from stratified source to
+    ## similarly stratified target, due to interactions within the
+    ## source compartment
+    print 'within-pair interactions for', rate
+    import itertools
+    strats = [ list(vst) for vst in itertools.product( *(models[j]._vars for j in range(len(models)) if j is not i) ) ]
+    for str in strats:
+	print 'strat:', str
+	stup = bm_state( *compartment_renaming( *(str[:i] + [source] + str[i:]) ) )
+        ttup = bm_state( *compartment_renaming( *(str[:i] + [target] + str[i:]) ) )
+	#repl = { source: vertex_namer( stup ) }
+	repl = { source: stup }
+	for x in models[i]._vars:
+	    if x is not source:
+		if x in str:
+		    repl[x] = 1
+		else:
+		    repl[x] = 0
+	## note params are stratified differently here than in the default
+	## transitions - only one set of subscripts
+	#repl.update( { p: param_namer( [p] + str ) for p in models[i]._parameters } )
+	repl.update( { p: bm_param( *([p] + str) ) for p in models[i]._parameters } )
+	rrate = rate.subs( repl )
+	if rrate != 0:
+	    edges += [ ( stup, ttup, rrate ) ]
+    return edges
+
+def power( model, i ):
+    # require i=2 for now
+    i_model = boxmodel.BoxModel( DiGraph( { j+1:[] for j in range(i) } ), [1,2] )
+    empty_model = boxmodel.BoxModel( DiGraph( { v:[] for v in model._vars } ), model._vars )
+    return BoxModelProduct( model, i_model, empty_model,
+	vertex_namer = x_namer,
+	compartment_renaming = power_compartment_renaming,
+	edge_stratifier = power_edge_stratifier
+    )
 </source-file>
 
 <source-file filename=upstream.mk>

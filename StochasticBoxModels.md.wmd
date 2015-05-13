@@ -272,14 +272,15 @@ handles = (
 )
 pyplot.legend( handles, ('S','I','R'), bbox_to_anchor=(1.05,1), loc=2, borderaxespad=0. )
 pyplot.savefig( 'SIR-forward-heat.pdf' )
-pyplot.savefig( 'SIR-forward-heat.png' )
+pyplot.savefig( 'SIR-forward-heat.svg' )
+#pyplot.savefig( 'SIR-forward-heat.png' )
 </source-file>
 
 <project-file filename=SIR-forward.tex/>
 
 <project-file filename=SIR-forward-boxes.crop.svg/>
 
-<project-file filename=SIR-forward-heat.pdf/>
+<project-file filename=SIR-forward-heat.svg/>
 
 Partial to do list:
 
@@ -294,11 +295,10 @@ $$(SIR)^{100}$$ is though...
 
 ## Microscopic model
 
-<source-file filename=SIR-micro.sage.step display=SIR-micro.sage.out.tex>
-# requires: $(BoxModels)/boxmodel.py $(SageUtils)/latex_output.py 
+<source-file filename=SIR-micro.sage.step display=none>
+# requires: boxmodel.py $(SageUtils)/latex_output.py 
 # produces: SIR-micro.sage.out.tex
 import os, sys
-sys.path.append( os.environ['BoxModels'] )
 sys.path.append( os.environ['SageUtils'] )
 from boxmodel import *
 from latex_output import *
@@ -317,6 +317,8 @@ ltx.write( SIR.micro_transitions() )
 
 ltx.close()
 </source-file>
+
+<project-file filename=SIR-micro.sage.out.tex/>
 
 ## Links
 

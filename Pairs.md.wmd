@@ -2,6 +2,7 @@
 layout: page
 title: Pair Models
 wmd_project: Box_Models
+wmd_enable_make: false
 ---
 
 When we cross a disease model with itself, we get a model of ordered pairs of
@@ -11,74 +12,50 @@ how to transform it to a smaller model of *unordered* pairs.
 ## The unreduced product
 
 <source-file filename="ordered-pair.sage.step" texdisplay=none>
-# requires: $(SageDynamics)/dynamicalsystems.py boxmodel.py crossproduct.py
+# requires: $(SageDynamics)/dynamicalsystems.py boxmodel.py boxmodelproduct.py
 # requires: $(SageUtils)/latex_output.py
-# produces: ordered-pair-prime.boxes.tex ordered-pair-prime.boxes.tex-inline
 # produces: ordered-pair.boxes.tex ordered-pair.boxes.tex-inline
 # produces: ordered-pair-ode.tex
 import os, sys
 sys.path.append( os.environ['SageUtils'] )
 import latex_output
-import boxmodel, crossproduct
+import boxmodel, boxmodelproduct
 import dynamicalsystems
 
 S, I, R, mu, alpha = SR.var( 'S I R mu alpha' )
 
 SI = boxmodel.BoxModel(
     DiGraph( { S:{ I:alpha*S*I } } ),
-    [S,I],
-    parameter_dependencies={ alpha:[] }
-)
-#SIR = boxmodel.BoxModel( DiGraph( { S:{ I:alpha*S*I }, I:{ R:mu*I } } ), [S,I,R] )
-
-def primevar( var ):
-    return SR.symbol( str(var)+'prime', latex_name = "{%s}^{\'}" % latex(var) )
-
-primer = dynamicalsystems.Bindings( {
-    x:primevar(x) for x in (S,I,R,mu,alpha)
-} )
-
-# alternative naming: instead of S_I, X_{SI}
-def x_namer( ss ):
-    return dynamicalsystems.subscriptedsymbol( 'X', *ss )
-
-op = crossproduct.BoxModelCrossProduct( SI, SI.bind(primer),
-    vertex_namer=x_namer
+    [S,I]
 )
 
-#op.ode().write_latex( 'ordered-pair-prime-ode.tex' )
+op = boxmodelproduct.power( SI, 2 )
 
-op.plot_boxes( 'ordered-pair-prime.boxes.tex', figsize=(5,5) )
-op.plot_boxes( 'ordered-pair-prime.boxes.tex-inline', figsize=(5,5), inline=True )
-
-op = crossproduct.BoxModelCrossProduct( SI, SI,
-    vertex_namer=x_namer
-)
-
-op.plot_boxes( 'ordered-pair.boxes.tex', figsize=(5,5) )
-op.plot_boxes( 'ordered-pair.boxes.tex-inline', figsize=(5,5), inline=True )
+try:
+    op.plot_boxes( 'ordered-pair.boxes.tex', figsize=(5,5) )
+    op.plot_boxes( 'ordered-pair.boxes.tex-inline', figsize=(5,5), inline=True )
+except NotImplementedError:
+    P = op.plot()
+    P.save( 'ordered-pair.boxes.crop.svg', figsize=(5,5) )
 
 op.ode().write_latex( 'ordered-pair-ode.tex' )
 
 #sys.exit(0r)
 </source-file>
 
-Here is the square of an SI model, that is, the model crossed with itself.
-Here primes are added to the symbols
-from the second model of the pair, to make explicit what
-comes from which model:
-
-<project-file filename="ordered-pair-prime.boxes.crop.svg"/>
-
-Here is the cross without primes:
+Here is an SI ordered pair model.
 
 <project-file filename="ordered-pair.boxes.crop.svg"/>
 
-And the cross's equations, without primes. We want it without primes for the
-reduction to unordered pairs, because the reduction considers the two models'
-states and parameters to be interchangeable.
+And the pair model's equations.
 
 <project-file filename='ordered-pair-ode.tex'/>
+
+Next to do:
+
+* suitable internal representation of these stratified quantities, to allow
+the reduction
+* do the reduction
 
 ## Reducing to unordered pairs
 
@@ -93,7 +70,7 @@ $$Z_{\cdot\cdot}$$ for the reduced ones:
 \end{align*}$}
 
 <source-file filename="unordered-pair.sage.step" texdisplay=none>
-# requires: $(SageDynamics)/dynamicalsystems.py boxmodel.py crossproduct.py
+# requires: $(SageDynamics)/dynamicalsystems.py boxmodel.py boxmodelproduct.py
 # requires: $(SageUtils)/latex_output.py
 # produces: unordered-pair-ode.tex
 # produces: unordered-pair.boxes.tex unordered-pair.boxes.tex-inline
@@ -101,7 +78,7 @@ $$Z_{\cdot\cdot}$$ for the reduced ones:
 import os, sys
 sys.path.append( os.environ['SageUtils'] )
 import latex_output
-import boxmodel, crossproduct
+import boxmodel, boxmodelproduct
 import dynamicalsystems
 
 S, I, R, mu, alpha = SR.var( 'S I R mu alpha' )
@@ -124,10 +101,10 @@ def sort_combiner( *vs ):
     return tuple( sorted( vs, key=lambda v: SIR_order[v] ) )
 
 # for the combined variables, 'Z'
-def z_namer( ss ):
+def z_namer( *ss ):
     return dynamicalsystems.subscriptedsymbol( 'Z', *ss )
 
-up = crossproduct.BoxModelCrossProduct( SI, SI,
+up = boxmodelproduct.BoxModelProduct( SI, SI,
     state_combiner=sort_combiner,
     vertex_namer=z_namer
 )
@@ -165,7 +142,7 @@ into expressions free of $X$ variables:
 Unfortunately, this doesn't work for unordered triples:
 
 <source-file filename="unordered-triple.sage.step" texdisplay=none>
-# requires: $(SageDynamics)/dynamicalsystems.py boxmodel.py crossproduct.py
+# requires: $(SageDynamics)/dynamicalsystems.py boxmodel.py boxmodelproduct.py
 # requires: $(SageUtils)/latex_output.py
 # produces: ordered-triple.boxes.tex ordered-triple.boxes.tex-inline
 # produces: unordered-triple-ode.tex
@@ -174,7 +151,7 @@ Unfortunately, this doesn't work for unordered triples:
 import os, sys
 sys.path.append( os.environ['SageUtils'] )
 import latex_output
-import boxmodel, crossproduct
+import boxmodel, boxmodelproduct
 import dynamicalsystems
 
 S, I, R, mu, alpha = SR.var( 'S I R mu alpha' )
@@ -191,10 +168,10 @@ SI = boxmodel.BoxModel(
 #)
 
 # for the combined variables, 'Z'
-def x_namer( ss ):
+def x_namer( *ss ):
     return dynamicalsystems.subscriptedsymbol( 'X', *ss )
 
-op = crossproduct.BoxModelCrossProduct( SI, SI, SI,
+op = boxmodelproduct.BoxModelProduct( SI, SI, SI,
     vertex_namer=x_namer
 )
 
@@ -207,10 +184,10 @@ def sort_combiner( *vs ):
     return tuple( sorted( vs, key=lambda v: SIR_order[v] ) )
 
 # for the combined variables, 'Z'
-def z_namer( ss ):
+def z_namer( *ss ):
     return dynamicalsystems.subscriptedsymbol( 'Z', *ss )
 
-up = crossproduct.BoxModelCrossProduct( SI, SI, SI,
+up = boxmodelproduct.BoxModelProduct( SI, SI, SI,
     state_combiner=sort_combiner,
     vertex_namer=z_namer
 )
@@ -234,13 +211,14 @@ sys.exit(0r)
 <!-- <project-file filename="unordered-triple-ode.tex"/> -->
 
 In order to get the middle arrow to reduce to a function of
-$Z_{SSI}Z_{SII}$, it would need to have nine $X_{\cdot\cdot\cdot}X_{\cdot\cdot\cdot}$
+$$Z_{SSI}Z_{SII}$$, it would need to have nine
+$$X_{\cdot\cdot\cdot}X_{\cdot\cdot\cdot}$$
 terms, where it only has six.
 
 ## SIR model doesn't square properly
 
 <source-file filename="SIR2.sage.step" texdisplay=none>
-# requires: $(SageDynamics)/dynamicalsystems.py boxmodel.py crossproduct.py
+# requires: $(SageDynamics)/dynamicalsystems.py boxmodel.py boxmodelproduct.py
 # requires: $(SageUtils)/latex_output.py
 # produces: SIR-ordered-pair.boxes.tex SIR-ordered-pair.boxes.tex-inline
 # produces: SIR-ordered-pair-ode.tex
@@ -250,7 +228,7 @@ terms, where it only has six.
 import os, sys
 sys.path.append( os.environ['SageUtils'] )
 import latex_output
-import boxmodel, crossproduct
+import boxmodel, boxmodelproduct
 import dynamicalsystems
 
 S, I, R, mu, alpha = SR.var( 'S I R mu alpha' )
@@ -269,10 +247,10 @@ primer = dynamicalsystems.Bindings( {
 } )
 
 # alternative naming: instead of S_I, X_{SI}
-def x_namer( ss ):
+def x_namer( *ss ):
     return dynamicalsystems.subscriptedsymbol( 'X', *ss )
 
-op = crossproduct.BoxModelCrossProduct( SIR, SIR,
+op = boxmodelproduct.BoxModelProduct( SIR, SIR,
     vertex_namer=x_namer
 )
 
@@ -282,7 +260,7 @@ op.plot_boxes( 'SIR-ordered-pair.boxes.tex-inline', figsize=(5,5), inline=True )
 op.ode().write_latex( 'SIR-ordered-pair-ode.tex' )
 
 # for the combined variables, 'Z'
-def z_namer( ss ):
+def z_namer( *ss ):
     return dynamicalsystems.subscriptedsymbol( 'Z', *ss )
 
 # sort the states in S,I,R order
@@ -290,7 +268,7 @@ SIR_order = { v:i for i,v in enumerate( [S,I,R] ) }
 def sort_combiner( *vs ):
     return tuple( sorted( vs, key=lambda v: SIR_order[v] ) )
 
-up = crossproduct.BoxModelCrossProduct( SIR, SIR,
+up = boxmodelproduct.BoxModelProduct( SIR, SIR,
     state_combiner=sort_combiner,
     vertex_namer=z_namer
 )
@@ -362,7 +340,7 @@ can infect any $$S$$.
 Then our transitions should be
 
 <source-file filename="couples.sage.step" texdisplay=none>
-# requires: $(SageDynamics)/dynamicalsystems.py boxmodel.py crossproduct.py
+# requires: $(SageDynamics)/dynamicalsystems.py boxmodel.py boxmodelproduct.py
 # requires: $(SageUtils)/latex_output.py
 # produces: couples-X-ode.tex Ieqn-X.tex
 # produces: couples-X.boxes.tex couples-X.boxes.tex-inline
@@ -370,7 +348,7 @@ Then our transitions should be
 # produces: couples-Z.boxes.tex couples-Z.boxes.tex-inline
 import os, sys
 sys.path.append( os.environ['SageUtils'] )
-import boxmodel, crossproduct
+import boxmodel, boxmodelproduct
 import dynamicalsystems
 import latex_output
 
@@ -486,7 +464,7 @@ need to work out how to get the code to use this $$\mathcal I$$...
 
 Notes to myself on implementing these reduced products in code:
 
-* Simplest case may be to call BoxModelCrossProduct more or less as it is,
+* Simplest case may be to call BoxModelProduct more or less as it is,
 but with some kind of combine() function that transforms the ordered tuples
 of the raw Cartesian product of compartments into the destination compartments,
 optionally in a many-to-one way.  This is what I've done here, and I'm

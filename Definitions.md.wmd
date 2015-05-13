@@ -11,9 +11,15 @@ wmd_prerequisite_projects:
 A **box model** is a directed graph whose vertices are **compartments** and
 edges are **transitions**.
 Each compartment has a **name**, which is a mathematical variable such as $$X$$.
-Each transition has a **rate**, which is a function of the compartments' names.
+A transition is an ordered triple $$(s,t,r)$$, where $$s$$ and $$t$$ are the
+**source** and **target** compartments of the transition, and $$r$$ is its
+**rate**, which is a function of the compartments' names.
 Any variable involved in a transition rate that is not the name of a
-compartment is a **parameter** of the model.
+compartment is a **parameter** of the model.  Let $$C_M=\{c_1,\ldots,c_n\}$$
+be the set
+of compartments of model $$M$$ and let $$P_M=\{p_1,\ldots,p_m\}$$ be the set of all its
+transitions' parameters; then each transition rate is a function
+$$r(c_1,\ldots,c_n,p_1,\ldots,p_m)\in\mathbb{R}$$.
 
 A box model is associated with an **ODE**, whose state variables are the
 compartments' names, and whose flow vector field is constructed from the
@@ -110,7 +116,7 @@ XYab = BoxModel(
         { Ss[i]:{ Is[i]: Ss[i]*betas[i] } for i in ('a','b') },
         pos = { Ss['a']:[ 0,1 ], Ss['b']:[ 0,0 ], Is['a']:[ 1/2,1 ], Is['b']:[ 1/2,0 ] }
     ), [ Ss['a'], Ss['b'], Is['a'], Is['b'] ] )
-XYab.plot_boxes( 'XYab.boxes.tex', figsize=(5,5) )
+XYab.plot_boxes( 'XYab.boxes.tex', figsize=(3,3) )
 </source-file>.
 
 In the simple Cartesian product of models, we construct transitions by
@@ -130,7 +136,7 @@ The above stratification is not suitable for even a simple SI example with
 transition rate $$\beta S I$$, because this model violates the assumption that
 the rate involves no compartments other than $$S$$.  In this model it's
 reasonable to believe that either stratified $$S$$ class can be infected by
-individuals of both stratified $$I$$ classeds.  This requires the $$S$$ and
+individuals of both stratified $$I$$ classes.  This requires the $$S$$ and
 $$I$$ variables in that transition rate to be stratified separately, and a
 transition to be constructed for every combination
 of stratified compartments.  The correct product model is this one:
@@ -161,8 +167,8 @@ SIab = BoxModel(
         #{ Ss[i]:{ Is[i]: Ss[i]*(betas[i]['a']*Is['a']+betas[i]['b']*Is['b']) } for i in ('a','b') },
         pos = { Ss['a']:[ 0,1/2 ], Ss['b']:[ 0,0 ], Is['a']:[ 1,1/2 ], Is['b']:[ 1,0 ] }
     ), [ Ss['a'], Ss['b'], Is['a'], Is['b'] ] )
-#SIab.plot_boxes( 'SIab2.boxes.tex', figsize=(5,5) )
-SIab.plot().save( filename='SIab2.png', figsize=(5,5), fig_tight=False )
+#SIab.plot_boxes( 'SIab2.boxes.tex', figsize=(3,3) )
+SIab.plot().save( filename='SIab2.png', figsize=(3,3), fig_tight=False )
 </source-file>.
 
 If we used the simple Cartesian product, we would not generate the correct
@@ -173,7 +179,7 @@ To get this right, we may need to construct transitions as follows:
 * for each component model $$B_i$$
     * for each transition of $$B_i$$, from $$s$$ to $$t$$ with rate $$r$$
         * for every tuple of stratifications $$(S(s),S_1(X_1),\ldots,S_k(X_k))$$,
-where $$X_1,\ldots,X_k$$ are all the compartments other than $$S$$ whose
+where $$X_1,\ldots,X_k$$ are all the compartments other than $$s$$ whose
 names appear in $$r$$
             * include a transition from $$S(s)$$ to $$S(t)$$
 whose rate is constructed from $$r$$ by replacing $$s$$ by $$S(s)$$,
@@ -185,7 +191,7 @@ are arbitrary functions of compartment sizes will probably not be handled
 adequately by this rule, and we'll need to allow users to supply their
 own rules for creation of transitions in the product model.
 
-## Example: Infectious dynamics of couples
+## Example: Infectious dynamics of couples (ordered pairs)
 
 Also, that multiple stratification isn't right for a model of
 pairs (or larger groupings) of people.  For example, if we want to study
@@ -199,7 +205,7 @@ Actually we need to generate two more in addition to those, for within-pair
 infection events.  In total, we'll generate this model:
 
 <source-file filename="defpairs.sage.step" display=none>
-# requires: $(BoxModels)/boxmodel.py $(BoxModels)/crossproduct.py
+# requires: $(BoxModels)/boxmodel.py $(BoxModels)/boxmodelproduct.py
 # requires: $(SageDynamics)/dynamicalsystems.py
 # requires: $(SageAdaptiveDynamics)/adaptivedynamics.py
 # produces: defpairs.sage.out.tex SI-pair-step1.svg SI-pair-step2.svg
@@ -209,60 +215,461 @@ sys.path.append( os.environ['BoxModels'] )
 sys.path.append( os.environ['SageUtils'] )
 from latex_output import *
 import boxmodel
-import crossproduct
+import boxmodelproduct
 from dynamicalsystems import subscriptedsymbol
 # alternative naming: instead of S_I, X_{SI}
-def x_namer( ss ):
+def x_namer( *ss ):
     return subscriptedsymbol( 'X', *ss )
 def SI_combiner( s, pos, *ss ): # transform e.g. (S, 2, I) to (I, S)
     cs = list( ss )
     cs.insert( int(pos)-1, s )
-    print 'combine', s, pos, ss, ':', tuple(cs)
+    #print 'combine', s, pos, ss, ':', tuple(cs)
     return tuple(cs)
 S, I, beta = SR.var( 'S I beta' )
 SI = boxmodel.BoxModel( DiGraph( [ (S, I, beta*S*I) ] ), [S, I] )
+
 # step 1
-SI2 = crossproduct.BoxModelCrossProduct( 
-    SI,
-    boxmodel.BoxModel( DiGraph( { 1:[], 2:[] } ), [1, 2] ),
-    boxmodel.BoxModel( DiGraph( { S:[], I:[] } ), [S, I] ),
-    vertex_namer = x_namer
-)
-SI2.plot().save( filename='SI-pair-step1.svg', figsize=(5,5), fig_tight=False )
+if False:
+    SI2_1 = boxmodelproduct.BoxModelProduct( 
+        SI,
+        boxmodel.BoxModel( DiGraph( { 1:[], 2:[] } ), [1, 2] ),
+        boxmodel.BoxModel( DiGraph( { S:[], I:[] } ), [S, I] ),
+        vertex_namer = x_namer
+    )
+    SI2_1.plot().save( filename='SI-pair-step1.svg', figsize=(3,3), fig_tight=False )
 
 # step 2
-SI2 = crossproduct.BoxModelCrossProduct( 
-    SI,
-    boxmodel.BoxModel( DiGraph( { 1:[], 2:[] } ), [1, 2] ),
-    boxmodel.BoxModel( DiGraph( { S:[], I:[] } ), [S, I] ),
-    state_combiner = SI_combiner,
-    vertex_namer = x_namer
-)
-SI2.plot().save( filename='SI-pair-step2.svg', figsize=(5,5), fig_tight=False )
+if False:
+    SI2_2 = boxmodelproduct.BoxModelProduct( 
+        SI,
+        boxmodel.BoxModel( DiGraph( { 1:[], 2:[] } ), [1, 2] ),
+        boxmodel.BoxModel( DiGraph( { S:[], I:[] } ), [S, I] ),
+        compartment_renaming = SI_combiner,
+        vertex_namer = x_namer
+    )
+    SI2_2.plot().save( filename='SI-pair-step2.svg', figsize=(3,3), fig_tight=False )
 
+# step 3
+if False:
+    def bij(i,j): return subscriptedsymbol('beta',i,j)*SI2_2._vertex_namer( i, j )
+    from boxmodelproduct import bm_state
+    SI2_3 = SI2_2.add_transitions( [ (bm_state(S,I),bm_state(I,I),bij(S,I)), (bm_state(I,S),bm_state(I,I),bij(I,S)) ] )
+    SI2_3.plot().save( filename='SI-pair-step3.png', figsize=(3,3), fig_tight=False )
+if True:
+    SI2_3 = boxmodelproduct.power( SI, 2 )
+    SI2_3.plot().save( filename='SI-pair-step3.png', figsize=(3,3) )
+
+ltx = latex_output( 'defpairs.sage.out.tex' )
+ltx.write( SI2_3.ode() )
+ltx.close()
 exit(0r)
-</source-file>.
+</source-file>
 
-<project-file filename="SI-pair-step1.svg"/>
-
-<project-file filename="SI-pair-step2.svg"/>
+<project-file filename="SI-pair-step3.png"/>.
 
 <latex>\vspace{24pt}</latex>
 
-We can do this in three steps:
+<project-file filename="defpairs.sage.out.tex"/>
+
+[Note: It's more common to consider pair models together with pair-formation and
+breakup events, with compartments for unpaired individuals.  We can add this
+if needed.]
+
+We can do the above product in three steps:
 
 * Stratify the SI model doubly, by position in the pair (first or second), and
-by partner's infectious class.  This produces 8 compartments and 16
-transitions.  Compartments are of the form $$(S,1,I)$$ (susceptible first
-partner, with an infectious counterpart), $$(S,2,S)$$ (susceptible second
+by partner's infectious class.  This gives us stratified compartments 
+of the form $$(S,1,I)$$ (susceptible first
+partner, with an infectious counterpart), $$(I,2,S)$$ (infectious second
 partner, with a susceptible counterpart), etc.
+There are 8 of these compartments -- four S
+compartments and four I compartments -- and 16 transitions, one for each
+possible contact from an I compartment to an S compartment.
 
-* Merge equivalent classes, redefining $$(S,1,I)$$ and $$(I,2,S)$$ as
+* Merge equivalent classes, relabeling $$(S,1,I)$$ and $$(I,2,S)$$ as
 $$(S,I)$$, etc.  This reduces the 8 compartments to 4, giving us the
-square we want.
+square we want, with 16 transitions.
 
 * Add the two within-pair infection events, from $$(S,I)$$ and $$(I,S)$$
 to $$(I,I)$$.
+
+The first of these is the Cartesian product operation with multiple
+stratification that we defined above.  The others are other operations that
+are probably also worth defining formally:
+
+### Relabeling compartments
+
+A **relabeling** of compartment model $$M$$ by
+a state-relabeling function $$R:C_M\to C_R$$ which maps compartments into
+a set of relabeled
+compartments $$C_R$$, and a similarly defined parameter-relabeling function
+$$R:P_M\to P_R$$, is a compartment model $$R(M)$$ in which
+
+* the compartments of $$R(M)$$ are the set $$\{R(C) | C\in C_M\}$$
+* the transitions of $$R(M)$$ are $$(R(s),R(t),R(r))$$ for every transition
+$$(s,t,r)$$ of $$M$$, where
+$$R(r)(c'_1,\ldots,c'_{n'},p'_1,\ldots,p'_{m'})=r(R(c_1),\ldots,R(c_n),R(p_1),\ldots,R(p_m))$$, given $$C_R=\{c'_1,\ldots,c'_{n'}\}$$, and $$P_R=\{p_1,\ldots,p'_{m'}\}$$.
+
+### Constructing within-pair events and adding to a box model
+
+These two operations also need to be formalized.  Once that's done
+we'll be able to say
+
+$$ M^2 = R(M\times M_{12}\times M_{SI}) + \text{within-pair\,transitions}(R(M\times M_{12}\times M_{SI})) $$
+
+with suitably defined objects $$M_{12}$$, $$M_{SI}$$, $$R$$.
+
+## Example: Infectious dynamics of couples (unordered pairs)
+
+If we want to consider pairs without distinguishing the two individuals by
+gender or otherwise differentiating the first from second individual, we
+reduce the model to fewer compartments -- for instance, in our example, we
+will have one $$(S,I)$$ class standing for both $$(S,I)$$ and $$(I,S)$$.
+
+The unordered pair dynamics must be consistent with the ordered pair model
+because they are different descriptions of the same events. So we should
+be able to generate the unordered pair model from the ordered one, by
+combining compartments.  We will define the unordered dynamics in that way,
+even though we're likely to end up generating them in a more direct way for
+efficiency.
+
+The formal construction of the unordered model, then, is
+
+* construct the ordered pair model
+* collect the compartments of that model into equivalence classes: in the
+SI case, $$\{\{(S,S)\}, \{(S,I),(I,S)\}, \{(I,I)\}\}$$.  Sum over those
+classes to generate the reduced compartments: in this case
+$$Z_{SI} = X_{SI} + X_{IS}$$ where we use the letter $$Z$$ for reduced
+(unordered) compartment variables and $$X$$ for the compartments of
+the ordered-pair model $$M^2$$.
+* Construct reduced transition rates by transforming all $$X$$ variables to
+$$Z$$ variables, and assign their source and target vertices to the
+appropriate $$Z$$ variables.
+
+Note that this is a different way of combining compartments than the
+combining we did when constructing the ordered pair model.  There we
+simply defined one compartment to be a synonym of the other and
+merged them by moving
+the arrows from one to the other; here we define a new compartment to be
+the sum of the old compartments and transform the transition rate
+expressions as well as relocating their arrows.  Here is a definition
+for this operation:
+
+An **aggregation of compartments** of a compartment model is a
+transformation $$A(M)$$ of that model by a pair of mappings
+$$A:C_M\to C_A$$ and
+$$A:P_M\to P_A$$, defined as for a relabeling, such that
+
+* The compartments of $$A(M)$$ are the set $$\{A(C)|C\in C_M\}$$
+* There is an equation $$C'_i = \sum C_j$$ for each
+compartment $$C'_i$$ of $$A(M)$$, where the sum is over all the compartments
+$$C_j$$ such that $$A(C_j)=C'_i$$.
+* The set of transitions of $$A(M)$$ is the set of triples
+$$(A(s),A(t),(C'_1,\ldots,C'_{n'},P'_1,\ldots,P'_{m'})\mapsto\sum_{\{(s',t',r')|A(s')=A(s), A(t')=A(t)\}}r'(C_1,\ldots,C_n,P_1,\ldots,P_m))$$
+generated by all transitions $$(s,t,r)$$ of $$M$$.  The sum is simplified
+to a function of the $$C'_i$$ variables using the above sum equations.
+
+That is, the transitions of the model $$M$$ are summed together where their
+sources and targets are mapped to the same places by the aggregation, and
+sums of compartments of $$M$$ are simplified in terms of the compartments 
+of $$A(M)$$. This reduction doesn't work for general
+box models, so this can only be done in particular cases.  Also, it's
+probably necessary to relabel the parameters just so using $$A(P_i)$$,
+so that the sums will come out right.
+
+Given that definition, we define a **sorting operation** $$Z$$ such that
+$$Z((S,I))=Z((I,S))=(S,I)$$ (we sort the compartments in the order
+$$S, I, R$$).  Using that as an aggregation function, the definition above
+gives us $$Z_{SI}=X_{SI}+X_{IS}$$, and we define the unordered pair model as
+
+$$M_U = Z(M^2)$$
+
+where $$M^2$$ is the ordered-pair model defined above.  (Note: To make the
+transitions reduce to $$Z$$ expressions we'll have to construct the right
+renaming for the indexed $$\beta$$ parameters.)
+
+## Combining infection models into a multi-infection model
+
+Suppose there are two infectious agents, numbered 1 and 2.  Each is
+involved in an SI process (and maybe other compartments downstream from
+I). Let us call these models $$M_1$$ and $$M_2$$:
+<source-file filename="SII.sage.step" display="SII.png">
+# requires: $(BoxModels)/boxmodel.py
+# requires: $(SageDynamics)/dynamicalsystems.py
+# requires: $(SageAdaptiveDynamics)/adaptivedynamics.py
+# produces: SII.sage.out.tex SII.png
+import os
+import sys
+sys.path.append( os.environ['SageDynamics'] )
+sys.path.append( os.environ['SageUtils'] )
+sys.path.append( os.environ['BoxModels'] )
+import dynamicalsystems, latex_output, boxmodel
+S, I, beta = (dynamicalsystems.indexer(v) for v in ('S','I','beta'))
+SII = boxmodel.BoxModel(
+    DiGraph(
+	[ (S[i], I[i], S[i]*beta[i]*I[i]) for i in (1,2) ],
+	pos = { S[1]:[0,1], I[1]:[1,1], S[2]:[0,0], I[2]:[1,0] }
+    ), [ S[1], I[1], S[2], I[2] ]
+)
+SII.plot().save( filename='SII.png', figsize=(3,3), fig_tight=False )
+</source-file>.
+
+We wish to combine these infection processes into a single model
+$$M_1\boxtimes M_2$$, in
+which a single susceptible class is infected by both agents, producing
+not only the $$I_1$$ and $$I_2$$ classes, but also an $$I_{12}$$
+class which is infected by both, and potentially an $$I_{21}$$ class as
+well, if the order of infection events is important.  This has some
+characteristics of the
+[strong product](https://en.wikipedia.org/wiki/Strong_product_of_graphs)
+of the models' graphs, because it includes at least one diagonal arrow,
+representing multiple infection from a single contact,
+as well as the horizontal and vertical arrows representing simple infection
+events:
+
+<source-file filename="SIII-sketch.sage.step" display="SIII-sketch.png">
+# requires: $(BoxModels)/boxmodel.py
+# requires: $(SageDynamics)/dynamicalsystems.py
+# requires: $(SageAdaptiveDynamics)/adaptivedynamics.py
+# produces: SIII-sketch.sage.out.tex SIII-sketch.png
+import os
+import sys
+sys.path.append( os.environ['SageDynamics'] )
+sys.path.append( os.environ['SageUtils'] )
+sys.path.append( os.environ['BoxModels'] )
+import dynamicalsystems, latex_output, boxmodel
+S = SR.var('S')
+I, beta = (dynamicalsystems.indexer(v) for v in ('I','beta'))
+SIII = boxmodel.BoxModel(
+    DiGraph(
+	[ (S, I[i], S*beta[i]*I[i]) for i in (1,2,12,21) ] +
+	 [ (I[1],I[12],I[1]*beta[112]*I[12]) ] +
+	 [ (I[2],I[21],I[2]*beta[221]*I[21]) ],
+	pos = { S:(0,1), I[1]:(1,1), I[2]:(0,0), I[21]:(0.9,0), I[12]:(1,0.1) }
+    ), [ S, I[1], I[2], I[12], I[21] ]
+)
+SIII.plot().save( filename='SIII-sketch.png', figsize=(3,3), fig_tight=False )
+</source-file>.
+
+There may also be cases in which one infection excludes the other:
+
+<source-file filename="SIII-sketch-2.sage.step" display="SIII-sketch-2.png">
+# requires: $(BoxModels)/boxmodel.py
+# requires: $(SageDynamics)/dynamicalsystems.py
+# requires: $(SageAdaptiveDynamics)/adaptivedynamics.py
+# produces: SIII-sketch-2.sage.out.tex SIII-sketch-2.png 
+import os
+import sys
+sys.path.append( os.environ['SageDynamics'] )
+sys.path.append( os.environ['SageUtils'] )
+sys.path.append( os.environ['BoxModels'] )
+import dynamicalsystems, latex_output, boxmodel
+S = SR.symbol('S')
+I = dynamicalsystems.indexer('I')
+def beta(n): return SR.symbol( 'beta_'+n, latex_name='\\beta_{'+n+'}' )
+SIII = boxmodel.BoxModel(
+    DiGraph(
+	[ (S, I[i], S*beta('0,'+str(i))*I[i]) for i in (1,2,12,21) ] +
+	 [ (I[1],I[12],I[1]*beta('1,12')*I[12]) ] +
+	 [ (I[2],I[21],I[2]*beta('2,21')*I[21]) ] +
+	 [ (I[1],I[2], I[1]*beta('1,2') *I[2]) ] +
+	 [ (I[2],I[1], I[2]*beta('2,1') *I[1]) ],
+	pos = { S:(0,1), I[1]:(1,1), I[2]:(0,0), I[21]:(0.9,0), I[12]:(1,0.1) }
+    ), [ S, I[1], I[2], I[12], I[21] ]
+)
+SIII.plot().save( filename='SIII-sketch-2.png', figsize=(3,3), fig_tight=False )
+</source-file>.
+
+How are we to define this product of simple SI models? Each of the two
+original infection arrows becomes four: the simple infection event from $$S$$,
+the superinfection event from the other model's $$I$$ class, an
+replacement event in which it replaces the other model's infection, and
+one of the two double-infection events.
+
+We can probably use that list to define the "multiple-infection product".
+But how does this product generalize to $$n$$ generic compartment models
+with some quadratic transition rates and some other rates?
+
+This product is distinguished from the ones above in three ways:
+
+* The order of events makes a difference: infection by agent 1 and then 
+agent 2 is different from infection by agent 2 and then agent 1.
+* It's possibly to "jump forward" over two transitions at once, from
+$$S$$ to $$I_{12}$$ for example.
+* There are "lateral" transitions, for instance from $$I_1$$ to $$I_2$$
+by contact with an $$I_2$$ individual, rather than the more standard
+transition to $$I_{12}$$ that would be triggered by that contact.
+
+Let's take those in order.
+
+### Distinguishing the order of events
+
+In a simple, standard cross product of models, compartments $$I_{12}$$ and
+$$I_{21}$$ would both be the same compartment $$(I_1,I_2)$$.  The difference
+is whether an individual arrives from compartment $$I_1$$ or from $$I_2$$
+(we'll consider the double-infection transition from a contact between
+$$S$$ and $$I_{12}$$ separately, below).
+
+We can formalize this by identifying the compartments of the product model
+with, not the vertices of the Cartesian product of graphs, but directed
+paths in the graph.  Instead of ordered pairs such as $$(S_1,I_2)$$, each
+compartment of the product model would be a sequence of ordered pairs, such
+as $$((S_1,S_2),(S_1,I_2),(I_1,I_2))$$.  Instead of producing a square
+graph, this construction produces a branching tree:
+
+<source-file filename="SII-tree.sage.step" display="SII-tree.png">
+# requires: $(BoxModels)/boxmodel.py
+# requires: $(SageDynamics)/dynamicalsystems.py
+# requires: $(SageAdaptiveDynamics)/adaptivedynamics.py
+# produces: SII-tree.sage.out.tex SII-tree.png
+import os
+import sys
+sys.path.append( os.environ['SageDynamics'] )
+sys.path.append( os.environ['SageUtils'] )
+sys.path.append( os.environ['BoxModels'] )
+import dynamicalsystems, latex_output, boxmodel, boxmodelproduct
+S = dynamicalsystems.indexer('S')
+I = dynamicalsystems.indexer('I')
+def beta(n): return SR.symbol( 'beta_'+n, latex_name='\\beta_{'+n+'}' )
+def SI(i):
+    return boxmodel.BoxModel(
+	DiGraph( [ (S[i], I[i], beta(str(i))*S[i]*I[i]) ] ),
+	[ S[i], I[i] ]
+    )
+SII = boxmodelproduct.BoxModelProduct( SI(1), SI(2),
+    vertex_namer = lambda x, y: dynamicalsystems.subscriptedsymbol( 'X', x, y )
+)
+
+def recur_edges( xprod, seq=None ):
+    edges = []
+    targets = set()
+    iter = ( xprod._graph.edge_iterator() if seq is None else xprod._graph.outgoing_edge_iterator(seq[-1]) )
+    for v,w,e1 in iter:
+	sseq = ( ( v, ) if seq is None else seq )
+	tseq = tuple( list( sseq ) + [ w ] )
+	edges.append( (
+	    tuple( [ tuple(s.operands()) for s in sseq ] ),
+	    tuple( [ tuple(s.operands()) for s in tseq ] ),
+	    e1 # todo: rate
+	) )
+	targets.add(tseq)
+    for tseq in targets:
+	edges = edges + recur_edges( xprod, tseq )
+    print 'recur_edges', seq, edges
+    return edges
+
+def seq_renaming( *seq ):
+    # input: sequence of pairs such as ((S_1,S_2),(S_1,I_2))
+    # output: summary sequence such as (2).  Used to construct name such as I_2
+    import re
+    indices = []
+    for v in seq[0]: # un-count pre-existing conditions
+	match = re.match( 'I_(.*)', str(v) )
+	if match:
+	    indices.append(-int(match.group(1r)))
+    for s in seq[1:]:
+	for v in s:
+	    match = re.match( 'I_(.*)', str(v) )
+	    if match:
+		n = int(match.group(1r))
+		if n not in indices and -n not in indices:
+		    indices.append(n)
+    print 'seq', seq, indices
+    return indices
+ 
+def seq_namer( *indices ): # names of states, with history
+    if len(indices):
+	def withparens(x): return x if x >= 0 else SR.symbol('Paren_'+str(-x), latex_name='('+str(-x)+')')
+	return dynamicalsystems.subscriptedsymbol('I',
+	    *[ withparens(x) for x in indices ] )
+    return SR.symbol('S')
+
+def seq_pos( *indices ):
+    pos = [ 0, 0 ]
+    for i in range(len(indices)):
+	scale = 1/(1+0.1*i)
+	if indices[i] < 0:
+	    pos[-indices[i]-1] += 2*scale
+	else:
+	    pos[indices[i]-1] += scale
+    pos = ( pos[0], 1-pos[1] )
+    #print 'pos', indices, pos
+    return pos
+
+nm = lambda x: x.substitute_function( boxmodelproduct.bm_state, seq_namer )
+edges_0 = [ (tuple(seq_renaming(*v)),tuple(seq_renaming(*w)),e) for v,w,e in recur_edges(SII) ]
+print edges_0
+edges = [ (seq_namer(*v),seq_namer(*w),e) for v,w,e in edges_0 ]
+print edges
+vertices = dict( reduce( lambda x,y:x+y, ( [ (v,1), (w,1) ] for v,w,e in edges_0 ) ) )
+pos = { seq_namer(*v):seq_pos(*v) for v in vertices }
+print 'pos', pos
+SItree_graph = DiGraph( edges, pos=pos )
+#SItree_graph.layout( save_pos=True )
+SItree = boxmodel.BoxModel( SItree_graph )
+#SItree.plot( edge_labels=False, talk=False ).save( filename='SII-tree.png', figsize=(3,3), fig_tight=False )
+SItree.plot( edge_labels=False ).save( filename='SII-tree.png', figsize=(3,3), fig_tight=False )
+</source-file>.
+
+It generates some extra edges, starting at places other than $$(S_1,S_2)$$.
+We should think about whether those might ever be meaningful.
+
+
+<!---
+
+First of all, the set of compartments of this product is apparently not
+the Cartesian product of the components' compartment sets -- the set of
+tuples of component compartments -- but something a bit different.
+
+One way to define this is in terms of a sequence of transitions.  The $$S$$
+class is defined as a "starting state", identified with the empty sequence,
+and we have a set of infected states corresponding to sequences of the
+component models' infection events $$i_1$$ and $$i_2$$:
+$$(), (i_1), (i_2), (i_1,i_2), (i_2,i_1)$$.  That can be generalized
+to $$n$$ models directly.
+
+To think about how to generalize to more than
+two states per model, it might be worth thinking carefully through how we
+would cross two SIR models with multiple infection.  How many $$R$$
+classes would
+the product have in the general case?  I think they too would have to be
+enumerated in terms of the sequence of
+events: $$(i_1,r_1,i_2,r_2)$$ for example.  That history might be considered 
+different from $$(i_1,i_2,r_2,r_1)$$, etc.
+
+This suggests a system for creating the compartments of the cross product:
+one for each sequence of component transitions.  Given a SIS or SIRS model,
+though, or any that contains a cycle of transitions, this system will
+produce an infinite set of compartments unless some equivalence is defined
+to identify all those sequences with a finite number of states.
+
+Also, there needs to be
+a bit more apparatus to produce all the transitions we want, because
+there are more transitions in the product than there are sequences of
+component transitions: for example, in the sketch above there are 
+three transitions corresponding to the sequence $$(i_1,i_2)$$, and
+likewise for $$(i_2,i_1)$$.
+
+I guess with full generality there need to be transitions from $$S$$ to
+all $$I$$ classes, and from every $$I$$ class to every other $$I$$ class.
+How does that generalize to the SIR case? I think recovery events are much
+more constrained -- there's probably no co-recovery.  But if there were?
+One would recover from any subset of a given set of $$I$$ agents, I guess.
+Presumably we wouldn't distinguish the order of recovery, e.g.
+between $$r_{12}$$ and $$r_{21}$$,
+though, even though we do have separate $$I$$ classes distinguishing
+order of infection.  Let's say we did, and had full order of events, with
+"jump-overs":
+
+--->
+
+### Transitive transitions ("jump-overs")
+
+(to come)
+
+### Lateral transitions
+
+(to come)
 
 ## Forward equations for a box model
 
@@ -289,7 +696,8 @@ The transitions are
 $$ (p_S,p_{S-\frac{\mathbf{e}_s}{N}+\frac{\mathbf{e}_t}{N}},r(S) p_S) $$
 
 for each transition with source, target, and rate $$s,t,r$$ of the original
-box model, where $$r(S)$$ is the rate $$r$$ evaluated at the state $$S$$.
+box model, and for every state $$S$$,
+where $$r(S)$$ is the rate $$r$$ evaluated at the state $$S$$.
 
 The forward equations themselves are the ODE of this box model, as defined
 above.
@@ -297,4 +705,20 @@ above.
 For example, for a simple SI model with transition $$\beta S I$$, the
 forward equations for $$N=3$$ are
 
+<source-file filename=SI-forward.sage.step display=none>
+# requires: $(BoxModels)/boxmodel.py $(BoxModels)/boxkolmogorov.py $(BoxModels)/kolmogorov.py
+# produces: SI-forward-3.tex
+from sage.all import *
+import os,sys
+sys.path.append( os.environ['BoxModels'] )
+import boxmodel, boxkolmogorov
+load_session( 'SI.sobj' )
+
+S, I, beta = var('S I beta')
+SI = boxmodel.BoxModel( DiGraph( [ (S,I,beta*I*S) ] ), [S,I] )
+SIf = SI.forward_boxmodel(3)
+SIf.ode().write_latex( 'SI-forward-3.tex' )
+</source-file>
+
+<project-file filename=SI-forward-3.tex/>
 
