@@ -16,24 +16,18 @@ css/auto-generated-from-ww.css : $(WW_CSS_TO_USE)
 	cat $(WW_CSS_TO_USE) > $@
 
 # experimental pandoc pipeline
-# TODO: need to get the project name and title right from the YAML
-# ideally the rest of the YAML too, though we can parasitize it from
-# .wmd.data if we don't mind being kind of low-quality (this requires
-# .wmd.data to be left over from a jekyll build operation, and all the
-# source files from other pages to be freshly synced, because jekyll
-# and pandoc disagree on locations within the page text, with and without
-# the YAML header included).
+
 WW = /usr/local/src/workingwiki
 PROJECT=Notes
 TITLE="Definitions of Box Model objects"
 _pandoc/%.md : %.md.wmd wmd_files/.workingwiki/.wmd.data
-	php $(WW)/wmd/wmd.php --pre --title=$(TITLE) --default-project-name=$(PROJECT) --cache-dir=wmd_files --data-store=.wmd.data --modification-time=`date +%Y%m%d%H%M%s` --process-inline-math=1 --output-format=tex < $< > $@
+	php $(WW)/wmd/wmd.php --pre --title='$(TITLE)' --default-project-name=$(PROJECT) --cache-dir=wmd_files --data-store=.wmd.data --modification-time=`date +%Y%m%d%H%M%s` --process-inline-math=1 --output-format=tex < $< > $@
 
 _pandoc/%.intermediate.tex : _pandoc/%.md
 	pandoc -f markdown -t latex -s --listings --include-in-header=_assets/latex-header-additions.tex $< -o $@
 
 _pandoc/%.tex : _pandoc/%.intermediate.tex
-	php $(WW)/wmd/wmd.php --post --title=$(TITLE) --default-project-name=$(PROJECT) --cache-dir=wmd_files --data-store=.wmd.data --persistent-data-store --modification-time=`date +%Y%m%d%H%M%s` --output-format=tex < $< > $@
+	php $(WW)/wmd/wmd.php --post --title='$(TITLE)' --default-project-name=$(PROJECT) --cache-dir=wmd_files --data-store=.wmd.data --persistent-data-store --modification-time=`date +%Y%m%d%H%M%s` --output-format=tex < $< > $@
 
 %.pdf : _pandoc/%.tex
 	cd _pandoc && pdflatex $* && pdflatex $*
@@ -41,6 +35,16 @@ _pandoc/%.tex : _pandoc/%.intermediate.tex
 
 wmd_files/.workingwiki/.wmd.data : *.md.wmd # */*.md.wmd
 	$(MAKE) sync
+
+# TODO: need to get the project name and title right from the YAML
+# ideally the rest of the YAML too, though we can parasitize it from
+# .wmd.data if we don't mind being kind of low-quality (this requires
+# .wmd.data to be left over from a jekyll build operation, and all the
+# source files from other pages to be freshly synced, because jekyll
+# and pandoc disagree on locations within the page text, with and without
+# the YAML header included).
+_pandoc/Measles.% : PROJECT=Measles 
+_pandoc/Measles.% : TITLE="Subcritical Measles Outbreak Size"
 
 .PRECIOUS: _pandoc/%.md _pandoc/%.tex
 
