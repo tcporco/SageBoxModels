@@ -474,21 +474,17 @@ class BoxModel(SageObject):
 	bindings = dynamicalsystems.Bindings( bindings )
 	# TODO: this will not bind cross product correctly
 	return BoxModel(
-	    DiGraph( {
-	        bindings(v): {
-		    bindings(w):bindings(e) for _,w,e in self._flow_graph.outgoing_edge_iterator(v)
-	        } for v in self._graph.vertex_iterator()
-	    } ),
+	    DiGraph( [
+	        (bindings(v),bindings(w),bindings(e)) for v,w,e in self._flow_graph.edge_iterator()
+	    ] ),
 	    vars = [ bindings(v) for v in self._vars ],
 	    parameters = [ bindings(p) for p in self._parameters ],
 	    parameter_dependencies = {
 		bindings(p):[(bindings(d),t) for d,t in pd] for p,pd in self._parameter_dependencies.items()
 	    },
-	    flow_graph = DiGraph( {
-		bindings(v): {
-		    bindings(w):bindings(e) for _,w,e in self._flow_graph.outgoing_edge_iterator(v)
-		} for v in self._flow_graph.vertex_iterator()
-	    } ),
+	    flow_graph = DiGraph( [
+		(bindings(v),bindings(w),bindings(e)) for v,w,e in self._flow_graph.edge_iterator()
+	    ] ),
 	    bindings = self._bindings + bindings
 	)
     def add_transitions( self, trs ):
@@ -832,11 +828,17 @@ class BoxModelProduct(boxmodel.BoxModel):
 	    for v, w, e in edges
 	]
 	print 'flow edges:', flow_edges
-	print self._aggregate_tuples
+
+	# TODO: inherit bindings in a smart way?
+	self._bindings = dynamicalsystems.Bindings()
+
+	#print self._aggregate_tuples
 	self._aggregate_variables = {
 	    k:[vertex_namer(*v) for v in vl]
 	    for k,vl in self._aggregate_tuples.iteritems()
 	}
+	for k,vl in self._aggregate_variables.iteritems():
+	    self._bindings[k] = sum( vl )
 
 	if False: # skip this for now
 	    ## maintain inverse image of each aggregate compartment
@@ -908,9 +910,6 @@ class BoxModelProduct(boxmodel.BoxModel):
 	self._parameters = set( reduce( union, (r.variables() for f,t,r in self._flow_graph.edges()) ) ).difference( self._vars )
 	#print 'parameters:', self._parameters
 
-	# TODO: inherit bindings in a smart way?
-	self._bindings = dynamicalsystems.Bindings()
-
 	#self._aggregate_variables = {
 	#    k : [ vertex_namer(vs) for vs in v ]
 	#    for k,v in self._aggregate_variables.items()
@@ -940,11 +939,9 @@ class BoxModelProduct(boxmodel.BoxModel):
 	    #parameter_dependencies = {
 	    #	bindings(p):[(bindings(d),t) for d,t in pd] for p,pd in self._parameter_dependencies.items()
 	    #},
-	    flow_graph = DiGraph( {
-		bindings(v): {
-		    bindings(w):bindings(e) for _,w,e in self._flow_graph.outgoing_edge_iterator(v)
-		} for v in self._flow_graph.vertex_iterator()
-	    } ),
+	    flow_graph = DiGraph( [
+		( bindings(v),bindings(w),bindings(e)) for v,w,e in self._flow_graph.edge_iterator()
+	    ] ),
 	    bindings = self._bindings + bindings
 	)
 

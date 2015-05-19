@@ -393,6 +393,7 @@ renaming for the indexed $$\beta$$ parameters.)
 Suppose there are two infectious agents, numbered 1 and 2.  Each is
 involved in an SI process (and maybe other compartments downstream from
 I). Let us call these models $$M_1$$ and $$M_2$$:
+
 <source-file filename="SII.sage.step" display="SII.png">
 # requires: $(BoxModels)/boxmodel.py
 # requires: $(SageDynamics)/dynamicalsystems.py

@@ -7,6 +7,14 @@ wmd_files/% : /proc/uptime
 sync :
 	jekyll build --config=_config.yml,_wmd_sync.yml
 
+# generate CSS from WW CSS
+WW_DIR = /usr/local/src/workingwiki
+
+WW_CSS_TO_USE = $(patsubst %,$(WW_DIR)/resources/%,ext.workingwiki.latexml.css ext.workingwiki.latexml.customization.css)
+
+css/auto-generated-from-ww.css : $(WW_CSS_TO_USE)
+	cat $(WW_CSS_TO_USE) > $@
+
 # experimental pandoc pipeline
 # TODO: need to get the project name and title right from the YAML
 # ideally the rest of the YAML too, though we can parasitize it from
