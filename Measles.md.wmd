@@ -148,9 +148,13 @@ def calc_final_size_distribution( model, N, init_cond, bindings=dynamicalsystems
         #print '||M^2N|| =', max( i for j in M2N for i in j )
         #print M2N.str( zero='.' )
         final_dist = M2N * initial_dist
-    else: # see if this scales better
+    elif False: # see if this scales better
 	its = M.iterates( initial_dist, 2*N, rows=False )
 	final_dist = its.column(-1)
+    else: # or how about with numpy
+	import scipy.linalg, numpy
+	m = numpy.array(M)
+        final_dist = numpy.linalg.matrix_power( m, int(2*N) ).dot( numpy.array( initial_dist ) )
     #print 'p_2N:', print_dist( states, final_dist, sb ); sys.stdout.flush()
     pR = {}
     Rx = model._bindings('R')
@@ -160,6 +164,7 @@ def calc_final_size_distribution( model, N, init_cond, bindings=dynamicalsystems
 	    pR[Rb] = pR.get( Rb, 0 ) + final_dist[i]
     pRpts = [ (k,pR[k]) for k in sorted(pR.keys()) ]
     #print pRpts
+    print
     sys.stdout.flush()
     return pRpts
 
