@@ -215,7 +215,7 @@ sys.path.append( os.environ['SageUtils'] )
 import boxmodel
 
 S, I, beta = SR.var( 'S I beta' )
-lb = SR.symbol( 'lambda' )
+lb = SR.symbol( 'lmbda', latex_name='lambda' )
 SI = boxmodel.BoxModel( DiGraph( { S:{ I:lb*beta*S*I } } ), [S,I],
 	parameter_dependencies={ beta:[], lb:[(S,boxmodel.deps.index), (I,boxmodel.deps.sumover)] } )
 
@@ -332,7 +332,7 @@ import boxmodel
 #import adler_mixing
 
 # pickling bug
-lb = SR.symbol( 'lambda' )
+lb = SR.symbol( 'lmbda', latex_name=r'\lambda' )
 [ dynamicalsystems.subscriptedsymbol( lb, i, j ) for i in (0,1) for j in (0,1) ]
 
 load_session( 'adler-example' )
@@ -441,7 +441,8 @@ class BoxModel(SageObject):
 	    vars = graph.vertices()
 	self._vars = vars
 	if parameters is None:
-	    parameters = set( reduce( union, (r.variables() for f,t,r in graph.edges()), Set([]) ) ).difference( self._vars )
+	    # avoid namespace confusion with boxmodelproduct.union
+	    parameters = reduce( lambda x,y: x.union(y), (r.variables() for f,t,r in graph.edges()), set([]) ).difference( self._vars )
 	self._parameters = parameters
 	#print 'parameters:', parameters
 	self._parameter_dependencies = parameter_dependencies
@@ -469,22 +470,26 @@ class BoxModel(SageObject):
 	self._bindings = bindings
 	if self._graph.get_pos() is None:
 	    self._graph.set_pos( { v:(i,0) for i,v in enumerate(self._vars) } )
-	self._flow_graph = self._graph
-    def bind(self, bindings):
-	bindings = dynamicalsystems.Bindings( bindings )
+	if flow_graph is None:
+	    flow_graph = self._graph
+	self._flow_graph = flow_graph
+    def bind(self, *args, **vargs):
+	bindings = dynamicalsystems.Bindings( *args, **vargs )
 	# TODO: this will not bind cross product correctly
-	return BoxModel(
-	    DiGraph( [
+	bound_flow_graph = DiGraph( [
 	        (bindings(v),bindings(w),bindings(e)) for v,w,e in self._flow_graph.edge_iterator()
-	    ] ),
+	    ],
+	    multiedges=True,
+	    pos = { bindings(v):p for v,p in self._flow_graph.get_pos().items() } if self._flow_graph.get_pos() is not None else None
+	)
+	return BoxModel(
+	    bound_flow_graph,
 	    vars = [ bindings(v) for v in self._vars ],
 	    parameters = [ bindings(p) for p in self._parameters ],
 	    parameter_dependencies = {
 		bindings(p):[(bindings(d),t) for d,t in pd] for p,pd in self._parameter_dependencies.items()
 	    },
-	    flow_graph = DiGraph( [
-		(bindings(v),bindings(w),bindings(e)) for v,w,e in self._flow_graph.edge_iterator()
-	    ] ),
+	    flow_graph = bound_flow_graph,
 	    bindings = self._bindings + bindings
 	)
     def add_transitions( self, trs ):
@@ -509,32 +514,46 @@ class BoxModel(SageObject):
             self._vars,
 	    time_variable,
             bindings = bindings+self._bindings )
-    def tikz_boxes( self, raw=False, inline=False ):
+    def tikz_boxes( self, raw=False, inline=False, figsize=(6,6), **options ):
 	if raw:
 	    g = self._graph
 	else:
 	    g = self._flow_graph
+	lopts = {
+	    'graphic_size': figsize,
+	    'edge_thickness': 0.02,
+	    'edge_labels': True
+	}
 	if inline:
-	    g.set_latex_options( graphic_size=(6,6), margins=(0.5,0.5,0.5,0.5) )
+	    lopts['margins'] = (0.5,0.5,0.5,0.5)
+	lopts.update( options )
+	g.set_latex_options( **lopts )
+	if inline:
 	    return '\n\\vspace{24pt}\n' + latex( g ) + '\n\\vspace{24pt}\n'
 	return _latex_file_( g, title='' )
     def plot_boxes( self, filename=None, raw=False, inline=False, **options ):
 	# new Tikz/SVG code
 	#print 'plot to', filename
         LF = open( filename, 'w' )
-	LT = self.tikz_boxes( raw, inline )
+	LT = self.tikz_boxes( raw, inline, **options )
 	LF.write( LT )
         LF.close()
 	return LT
     def plot( self, *args, **aargs ):
 	def lx(s): return '$%s$'%latex(s)
-	lfg = DiGraph( [[lx(s) for s in tup] for tup in self._flow_graph.edge_iterator() ] )
+	lfg = DiGraph(
+	    [[lx(s) for s in tup] for tup in self._flow_graph.edge_iterator() ],
+	    multiedges=True
+	)
 	vargs = {
 	    'edge_labels' : True,
-	    'pos' : { lx(v) : p for v,p in self._flow_graph.get_pos().items() },
 	    'talk' : True
 	}
+	print 'flow_graph pos:', self._flow_graph.get_pos()
+	if 'pos' not in aargs and self._flow_graph.get_pos() is not None:
+	    vargs['pos'] = { lx(v) : p for v,p in self._flow_graph.get_pos().items() }
 	vargs.update( aargs )
+	print 'plot vargs:', vargs
 	return lfg.plot( *args, **vargs )
     def micro_transitions( self ):
 	# This could produce micro transitions but it isn't right so far
@@ -679,7 +698,7 @@ def default_vertex_namer( *vtuple ):
     return ss
 
 # and make stratified transitions according to an appropriate rule
-def default_edge_stratifier( source, target, rate, i, models, vertex_namer, param_namer, compartment_renaming ):
+def default_single_edge_stratifier( source, target, rate, i, models, vertex_namer, param_namer, compartment_renaming ):
     """we are given (rate, i, (v, v, ...)) where rate is an expression
     describing a transition of models[i],
     and the vs are the Cartesian product of vertices at the arrow's
@@ -716,6 +735,14 @@ def default_edge_stratifier( source, target, rate, i, models, vertex_namer, para
     #print 'edges:', edges
     return edges
 
+def default_edge_stratifier( models, vertex_namer, param_namer, compartment_renaming, single_edge_stratifier=default_single_edge_stratifier ):
+    #print 'edge_stratifier:', single_edge_stratifier( SR('S'), SR('I'), SR('S'), 0, models, vertex_namer, param_namer, compartment_renaming )
+    import itertools
+    return itertools.chain( *(
+        single_edge_stratifier( v, w, e, i, models, vertex_namer, param_namer, compartment_renaming )
+        for i in range(len(models)) for v,w,e in models[i]._flow_graph.edge_iterator()
+    ) )
+
 # function names used by the edge stratifier: we can't put tuples into
 # symbolic expressions directly so we represent them by instances like
 # bm_state( S, a ), bm_param( beta, S, I ), etc.
@@ -724,15 +751,29 @@ bm_state = function( 'bm_state' )
 bm_param = function( 'bm_param' )
 
 def default_vertex_positioner( graph, models, compartment_renaming ):
+    """default_vertex_positioner:
+    construct an X-Y position for each vertex of the product graph.
+    assumes the vertices of the graph are tuples of vertices of the
+    models' graphs, in order."""
     directions = [ 0, pi/2, pi/6, pi/3 ] # will add more as needed, I guess
+    rotations = [ matrix( [[cos(th),sin(th)],[-sin(th),cos(th)]] ) for th in directions ]
     seq = { v:i for m in models for i,v in enumerate(m._vars) }
+    original_positions = [
+	m._flow_graph.get_pos() if m._flow_graph.get_pos() is not None else { v:(i,0) for i,v in enumerate(m._vars) }
+	for m in models
+    ]
+    print 'original_positions:',original_positions
     positions = {
-	t: [
-	    sum(seq[v]*cos(d) for v,d in zip(t.operands(), directions)),
-	    - sum(seq[v]*sin(d) for v,d in zip(t.operands(), directions))
-        ] for t in graph.vertex_iterator()
+	t : sum( r*vector(p[v]) for r,p,v in zip(rotations, original_positions, t.operands()) )
+	for t in graph.vertex_iterator()
     }
-    print positions
+    #positions = {
+	#t: [
+	#    sum(seq[v]*cos(d) for v,d in zip(t.operands(), directions)),
+	#    - sum(seq[v]*sin(d) for v,d in zip(t.operands(), directions))
+        #] for t in graph.vertex_iterator()
+    #}
+    print 'positions:', positions
     return positions
     import itertools
     positions = {
@@ -762,18 +803,9 @@ class BoxModelProduct(boxmodel.BoxModel):
 	vertex_positioner = kwargs.pop( 'vertex_positioner', default_vertex_positioner )
 	if kwargs: raise TypeError, "Unknown named arguments to BoxModelProduct: %s" % str(kwargs)
 
-	# TODO: it would be more efficient to iterate one model at a time,
-	# and generate the vertex tuples, rate tuples, subscripted state
-	# variables, subscripted parameters, and subscripted rates all in
-	# the same loop.
-
-	edges = reduce( lambda x,y:x+y, (
-	    edge_stratifier( v, w, e, i, models, vertex_namer, param_namer, compartment_renaming )
-	    for i in range(len(models)) for v,w,e in models[i]._flow_graph.edge_iterator()
-	) )
-	print 'edges:', edges
-	self._graph = DiGraph( edges )
-	print 'edges of graph:', self._graph.edges()
+	edges = list( edge_stratifier( models, vertex_namer, param_namer, compartment_renaming ) )
+	print 'edges for product graph:', edges
+	self._graph = DiGraph( edges, multiedges=True )
 
 	self._aggregate_tuples = {}
 	for vbm in self._graph.vertex_iterator():
@@ -891,7 +923,7 @@ class BoxModelProduct(boxmodel.BoxModel):
 	        self._vc_eqns = vc_eqns
 	    self._flow_graph = DiGraph( flow_dict )
 
-	self._flow_graph = DiGraph( flow_edges )
+	self._flow_graph = DiGraph( flow_edges, multiedges=True )
 	self._flow_graph.set_latex_options( edge_labels=True, vertex_shape='rectangle' )
 	self._flow_graph.set_pos( { bm_to_vars(v):pos for v,pos in positions.items() } )
 
@@ -899,21 +931,21 @@ class BoxModelProduct(boxmodel.BoxModel):
         import itertools
 	varset = set()
 	self._vars = []
+	self._tuples = []
 	for vs in itertools.product( *(m._vars for m in models) ):
-	    v = vertex_namer( *compartment_renaming( *vs ) )
+	    t = compartment_renaming( *vs )
+	    v = vertex_namer( *t )
 	    if v not in varset:
 		varset.add(v)
 		self._vars.append(v)
+		self._tuples.append( bm_state( *t ) )
+	print 'made tuples:', self._tuples
 
 	# now generate all the crossed parameters
 	# TODO: do this right
-	self._parameters = set( reduce( union, (r.variables() for f,t,r in self._flow_graph.edges()) ) ).difference( self._vars )
+	self._parameters = reduce( lambda x,y: set(x).union(y), (r.variables() for f,t,r in self._flow_graph.edges()), set() ).difference( self._vars )
 	#print 'parameters:', self._parameters
 
-	#self._aggregate_variables = {
-	#    k : [ vertex_namer(vs) for vs in v ]
-	#    for k,v in self._aggregate_variables.items()
-	#}
 	self._vertex_namer = vertex_namer
 	self._param_namer = param_namer
     def add_transitions( self, trs ):
@@ -928,10 +960,13 @@ class BoxModelProduct(boxmodel.BoxModel):
 	    vars = self._vars,
 	    bindings = self._bindings
         )
-    def bind(self, bindings):
-	bindings = dynamicalsystems.Bindings( bindings )
+    def bind(self, *args, **vargs):
+	bindings = dynamicalsystems.Bindings( *args, **vargs )
 	# TODO: this produces a regular BoxModel, destroys information
 	# about the cross product
+	flow_pos = {
+	    bindings(v):p for v,p in self._flow_graph.get_pos().items() 
+	} if self._flow_graph.get_pos() is not None else None
 	return boxmodel.BoxModel(
 	    self._flow_graph,
 	    vars = [ bindings(v) for v in self._vars ],
@@ -940,13 +975,72 @@ class BoxModelProduct(boxmodel.BoxModel):
 	    #	bindings(p):[(bindings(d),t) for d,t in pd] for p,pd in self._parameter_dependencies.items()
 	    #},
 	    flow_graph = DiGraph( [
-		( bindings(v),bindings(w),bindings(e)) for v,w,e in self._flow_graph.edge_iterator()
-	    ] ),
+	            ( bindings(v),bindings(w),bindings(e)) for v,w,e in self._flow_graph.edge_iterator()
+	        ],
+		pos = flow_pos,
+		multiedges=True
+	    ),
 	    bindings = self._bindings + bindings
 	)
 
 def cross( *models ):
     return BoxModelProduct( *models )
+
+def union_stratifier( models, vertex_namer, param_namer, compartment_renaming ):
+    import itertools
+    return itertools.chain( *(m._graph.edge_iterator() for m in models) )
+
+def union_positioner( graph, models, compartment_renaming ):
+    return {
+	v:(x,-i)
+	for i,pos in enumerate( m._graph.get_pos() for m in models )
+	for v,(x,y) in pos.iteritems()
+    }
+
+## union is not a product, but it's easy to implement as one
+## it just combines the graphs "side by side"
+## (except if they share vertices and possibly edges, they'll be combined)
+def union( *models ):
+    """union of the models' vertex and edge sets"""
+    return BoxModelProduct( *models,
+	vertex_namer = x_namer,
+	edge_stratifier = union_stratifier,
+	vertex_positioner = union_positioner
+    )
+
+def strong_edge_stratifier( models, vertex_namer, param_namer, compartment_renaming ):
+    """Generate all the edges of the strong product of models:
+    for each source vertex (v1,...,vn)
+        every vertex (w1,...,wn) is a target if each wi either
+            is target of an edge vi->wi
+            or is vi
+    """
+    import itertools
+    return (
+	( bm_state( *compartment_renaming( *vs ) ),
+	  bm_state( *compartment_renaming( *ws ) ),
+	  SR(1)
+	)
+	for vs in itertools.product( *(m._vars for m in models) )
+	for ws in itertools.product( *(m._graph.neighbors_out(v) + [v] for v,m in zip(vs,models)) )
+	if ws != vs
+    )
+    raw_strats = [ list(vst) for vst in itertools.product( *(models[j]._vars for j in range(len(models)) if j != i) ) ]
+
+## TODO: strong product doesn't do rates, only vertices and arrows
+def strong_product( *models, **kwargs ):
+    compartment_renaming =  kwargs.pop( 'compartment_renaming',  default_compartment_renaming )
+    vertex_namer =    kwargs.pop( 'vertex_namer',    default_vertex_namer )
+    param_namer =     kwargs.pop( 'param_namer',     default_vertex_namer )
+    vertex_positioner = kwargs.pop( 'vertex_positioner', default_vertex_positioner )
+    if kwargs: raise TypeError, "Unknown named arguments to BoxModelProduct: %s" % str(kwargs)
+    return BoxModelProduct( *models,
+	edge_stratifier = strong_edge_stratifier,
+	vertex_namer = vertex_namer,
+	compartment_renaming = compartment_renaming,
+	param_namer = param_namer,
+	vertex_positioner = vertex_positioner
+    )
 
 def x_namer( *ss ):
     return dynamicalsystems.subscriptedsymbol( 'X', *ss )
@@ -960,7 +1054,7 @@ def power_compartment_renaming( s, pos, *ss ): # e.g. transform (S, 2, I) to (I,
 
 def power_edge_stratifier( source, target, rate, i, models, vertex_namer, param_namer, compartment_renaming ):
     ## the power model has all the edges of the cross
-    edges = default_edge_stratifier( source, target, rate, i, models, vertex_namer, param_namer, compartment_renaming )
+    edges = default_single_edge_stratifier( source, target, rate, i, models, vertex_namer, param_namer, compartment_renaming )
     ## plus extra edges for within-group interactions.
     ## I don't even want to think about interactions of more than two
     ## classes, which could be partly within-group and partly between-groups.
@@ -991,6 +1085,12 @@ def power_edge_stratifier( source, target, rate, i, models, vertex_namer, param_
 	    edges += [ ( stup, ttup, rrate ) ]
     return edges
 
+def power_vertex_positioner( graph, models, compartment_renaming ):
+    """the compartment renaming transforms tuples from
+    model x i_model x empty_model into tuples from model x empty_model,
+    so we need to use the vertex positioner accordingly."""
+    return default_vertex_positioner( graph, [ models[0] ] + list( models[2:] ), compartment_renaming )
+
 def power( model, i ):
     # require i=2 for now
     i_model = boxmodel.BoxModel( DiGraph( { j+1:[] for j in range(i) } ), [1,2] )
@@ -998,7 +1098,8 @@ def power( model, i ):
     return BoxModelProduct( model, i_model, empty_model,
 	vertex_namer = x_namer,
 	compartment_renaming = power_compartment_renaming,
-	edge_stratifier = power_edge_stratifier
+	edge_stratifier = lambda m,v,w,x: default_edge_stratifier( m,v,w,x, single_edge_stratifier=power_edge_stratifier ),
+	vertex_positioner = power_vertex_positioner
     )
 </source-file>
 

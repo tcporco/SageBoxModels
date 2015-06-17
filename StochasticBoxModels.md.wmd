@@ -152,6 +152,7 @@ boxmodel.BoxModel.backward_equations = lambda self, N: bm_kolmogorov_eqns( self,
 
 <source-file filename=boxmarkov.py.step>
 # requires: boxmodel.py boxkolmogorov.py
+# requires:$(SageDynamics)/dynamicalsystems.py $(SageDynamics)/stochasticdynamics.py 
 from sage.all import *
 import boxmodel, boxkolmogorov
 
@@ -178,6 +179,55 @@ def embedded_markov_callback( self, N, km_states, bind_state, state_index, B, R 
     return mtx
 
 boxmodel.BoxModel.embedded_discrete_markov_matrix = lambda self, N, R=QQ: boxkolmogorov.bm_kolmogorov_eqns( self, N, embedded_markov_callback, R )
+
+import os, sys
+sys.path.append( os.environ['SageDynamics'] )
+import dynamicalsystems, stochasticdynamics
+class BoxModelDiscreteSimulation( stochasticdynamics.FiniteDimensionalStochasticDynamics ):
+    def __init__(self, boxmodel):
+	self._model = boxmodel
+	super( BoxModelDiscreteSimulation, self ).__init__(
+	    boxmodel._vars,
+	    bindings = boxmodel._bindings # for use by trajectories
+	)
+    def solve( self, initial_state, start_time=0, end_time=30 ):
+	# Note total system size N is implied in initial_state
+	self._N = sum( initial_state )
+	#print 'sum of', initial_state, 'is', self._N
+	return super( BoxModelDiscreteSimulation, self ).solve( initial_state, start_time, end_time )
+    def update_time_and_state( self, t, x ):
+	x_bindings = dynamicalsystems.Bindings( zip(
+	    self._model._vars,
+	    (y/self._N for y in x)
+	) )
+	#print 'x_bindings:', x_bindings
+	# compute rates of all transitions from this state
+	transrates = []
+	total_r = 0
+	for v,w,e in self._model._flow_graph.edge_iterator():
+	    er = x_bindings( e )
+	    #print 'rate', e, '->', er
+	    # should be a number
+	    if er > 0:
+		total_r += er
+		transrates.append( (v,w,total_r) )
+	#print 'transrates:', transrates
+	# choose one
+	r = RR.random_element(0,total_r)
+	# note this raises StopIteration if there is none, which we
+	# allow to pass because it indicates we've reached an absorbing state
+	v,w,tr = next( ( (v,w,tr) for v,w,tr in transrates if tr > r ) )
+	#print 'r:',r
+	#print 'chose', v, w
+	x_bindings[v] -= 1/self._N
+	x_bindings[w] += 1/self._N
+	#print 'N =', self._N
+	#print x, '->',
+	x = tuple( self._N*x_bindings[vn] for vn in self._model._vars )
+	#print x
+	import numpy.random
+	return ( t + numpy.random.exponential( 1/total_r ), x )
+
 </source-file>
 
 Here we construct Kolmogorov forward equations for an SI model,

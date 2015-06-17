@@ -93,7 +93,7 @@ The compartments are labeled using subscripts, and transitions are copied
 to each stratum, by substituting the subscripted name of the source compartment
 and subscripting all parameters.  For example, given a model with
 transition from X to Y at rate $$\lambda X$$, stratified by crossing with
-a model of two states a and b, we would construct a model
+a model of two states $$a$$ and $$b$$, we would construct a model
 
 <source-file filename="XYab.sage.step" display="XYab.boxes.crop.svg">
 # requires: $(BoxModels)/boxmodel.py
@@ -116,7 +116,8 @@ XYab = BoxModel(
         { Ss[i]:{ Is[i]: Ss[i]*betas[i] } for i in ('a','b') },
         pos = { Ss['a']:[ 0,1 ], Ss['b']:[ 0,0 ], Is['a']:[ 1/2,1 ], Is['b']:[ 1/2,0 ] }
     ), [ Ss['a'], Ss['b'], Is['a'], Is['b'] ] )
-XYab.plot_boxes( 'XYab.boxes.tex', figsize=(3,3) )
+XYab.plot_boxes( 'XYab.boxes.tex', figsize=(7,1) )
+XYab.plot_boxes( 'XYab.boxes.tex-inline', inline=True, figsize=(7,1) )
 </source-file>.
 
 In the simple Cartesian product of models, we construct transitions by
@@ -141,12 +142,11 @@ $$I$$ variables in that transition rate to be stratified separately, and a
 transition to be constructed for every combination
 of stratified compartments.  The correct product model is this one:
 
-<source-file filename="SIab2.sage.step" display="SIab2.png">
+<source-file filename="SIab2.sage.step" display="SIab2.boxes.crop.svg">
 # requires: $(BoxModels)/boxmodel.py
 # requires: $(SageDynamics)/dynamicalsystems.py
 # requires: $(SageAdaptiveDynamics)/adaptivedynamics.py
-# produces: SIab2.sage.out.tex SIab2.png
-#SIab2.boxes.tex
+# produces: SIab2.sage.out.tex SIab2.boxes.tex
 import os
 import sys
 sys.path.append( os.environ['BoxModels'] )
@@ -167,8 +167,8 @@ SIab = BoxModel(
         #{ Ss[i]:{ Is[i]: Ss[i]*(betas[i]['a']*Is['a']+betas[i]['b']*Is['b']) } for i in ('a','b') },
         pos = { Ss['a']:[ 0,1/2 ], Ss['b']:[ 0,0 ], Is['a']:[ 1,1/2 ], Is['b']:[ 1,0 ] }
     ), [ Ss['a'], Ss['b'], Is['a'], Is['b'] ] )
-#SIab.plot_boxes( 'SIab2.boxes.tex', figsize=(3,3) )
-SIab.plot().save( filename='SIab2.png', figsize=(3,3), fig_tight=False )
+SIab.plot_boxes( 'SIab2.boxes.tex', figsize=(7,2) )
+#SIab.plot().save( filename='SIab2.png', figsize=(3,3), fig_tight=False )
 </source-file>.
 
 If we used the simple Cartesian product, we would not generate the correct
@@ -208,7 +208,8 @@ infection events.  In total, we'll generate this model:
 # requires: $(BoxModels)/boxmodel.py $(BoxModels)/boxmodelproduct.py
 # requires: $(SageDynamics)/dynamicalsystems.py
 # requires: $(SageAdaptiveDynamics)/adaptivedynamics.py
-# produces: defpairs.sage.out.tex SI-pair-step1.svg SI-pair-step2.svg
+# produces: defpairs.sage.out.tex
+# produces: SI-pair-step1.boxes.tex SI-pair-step2.boxes.tex SI-pair-step3.boxes.tex
 import os
 import sys
 sys.path.append( os.environ['BoxModels'] )
@@ -236,7 +237,8 @@ if False:
         boxmodel.BoxModel( DiGraph( { S:[], I:[] } ), [S, I] ),
         vertex_namer = x_namer
     )
-    SI2_1.plot().save( filename='SI-pair-step1.svg', figsize=(3,3), fig_tight=False )
+    SI2_1.plot_boxes( 'SI-pair-step1.boxes.tex', figsize=(7,7) )
+    #SI2_1.plot().save( filename='SI-pair-step1.svg', figsize=(3,3), fig_tight=False )
 
 # step 2
 if False:
@@ -247,17 +249,20 @@ if False:
         compartment_renaming = SI_combiner,
         vertex_namer = x_namer
     )
-    SI2_2.plot().save( filename='SI-pair-step2.svg', figsize=(3,3), fig_tight=False )
+    SI2_2.plot_boxes( 'SI-pair-step2.boxes.tex', figsize=(7,7) )
+    #SI2_2.plot().save( filename='SI-pair-step2.svg', figsize=(3,3), fig_tight=False )
 
 # step 3
 if False:
     def bij(i,j): return subscriptedsymbol('beta',i,j)*SI2_2._vertex_namer( i, j )
     from boxmodelproduct import bm_state
     SI2_3 = SI2_2.add_transitions( [ (bm_state(S,I),bm_state(I,I),bij(S,I)), (bm_state(I,S),bm_state(I,I),bij(I,S)) ] )
-    SI2_3.plot().save( filename='SI-pair-step3.png', figsize=(3,3), fig_tight=False )
-if True:
+    SI2_3.plot_boxes( 'SI-pair-step3.boxes.tex', figsize=(7,7) )
+    #SI2_3.plot().save( filename='SI-pair-step3.png', figsize=(3,3), fig_tight=False )
+else:
     SI2_3 = boxmodelproduct.power( SI, 2 )
-    SI2_3.plot().save( filename='SI-pair-step3.png', figsize=(3,3) )
+    SI2_3.plot_boxes( 'SI-pair-step3.boxes.tex', figsize=(7,7) )
+    #SI2_3.plot().save( filename='SI-pair-step3.png', figsize=(3,3) )
 
 ltx = latex_output( 'defpairs.sage.out.tex' )
 ltx.write( SI2_3.ode() )
@@ -265,7 +270,7 @@ ltx.close()
 exit(0r)
 </source-file>
 
-<project-file filename="SI-pair-step3.png"/>.
+<project-file filename="SI-pair-step3.boxes.crop.svg"/>.
 
 <latex>\vspace{24pt}</latex>
 
@@ -394,25 +399,35 @@ Suppose there are two infectious agents, numbered 1 and 2.  Each is
 involved in an SI process (and maybe other compartments downstream from
 I). Let us call these models $$M_1$$ and $$M_2$$:
 
-<source-file filename="SII.sage.step" display="SII.png">
-# requires: $(BoxModels)/boxmodel.py
+<source-file filename="M1M2.sage.step" display="M1M2.boxes.crop.svg">
+# requires: $(BoxModels)/boxmodel.py $(BoxModels)/boxmodelproduct.py
 # requires: $(SageDynamics)/dynamicalsystems.py
 # requires: $(SageAdaptiveDynamics)/adaptivedynamics.py
-# produces: SII.sage.out.tex SII.png
-import os
-import sys
+# produces: M1M2.boxes.tex M1M2.sobj
+import os, sys
 sys.path.append( os.environ['SageDynamics'] )
 sys.path.append( os.environ['SageUtils'] )
 sys.path.append( os.environ['BoxModels'] )
-import dynamicalsystems, latex_output, boxmodel
+import dynamicalsystems, latex_output, boxmodel, boxmodelproduct
 S, I, beta = (dynamicalsystems.indexer(v) for v in ('S','I','beta'))
-SII = boxmodel.BoxModel(
-    DiGraph(
-	[ (S[i], I[i], S[i]*beta[i]*I[i]) for i in (1,2) ],
-	pos = { S[1]:[0,1], I[1]:[1,1], S[2]:[0,0], I[2]:[1,0] }
-    ), [ S[1], I[1], S[2], I[2] ]
-)
-SII.plot().save( filename='SII.png', figsize=(3,3), fig_tight=False )
+def make_M(i):
+    return boxmodel.BoxModel( DiGraph(
+	    [ (S[i], I[i], S[i]*I[i]*beta[i]) ]
+        ), [ S[i], I[i] ]
+    )
+M1 = make_M(1)
+M2 = make_M(2)
+#SII = boxmodel.BoxModel(
+#    DiGraph(
+#	[ (S[i], I[i], S[i]*beta[i]*I[i]) for i in (1,2) ],
+#	pos = { S[1]:[0,1], I[1]:[1,1], S[2]:[0,0], I[2]:[1,0] }
+#    ), [ S[1], I[1], S[2], I[2] ]
+#)
+M1M2 = boxmodelproduct.union( M1, M2 )
+M1M2.plot_boxes( 'M1M2.boxes.tex', figsize=(7,2) )
+#SII.plot().save( filename='M1M2.png', figsize=(3,3), fig_tight=False )
+
+save_session( 'M1M2' )
 </source-file>.
 
 We wish to combine these infection processes into a single model
@@ -428,17 +443,17 @@ representing multiple infection from a single contact,
 as well as the horizontal and vertical arrows representing simple infection
 events:
 
-<source-file filename="SIII-sketch.sage.step" display="SIII-sketch.png">
-# requires: $(BoxModels)/boxmodel.py
+<source-file filename="SIII-sketch.sage.step" display="SIII-sketch.boxes.crop.svg">
+# requires: $(BoxModels)/boxmodel.py $(BoxModels)/boxmodelproduct.py
 # requires: $(SageDynamics)/dynamicalsystems.py
 # requires: $(SageAdaptiveDynamics)/adaptivedynamics.py
-# produces: SIII-sketch.sage.out.tex SIII-sketch.png
+# produces: SIII-sketch.sage.out.tex SIII-sketch.boxes.tex
 import os
 import sys
 sys.path.append( os.environ['SageDynamics'] )
 sys.path.append( os.environ['SageUtils'] )
 sys.path.append( os.environ['BoxModels'] )
-import dynamicalsystems, latex_output, boxmodel
+import dynamicalsystems, latex_output, boxmodel, boxmodelproduct
 S = SR.var('S')
 I, beta = (dynamicalsystems.indexer(v) for v in ('I','beta'))
 SIII = boxmodel.BoxModel(
@@ -449,16 +464,17 @@ SIII = boxmodel.BoxModel(
 	pos = { S:(0,1), I[1]:(1,1), I[2]:(0,0), I[21]:(0.9,0), I[12]:(1,0.1) }
     ), [ S, I[1], I[2], I[12], I[21] ]
 )
-SIII.plot().save( filename='SIII-sketch.png', figsize=(3,3), fig_tight=False )
+SIII.plot_boxes( 'SIII-sketch.boxes.tex', figsize=(7,7) )
+#SIII.plot().save( filename='SIII-sketch.png', figsize=(3,3), fig_tight=False )
 </source-file>.
 
 There may also be cases in which one infection excludes the other:
 
-<source-file filename="SIII-sketch-2.sage.step" display="SIII-sketch-2.png">
+<source-file filename="SIII-sketch-2.sage.step" display="SIII-sketch-2.boxes.crop.svg">
 # requires: $(BoxModels)/boxmodel.py
 # requires: $(SageDynamics)/dynamicalsystems.py
 # requires: $(SageAdaptiveDynamics)/adaptivedynamics.py
-# produces: SIII-sketch-2.sage.out.tex SIII-sketch-2.png 
+# produces: SIII-sketch-2.sage.out.tex SIII-sketch-2.boxes.tex
 import os
 import sys
 sys.path.append( os.environ['SageDynamics'] )
@@ -470,15 +486,16 @@ I = dynamicalsystems.indexer('I')
 def beta(n): return SR.symbol( 'beta_'+n, latex_name='\\beta_{'+n+'}' )
 SIII = boxmodel.BoxModel(
     DiGraph(
-	[ (S, I[i], S*beta('0,'+str(i))*I[i]) for i in (1,2,12,21) ] +
-	 [ (I[1],I[12],I[1]*beta('1,12')*I[12]) ] +
-	 [ (I[2],I[21],I[2]*beta('2,21')*I[21]) ] +
-	 [ (I[1],I[2], I[1]*beta('1,2') *I[2]) ] +
-	 [ (I[2],I[1], I[2]*beta('2,1') *I[1]) ],
+	[ (S, I[i], S*beta('0\\to'+str(i))*I[i]) for i in (1,2,12,21) ] +
+	 [ (I[1],I[12],I[1]*beta('1\\to12')*I[12]) ] +
+	 [ (I[2],I[21],I[2]*beta('2\\to21')*I[21]) ] +
+	 [ (I[1],I[2], I[1]*beta('1\\to2') *I[2]) ] +
+	 [ (I[2],I[1], I[2]*beta('2\\to1') *I[1]) ],
 	pos = { S:(0,1), I[1]:(1,1), I[2]:(0,0), I[21]:(0.9,0), I[12]:(1,0.1) }
     ), [ S, I[1], I[2], I[12], I[21] ]
 )
-SIII.plot().save( filename='SIII-sketch-2.png', figsize=(3,3), fig_tight=False )
+SIII.plot_boxes( 'SIII-sketch-2.boxes.tex', figsize=(7,7) )
+#SIII.plot().save( filename='SIII-sketch-2.png', figsize=(3,3), fig_tight=False )
 </source-file>.
 
 How are we to define this product of simple SI models? Each of the two
@@ -495,7 +512,7 @@ This product is distinguished from the ones above in three ways:
 
 * The order of events makes a difference: infection by agent 1 and then 
 agent 2 is different from infection by agent 2 and then agent 1.
-* It's possibly to "jump forward" over two transitions at once, from
+* It's possible to "jump forward" over two transitions at once, from
 $$S$$ to $$I_{12}$$ for example.
 * There are "lateral" transitions, for instance from $$I_1$$ to $$I_2$$
 by contact with an $$I_2$$ individual, rather than the more standard
@@ -518,11 +535,12 @@ compartment of the product model would be a sequence of ordered pairs, such
 as $$((S_1,S_2),(S_1,I_2),(I_1,I_2))$$.  Instead of producing a square
 graph, this construction produces a branching tree:
 
-<source-file filename="SII-tree.sage.step" display="SII-tree.png">
+<source-file filename="SII-tree.sage.step" display="SII-tree.boxes.crop.svg">
 # requires: $(BoxModels)/boxmodel.py
 # requires: $(SageDynamics)/dynamicalsystems.py
 # requires: $(SageAdaptiveDynamics)/adaptivedynamics.py
-# produces: SII-tree.sage.out.tex SII-tree.png
+# produces: SII-tree.sage.out.tex SII-tree.boxes.tex SII-tree-component.boxes.tex
+# produces: SII-strong.boxes.tex
 import os
 import sys
 sys.path.append( os.environ['SageDynamics'] )
@@ -556,7 +574,7 @@ def recur_edges( xprod, seq=None ):
 	targets.add(tseq)
     for tseq in targets:
 	edges = edges + recur_edges( xprod, tseq )
-    print 'recur_edges', seq, edges
+    #print 'recur_edges', seq, edges
     return edges
 
 def seq_renaming( *seq ):
@@ -575,7 +593,7 @@ def seq_renaming( *seq ):
 		n = int(match.group(1r))
 		if n not in indices and -n not in indices:
 		    indices.append(n)
-    print 'seq', seq, indices
+    #print 'seq', seq, indices
     return indices
  
 def seq_namer( *indices ): # names of states, with history
@@ -594,40 +612,77 @@ def seq_pos( *indices ):
 	else:
 	    pos[indices[i]-1] += scale
     pos = ( pos[0], 1-pos[1] )
-    #print 'pos', indices, pos
     return pos
 
-nm = lambda x: x.substitute_function( boxmodelproduct.bm_state, seq_namer )
+def strong_recur_edges( xprod, seq=None ):
+    edges = []
+    targets = set()
+    iter = ( xprod._graph.edge_iterator() if seq is None else xprod._graph.outgoing_edge_iterator(seq[-1]) )
+    for v,w,e1 in iter:
+	sseq = ( ( v, ) if seq is None else seq )
+	tseq = tuple( list( sseq ) + [ w ] )
+	edges.append( (
+	    tuple( [ tuple(s.operands()) for s in sseq ] ),
+	    tuple( [ tuple(s.operands()) for s in tseq ] ),
+	    e1 # todo: rate
+	) )
+	targets.add(tseq)
+    for tseq in targets:
+	edges = edges + recur_edges( xprod, tseq )
+    # add transitive edges
+    #print 'recur_edges', seq, edges
+    return edges
+
 edges_0 = [ (tuple(seq_renaming(*v)),tuple(seq_renaming(*w)),e) for v,w,e in recur_edges(SII) ]
-print edges_0
 edges = [ (seq_namer(*v),seq_namer(*w),e) for v,w,e in edges_0 ]
-print edges
 vertices = dict( reduce( lambda x,y:x+y, ( [ (v,1), (w,1) ] for v,w,e in edges_0 ) ) )
 pos = { seq_namer(*v):seq_pos(*v) for v in vertices }
-print 'pos', pos
-SItree_graph = DiGraph( edges, pos=pos )
-#SItree_graph.layout( save_pos=True )
+SItree_graph = DiGraph( edges, pos=pos, multiedges=True )
 SItree = boxmodel.BoxModel( SItree_graph )
-#SItree.plot( edge_labels=False, talk=False ).save( filename='SII-tree.png', figsize=(3,3), fig_tight=False )
-SItree.plot( edge_labels=False ).save( filename='SII-tree.png', figsize=(3,3), fig_tight=False )
+SItree.plot_boxes( 'SII-tree.boxes.tex', edge_labels=False, figsize=(7,7) )
+
+edges_0 = [ (tuple(seq_renaming(*v)),tuple(seq_renaming(*w)),e) for v,w,e in recur_edges(SII, (SII._tuples[0],)) ]
+edges = [ (seq_namer(*v),seq_namer(*w),e) for v,w,e in edges_0 ]
+vertices = dict( reduce( lambda x,y:x+y, ( [ (v,1), (w,1) ] for v,w,e in edges_0 ) ) )
+pos = { seq_namer(*v):seq_pos(*v) for v in vertices }
+SItree_graph = DiGraph( edges, pos=pos, multiedges=True )
+SItree = boxmodel.BoxModel( SItree_graph )
+SItree.plot_boxes( 'SII-tree-component.boxes.tex', edge_labels=False, figsize=(7,7) )
+
+SII_strong = boxmodelproduct.strong_product( SI(1), SI(2),
+    vertex_namer = lambda x, y: dynamicalsystems.subscriptedsymbol( 'X', x, y )
+)
+
+edges_strong = [ (tuple(seq_renaming(*v)),tuple(seq_renaming(*w)),e) for v,w,e in recur_edges(SII_strong, (SII_strong._tuples[0],)) ]
+edges = [ (seq_namer(*v),seq_namer(*w),e) for v,w,e in edges_strong ]
+vertices = dict( reduce( lambda x,y:x+y, ( [ (v,1), (w,1) ] for v,w,e in edges_strong ) ) )
+pos = { seq_namer(*v):seq_pos(*v) for v in vertices }
+print 'strong edges:', edges_strong
+SII_strong_graph = DiGraph( edges, pos=pos, multiedges=True )
+SII_strong = boxmodel.BoxModel( SII_strong_graph )
+SII_strong.plot_boxes( 'SII-strong.boxes.tex', edge_labels=False, figsize=(7,7) )
+
 </source-file>.
 
 It generates some extra edges, starting at places other than $$(S_1,S_2)$$.
 We should think about whether those might ever be meaningful.
 
+We can generate just the component we want by specifying a starting
+compartment.  In this case the starting compartment is the pair $$(S_1,S_2)$$,
+which is labelled $$S$$ in the diagram.
+
+<project-file filename=SII-tree-component.boxes.crop.svg/>
+
+This diagram also makes clear that the sketch above doesn't have enough
+arrows.  There are multiple kinds of interactions driving transitions
+across each pair of compartments.  There must be more than that as well:
+nearly every possible encounter between two types needs at least one
+transition, sometimes more.
+
+To come: what happens when we specify a binary operation on
+compartments
 
 <!---
-
-First of all, the set of compartments of this product is apparently not
-the Cartesian product of the components' compartment sets -- the set of
-tuples of component compartments -- but something a bit different.
-
-One way to define this is in terms of a sequence of transitions.  The $$S$$
-class is defined as a "starting state", identified with the empty sequence,
-and we have a set of infected states corresponding to sequences of the
-component models' infection events $$i_1$$ and $$i_2$$:
-$$(), (i_1), (i_2), (i_1,i_2), (i_2,i_1)$$.  That can be generalized
-to $$n$$ models directly.
 
 To think about how to generalize to more than
 two states per model, it might be worth thinking carefully through how we
@@ -660,13 +715,45 @@ Presumably we wouldn't distinguish the order of recovery, e.g.
 between $$r_{12}$$ and $$r_{21}$$,
 though, even though we do have separate $$I$$ classes distinguishing
 order of infection.  Let's say we did, and had full order of events, with
-"jump-overs":
+"jump-overs": [...]
 
 --->
 
 ### Transitive transitions ("jump-overs")
 
-(to come)
+The above implementation doesn't generate the diagonal arrows.
+First let's consider the "forward" arrows from $$S$$ to the
+co-infection compartments $$I_{12}$$ and $$I_{21}$$.  These
+are the events that make this a "strong product", the ones
+that combine two events of the cross product into one.
+Semantically, these denote events in which two transitions
+of the cross product happen in a single encounter: one
+individual gives the subject two infections at the same time.
+
+First of all, here is an unadorned strong product of $$M_1$$
+and $$M_2$$:
+
+<source-file filename="M1M2-strong.sage.step" display="M1M2-strong.boxes.crop.svg">
+# requires: $(BoxModels)/boxmodel.py $(BoxModels)/boxmodelproduct.py
+# requires: $(SageDynamics)/dynamicalsystems.py
+# requires: $(SageAdaptiveDynamics)/adaptivedynamics.py
+# requires: M1M2.sobj
+# produces: M1M2-strong.boxes.tex
+import os, sys
+sys.path.append( os.environ['SageDynamics'] )
+sys.path.append( os.environ['SageUtils'] )
+sys.path.append( os.environ['BoxModels'] )
+import dynamicalsystems, latex_output, boxmodel, boxmodelproduct
+
+load_session( 'M1M2' )
+
+SII = boxmodelproduct.strong_product( M1, M2, vertex_namer=boxmodelproduct.x_namer )
+SII.plot_boxes( 'M1M2-strong.boxes.tex', edge_labels=False, figsize=(7,4) )
+</source-file>
+
+Clearly we need more structure than that.  Try this:
+
+<project-file filename=SII-strong.boxes.crop.svg/>
 
 ### Lateral transitions
 
@@ -723,3 +810,94 @@ SIf.ode().write_latex( 'SI-forward-3.tex' )
 
 <project-file filename=SI-forward-3.tex/>
 
+# Appendix: graph products
+
+There are several standard product operations on directed graphs.
+All are ways of assigning arrows to the same set of vertices,
+which is the Cartesian product (cross product) of the component
+graphs' vertex sets.  We use several of them in our definitions
+of products of box models.
+
+The **Cartesian product of sets** $$S_1$$, $$S_2$$, $$\ldots$$, $$S_n$$
+is the set
+$$S_1\times S_2\times\ldots\times S_n = \{(s_1,s_2,\ldots,s_n)\mid s_1\in S_1\and s_2\in S_2\and\ldots\and s_n\in S_n\}$$.
+The elements of $$S_1\times S_2\times\ldots\times S_n$$ are referred to
+as **tuples** of elements
+of the component sets $$S_1$$, $$S_2$$, $$\ldots$$, $$S_n$$.
+
+We define a **directed graph** (and we are not concerned with undirected
+graphs) as a set $$\{(v,w,e)\}\subseteq V\times V\times E$$, where
+$$V$$ is the **vertex set** of the graph and $$E$$ is its set of edge
+labels.  Each of these tuples is visualized as an arrow from $$v$$ to
+$$w$$ with label $$e$$. 
+[In our definition of box models, the elements of $$e$$ are
+transition rates.] Note
+that this definition allows multiple edges between the same vertices
+$$v,w$$, so we are properly discussing directed multigraphs.
+
+## The Cartesian product of graphs
+
+The **Cartesian product** (or cross product)
+$$G_1\times G_2\times\ldots\times G_n$$ **of directed graphs**
+$$G_1$$, $$G_2$$, $$\ldots$$, $$G_n$$ is a graph whose vertex
+set is the Cartesian product $$V_1\times V_2\times\ldots\times V_n$$
+of the vertex sets $$V_i$$ of each graph $$G_i$$, and whose edges
+are of the form $$((v_1,v_2,\ldots,v_i,\ldots,v_n), (v_1,v_2,\ldots,w_i,\ldots,v_n), e)$$, where the two tuples are identical in all but the $$i$$'th position,
+and where there is an edge connecting $$v_i$$ to $$w_i$$ in $$G_i$$.
+
+Most definitions of this product do not provide labels for the edges
+of the product graph.  In the body of this paper we construct these
+labels (transition rates) in a variety of ways.
+
+The Cartesian product of graphs is sometimes written
+$$G_1\,\square\, G_2\,\square\cdots\square\,G_n$$, which is visually resonant
+with the shape of the product graph.
+
+## The tensor product
+
+The **tensor product** of directed graphs $$G_1$$, $$\ldots$$, $$G_n$$
+is a graph $$G_1\cdot G_2\cdot\ldots\cdot G_n$$ whose vertex set
+is the Cartesian product of the graphs' vertex sets, and which has
+an edge from $$(v_1,v_2,\ldots,v_n)$$ to $$(w_1,w_1,\ldots,w_n)$$
+if and only if there is an edge from $$v_i$$ to $$w_i$$ in *every*
+graph $$G_i$$.
+
+This is often written $$G_1\times \cdots\times G_n$$ when the $$\square$$
+operator is used for Cartesian products,
+since this product produces X-shaped diagrams.
+
+The tensor product is the natural product in the category of graphs
+(with graph homomorphisms as the category's morphisms), because the
+tensor product of graphs is the graph that has a homomorphism to
+each of the component graphs, and such that any other graph that has
+a homomorphism to each component also has a homomorphism to the
+tensor product graph that commutes.
+
+In some sense, it might make sense to think of this product as
+embodying an "and" or "all" operation, where the Cartesian product embodies
+an "exactly one of" operation.
+
+## The strong product
+
+The **strong product** of two graphs $$G_1$$, $$G_2$$, written
+$$G_1\boxtimes G_2$$, is
+the union of the Cartesian product and tensor product of the
+graphs.  That is, it contains all the edges of the two product graphs.
+
+If we extend that definition to $$n$$ graphs, we get an
+"all or exactly one" product. In modeling infectious dynamics
+we are probably more interested in a "one or more" product.
+Therefore I propose the following definition:
+
+The **strong product** of graphs $$G_1$$, $$\ldots$$, $$G_n$$, written
+$$G_1\boxtimes G_2\boxtimes\cdots\boxtimes G_n$$, is
+the graph whose vertex set is the Cartesian product of the graphs'
+vertex sets, and which has an edge from
+$$(v_1,\ldots,v_n)$$ to $$(w_1,\ldots,w_n)$$ if and only if, for
+every $$i$$, either there is an edge from $$v_i$$ to $$w_i$$, or
+$$v_i=w_i$$.
+
+This graph contains edges belonging to the transitive closure of
+the Cartesian product graph, but it is not the transitive closure,
+because it's limited to transitive combinations of exactly zero or
+one edge from each component graph.
