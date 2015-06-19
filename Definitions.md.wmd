@@ -682,6 +682,197 @@ transition, sometimes more.
 To come: what happens when we specify a binary operation on
 compartments
 
+<source-file filename="binary-ops.sage.step" display="bop2.boxes.crop.svg">
+# requires: $(BoxModels)/boxmodel.py
+# requires: $(SageDynamics)/dynamicalsystems.py
+# requires: $(SageAdaptiveDynamics)/adaptivedynamics.py
+# produces: bop.boxes.tex bop2.boxes.tex
+import os, sys
+sys.path.append( os.environ['SageDynamics'] )
+sys.path.append( os.environ['SageUtils'] )
+sys.path.append( os.environ['BoxModels'] )
+import dynamicalsystems, latex_output, boxmodel, boxmodelproduct
+
+import operator
+# Partial coinfection: I_{ab|cd} means someone has strains a and b fully,
+# and c and d partially.
+# Represent compartment by ({a,b},{c,d}). ({},{}) is called S, all others
+# are called I_something.
+# bop is a list of (source,catalyst,[target,...]) triples.
+# source, catalyst, and targets are compartments, in the above form.
+boplist = ( [ ([()],[x],[(x,),()]) for x in ((1,),(2,)) ]
++ [ ([()],xx,[[(1,)],[(2,)],[(1,),(2,)],[(2,),(1,)]]) for xx in ([(1,),(2,)],[(2,),(1,)]) ]
++ [ ([(x,)],[(y,)],[[(y,)],[(x,),(y,)]]) for x,y in ((1,2),(2,1)) ]
++ [ ([(x,)],y,[[(3-x,)],[(x,),(3-x,)]]) for x in (1,2) for y in ([(1,),(2,)],[(2,),(1,)]) ]
+)
+#print boplist
+def si( tup ):
+    #print 'si of', tup
+    if len(tup) == 0 or union( *tup ) == []: return SR.symbol('S')
+    cs = reduce( lambda s1,s2:s1+str(s2), tup[0], '' )
+    csl = cs
+    try:
+	c2 = reduce( lambda s1,s2:s1+str(s2), tup[1], '' )
+	if c2 is not '':
+	    csl = csl + '|' + c2
+	    cs = cs + '_' + c2
+    except IndexError: pass
+    #print 'I_' + cs
+    return SR.symbol( 'I_' + cs, latex_name='I_{' + csl + '}' )
+    #return dynamicalsystems.subscriptedsymbol( 'I', latex_output.wrap_latex(cs) )
+pos = { 'S':(0,0), 'I_1':(1,0), 'I_2':(0,-1), 'I_1_2':(1,-0.7), 'I_2_1':(0.7,-1) }
+def bsi( x, y, z ):
+    return dynamicalsystems.subscriptedsymbol('beta', si(x), si(y), si(z))*si(x)*si(y)
+bopgraph = DiGraph(
+    [ (si(x),si(z),bsi(x,y,z)) for x,y,s in boplist for z in s ],
+    multiedges=True,
+    pos = { SR.symbol(x):p for x,p in pos.iteritems() }
+)
+bopmodel = boxmodel.BoxModel( bopgraph )
+bopmodel.plot_boxes( 'bop.boxes.tex', figsize=(9,9) )
+#bopmodel.plot_boxes( 'bop.boxes.tex', edge_labels=False, figsize=(7,7) )
+
+# now with bop as a function, used recurrently on starting set
+# Each compartment is an ordered pair of sets
+# ( { dominant strains }, { subdominant strains } )
+
+# define the binary relation source + catalyst |-> target(s), in general
+
+def single_dominance_op( source, catalyst ):
+    targets = Set()
+    #print source, '+', catalyst
+    for sst in Subsets( union( *catalyst ) ):
+	# source can catch any subset of catalyst's infections
+	#print sst, 'is a subset of', Set( union( *catalyst ) )
+	if len(sst) == 0: # if empty subset, nothing happens
+	    next
+        if len(source[0]) > 0:
+	    # if source already has infections, new ones are subdominant
+	    target = ( source[0], source[1].union(sst-source[0]) )
+	    #print target
+	    targets += Set( [ target ] )
+        else:
+	    # if source is S, can get any combination of dom/sub
+	    sstdom_candidates = sst
+	    for sstdom in sstdom_candidates:
+	        target = ( Set( [sstdom] ), sst - Set( [sstdom] ) )
+	        #print target
+	        targets += Set( [ target ] )
+    #print source, '+', catalyst, '==>', targets
+    return targets
+
+def codominance_op( source, catalyst, allow_codominance=True, allow_displacement=False ):
+    targets = Set()
+    for sst in Subsets( union( *catalyst ) ):
+	# source can catch any subset of catalyst's infections
+	if len(sst) == 0: # if empty subset, nothing happens
+	    next
+        if len(source[0]) > 0:
+	    # if source already has infections, new ones are subdominant
+	    target = ( source[0], source[1].union(sst-source[0]) )
+	    targets += Set( [ target ] )
+        else:
+	    # if source is S, can get any combination of dom/sub
+	    for sstdom in Set(Subsets(sst)) - Set([Set()]):
+	        target = ( sstdom, sst - sstdom )
+	        targets += Set( [ target ] )
+    return targets
+
+def single_dominance_with_replacement_op( source, catalyst ):
+    targets = Set()
+    # source can catch any subset of catalyst's infections
+    # and might lose its own.  So basically, any subset of the
+    # union of the two.  Except that the dominant strains can't
+    # become subdominant and vice versa.  So we'll remove some
+    # it has, and add some it doesn't have.
+    source_strains = Set( union( *source ) )
+    strains = Set( union( union( *catalyst ), source_strains ) )
+    for target_strains in Subsets( strains ):
+	to_add = target_strains - source_strains
+	to_remove = target_strains - to_add
+	for new_doms in Subsets( to_add ):
+	    target = (
+		source[0] + new_doms - to_remove,
+		source[1] + (to_add - new_doms) - to_remove
+	    )
+	    if len(target[0])==1:
+	        targets += Set( [ target ] )
+    return targets
+
+def codominance_with_replacement_op( source, catalyst ):
+    targets = Set()
+    # source can catch any subset of catalyst's infections
+    # and might lose its own.  So basically, any subset of the
+    # union of the two.  Except that the dominant strains can't
+    # become subdominant and vice versa.  So we'll remove some
+    # it has, and add some it doesn't have.
+    source_strains = Set( union( *source ) )
+    strains = Set( union( union( *catalyst ), source_strains ) )
+    for target_strains in Subsets( strains ):
+	to_add = target_strains - source_strains
+	to_remove = target_strains - to_add
+	for new_doms in Subsets( to_add ):
+	    target = (
+		source[0] + new_doms - to_remove,
+		source[1] + (to_add - new_doms) - to_remove
+	    )
+	    if len(target[0])>0: # don't create strains with no doms
+	        targets += Set( [ target ] )
+    return targets
+
+# create a 'seed set' { S, I_1, I_2 }
+# and generate all the reaction products
+
+def generate_boxmodel_from_binary_operation( bop, seed_set, pos=None ):
+    old_trans = {}
+    comps = seed_set
+    trans = { (s,c):Set() for s in comps for c in comps }
+    while trans != old_trans:
+        old_trans = deepcopy( trans )
+        for s in comps:
+	    for c in comps:
+	        if (s,c) not in trans: trans[(s,c)] = Set()
+	        trans[(s,c)] += Set( t for t in bop(s,c) if t != s )
+        print 'trans from', old_trans,
+        print 'to', trans
+        print 'comps from', comps,
+        comps = Set( [ s for s,c in trans.keys() ] + [ c for s,c in trans.keys() ] + [ t for ts in trans.values() for t in ts ] )
+        print 'to', comps
+        if len(comps) > 1000:
+	    raise RuntimeError, 'Recurrence produces too many compartments'
+    print 'edges', [ (si(s),si(t),bsi(s,c,t)) for (s,c),ts in trans.iteritems() for t in ts ]
+
+    bopgraph = DiGraph(
+        [ (si(s),si(t),bsi(s,c,t)) for (s,c),ts in trans.iteritems() for t in ts ],
+        multiedges=True,
+        pos = pos
+    )
+    return boxmodel.BoxModel( bopgraph )
+
+print 'single dominance model'
+seed_set = Set( [ (Set(),Set()), (Set([1]),Set()), (Set([2]),Set()) ] )
+pos = { 'S':(0,0), 'I_1':(1,0), 'I_2':(0,-1), 'I_1_2':(1,-0.7), 'I_2_1':(0.7,-1) }
+pos = { SR.symbol(x):p for x,p in pos.iteritems() }
+bopmodel = generate_boxmodel_from_binary_operation( single_dominance_op, seed_set, pos=pos )
+bopmodel.plot_boxes( 'bop2.boxes.tex', figsize=(9,9) )
+
+print 'single dominance model with replacement'
+bopmodel = generate_boxmodel_from_binary_operation( single_dominance_with_replacement_op, seed_set, pos=pos )
+bopmodel.plot_boxes( 'bop4.boxes.tex', figsize=(9,9) )
+
+print 'codominance model'
+pos = { 'S':(0,0), 'I_1':(1,0), 'I_2':(0,-1), 'I_1_2':(1,-0.5), 'I_2_1':(0.5,-1), 'I_12':(0.8,-0.8) }
+pos = { SR.symbol(x):p for x,p in pos.iteritems() }
+bopmodel = generate_boxmodel_from_binary_operation( codominance_op, seed_set, pos)
+bopmodel.plot_boxes( 'bop3.boxes.tex', figsize=(9,9) )
+</source-file>
+
+<project-file filename=bop4.boxes.crop.svg/>
+
+<project-file filename=bop3.boxes.crop.svg/>
+
+<project-file filename=bop.boxes.crop.svg/>
+
 <!---
 
 To think about how to generalize to more than

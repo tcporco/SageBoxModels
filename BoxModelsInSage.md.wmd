@@ -735,15 +735,15 @@ def default_single_edge_stratifier( source, target, rate, i, models, vertex_name
     #print 'edges:', edges
     return edges
 
-def default_edge_stratifier( models, vertex_namer, param_namer, compartment_renaming, single_edge_stratifier=default_single_edge_stratifier ):
-    #print 'edge_stratifier:', single_edge_stratifier( SR('S'), SR('I'), SR('S'), 0, models, vertex_namer, param_namer, compartment_renaming )
+def default_edge_generator( models, vertex_namer, param_namer, compartment_renaming, single_edge_generator=default_single_edge_stratifier ):
+    #print 'edge_stratifier:', single_edge_generator( SR('S'), SR('I'), SR('S'), 0, models, vertex_namer, param_namer, compartment_renaming )
     import itertools
     return itertools.chain( *(
-        single_edge_stratifier( v, w, e, i, models, vertex_namer, param_namer, compartment_renaming )
+        single_edge_generator( v, w, e, i, models, vertex_namer, param_namer, compartment_renaming )
         for i in range(len(models)) for v,w,e in models[i]._flow_graph.edge_iterator()
     ) )
 
-# function names used by the edge stratifier: we can't put tuples into
+# function names used by the edge generator: we can't put tuples into
 # symbolic expressions directly so we represent them by instances like
 # bm_state( S, a ), bm_param( beta, S, I ), etc.
 from sage.symbolic.function_factory import function
@@ -799,11 +799,11 @@ class BoxModelProduct(boxmodel.BoxModel):
 	compartment_renaming =  kwargs.pop( 'compartment_renaming',  default_compartment_renaming )
 	vertex_namer =    kwargs.pop( 'vertex_namer',    default_vertex_namer )
 	param_namer =     kwargs.pop( 'param_namer',     default_vertex_namer )
-	edge_stratifier = kwargs.pop( 'edge_stratifier', default_edge_stratifier )
+	edge_generator = kwargs.pop( 'edge_generator', default_edge_generator )
 	vertex_positioner = kwargs.pop( 'vertex_positioner', default_vertex_positioner )
 	if kwargs: raise TypeError, "Unknown named arguments to BoxModelProduct: %s" % str(kwargs)
 
-	edges = list( edge_stratifier( models, vertex_namer, param_namer, compartment_renaming ) )
+	edges = list( edge_generator( models, vertex_namer, param_namer, compartment_renaming ) )
 	print 'edges for product graph:', edges
 	self._graph = DiGraph( edges, multiedges=True )
 
@@ -986,7 +986,7 @@ class BoxModelProduct(boxmodel.BoxModel):
 def cross( *models ):
     return BoxModelProduct( *models )
 
-def union_stratifier( models, vertex_namer, param_namer, compartment_renaming ):
+def union_edge_generator( models, vertex_namer, param_namer, compartment_renaming ):
     import itertools
     return itertools.chain( *(m._graph.edge_iterator() for m in models) )
 
@@ -1004,11 +1004,11 @@ def union( *models ):
     """union of the models' vertex and edge sets"""
     return BoxModelProduct( *models,
 	vertex_namer = x_namer,
-	edge_stratifier = union_stratifier,
+	edge_generator = union_edge_generator,
 	vertex_positioner = union_positioner
     )
 
-def strong_edge_stratifier( models, vertex_namer, param_namer, compartment_renaming ):
+def strong_edge_generator( models, vertex_namer, param_namer, compartment_renaming ):
     """Generate all the edges of the strong product of models:
     for each source vertex (v1,...,vn)
         every vertex (w1,...,wn) is a target if each wi either
@@ -1035,7 +1035,7 @@ def strong_product( *models, **kwargs ):
     vertex_positioner = kwargs.pop( 'vertex_positioner', default_vertex_positioner )
     if kwargs: raise TypeError, "Unknown named arguments to BoxModelProduct: %s" % str(kwargs)
     return BoxModelProduct( *models,
-	edge_stratifier = strong_edge_stratifier,
+	edge_generator = strong_edge_generator,
 	vertex_namer = vertex_namer,
 	compartment_renaming = compartment_renaming,
 	param_namer = param_namer,
@@ -1052,7 +1052,7 @@ def power_compartment_renaming( s, pos, *ss ): # e.g. transform (S, 2, I) to (I,
     #print 'combine', s, pos, ss, ':', tuple(cs)
     return tuple(cs)
 
-def power_edge_stratifier( source, target, rate, i, models, vertex_namer, param_namer, compartment_renaming ):
+def power_edge_generator( source, target, rate, i, models, vertex_namer, param_namer, compartment_renaming ):
     ## the power model has all the edges of the cross
     edges = default_single_edge_stratifier( source, target, rate, i, models, vertex_namer, param_namer, compartment_renaming )
     ## plus extra edges for within-group interactions.
@@ -1098,7 +1098,7 @@ def power( model, i ):
     return BoxModelProduct( model, i_model, empty_model,
 	vertex_namer = x_namer,
 	compartment_renaming = power_compartment_renaming,
-	edge_stratifier = lambda m,v,w,x: default_edge_stratifier( m,v,w,x, single_edge_stratifier=power_edge_stratifier ),
+	edge_generator = lambda m,v,w,x: default_edge_generator( m,v,w,x, single_edge_generator=power_edge_generator ),
 	vertex_positioner = power_vertex_positioner
     )
 </source-file>
