@@ -191,6 +191,50 @@ are arbitrary functions of compartment sizes will probably not be handled
 adequately by this rule, and we'll need to allow users to supply their
 own rules for creation of transitions in the product model.
 
+Can I redefine this and the previous case using a binary relation of the
+form $$\text{source}+\text{catalyst}\to(\text{destination}, \text{rate})$$?
+
+I think so: it will require a concept of **inclusion** of a compartment
+in another.  The compartments
+of a compartment model are a partition of the population, and
+a product model's compartments are set-theoretical intersections of the
+component model's compartments.  For example, compartment $$S_b$$ in the
+above example is the intersection of the sets $$S$$ and $$b$$.  Thus $$S_b$$
+is a subset of $$S$$ and of $$b$$.  For precision, we'll say there is an
+**inclusion** of $$V$$ in $$v$$ when $$V$$ is a subset of $$v$$.
+But note there may be multiple such inclusions, for example when $$V$$ is
+$$(v,v)$$.  The "for every" clauses in the definition below must be applied
+once to each such inclusion, not once to each supercompartment $$v$$.
+We make the possible different inclusions $$\iota$$ explicit by writing
+$$V\xrightarrow[\iota]{}v$$.
+
+Given that, here is a definition of the cross product:
+
+The vertex set of the cross product of box models is the Cartesian product
+of their vertex sets.  Its edges are defined by the following relation:
+
+* For every edge $$(v,w,r)$$ of each component model
+    * if the rate is a constant multiple of the source $$v$$
+        * for every inclusion of every compartment $$V$$ in $$v$$
+            * produce a transition from $$V$$ to the corresponding $$W$$
+with stratified rate
+    * if the rate $$r$$ is a product of the source $$v$$ and a second
+compartment $$c$$, which we will call a **catalyst**
+        * for every inclusion of every compartment $$V$$ in $$v$$, for every inclusion of every compartment $$C$$ in $$c$$
+            * produce a transition from $$V$$ to corresponding $$W$$
+with appropriately stratified rate
+
+or $$M = M_1\times\cdots\times M_n$$ if
+
+$$E(M) = \cup_{M_i}\cup_{(v,w,r)\in M_i}\operatorname{strat}(v,w,r)$$
+
+where
+
+<latex>$\operatorname{strat}(v,w,r) = \begin{cases}
+  \cup_{v\xrightarrow[\iota]{}V} (V,\operatorname{dest}(w,V),\operatorname{rel}(r,\iota)) & \operatorname{comp}(r) = \{v\} \\
+  \cup_{V\in V(M)}\cup_{v\xrightarrow[\iota]{}V}\cup_{c\xrightarrow[\iota']{}C} (V,\operatorname{dest}(w,V),\operatorname{rel}(r,\iota,\iota')) & \operatorname{comp}(r) = \{v,c\}
+\end{cases}$</latex>
+
 ## Example: Infectious dynamics of couples (ordered pairs)
 
 Also, that multiple stratification isn't right for a model of
@@ -208,16 +252,15 @@ infection events.  In total, we'll generate this model:
 # requires: $(BoxModels)/boxmodel.py $(BoxModels)/boxmodelproduct.py
 # requires: $(SageDynamics)/dynamicalsystems.py
 # requires: $(SageAdaptiveDynamics)/adaptivedynamics.py
-# produces: defpairs.sage.out.tex
+# produces: defpairs.sage.out.tex SI-pair.sobj
 # produces: SI-pair-step1.boxes.tex SI-pair-step2.boxes.tex SI-pair-step3.boxes.tex
-import os
-import sys
+import os, sys
 sys.path.append( os.environ['BoxModels'] )
 sys.path.append( os.environ['SageUtils'] )
 from latex_output import *
-import boxmodel
-import boxmodelproduct
+import boxmodel, boxmodelproduct
 from dynamicalsystems import subscriptedsymbol
+
 # alternative naming: instead of S_I, X_{SI}
 def x_namer( *ss ):
     return subscriptedsymbol( 'X', *ss )
@@ -263,6 +306,8 @@ else:
     SI2_3 = boxmodelproduct.power( SI, 2 )
     SI2_3.plot_boxes( 'SI-pair-step3.boxes.tex', figsize=(7,7) )
     #SI2_3.plot().save( filename='SI-pair-step3.png', figsize=(3,3) )
+
+save_session( 'SI-pair' )
 
 ltx = latex_output( 'defpairs.sage.out.tex' )
 ltx.write( SI2_3.ode() )
@@ -314,6 +359,27 @@ $$R:P_M\to P_R$$, is a compartment model $$R(M)$$ in which
 * the transitions of $$R(M)$$ are $$(R(s),R(t),R(r))$$ for every transition
 $$(s,t,r)$$ of $$M$$, where
 $$R(r)(c'_1,\ldots,c'_{n'},p'_1,\ldots,p'_{m'})=r(R(c_1),\ldots,R(c_n),R(p_1),\ldots,R(p_m))$$, given $$C_R=\{c'_1,\ldots,c'_{n'}\}$$, and $$P_R=\{p_1,\ldots,p'_{m'}\}$$.
+
+Here is the above square, relabeled so that order within each pair
+isn't distinguished.  [TO DO: no it isn't]
+
+<source-file filename="SI-pair-unordered.sage.step" display=SI-pair-unordered.boxes.crop.svg>
+# requires: $(BoxModels)/boxmodel.py $(BoxModels)/boxmodelproduct.py
+# requires: $(SageDynamics)/dynamicalsystems.py
+# requires: SI-pair.sobj
+# produces: SI-pair-unordered.boxes.tex
+import os, sys
+sys.path.append( os.environ['BoxModels'] )
+sys.path.append( os.environ['SageUtils'] )
+from latex_output import *
+import boxmodel, boxmodelproduct
+from dynamicalsystems import subscriptedsymbol
+
+load_session( 'SI-pair' )
+
+uno = boxmodelproduct.power( SI, 2 )
+uno.plot_boxes( 'SI-pair-unordered.boxes.tex', figsize=(7,7) )
+</source-file>
 
 ### Constructing within-pair events and adding to a box model
 
@@ -679,8 +745,11 @@ across each pair of compartments.  There must be more than that as well:
 nearly every possible encounter between two types needs at least one
 transition, sometimes more.
 
-To come: what happens when we specify a binary operation on
-compartments
+I have an implementation of this product using a recursive binary relation.
+I want to understand a little better what it has to do with the other
+formulations in this paper, then I'll write it up.
+
+Here is a hierarchical coinfection model generated by software:
 
 <source-file filename="binary-ops.sage.step" display="bop2.boxes.crop.svg">
 # requires: $(BoxModels)/boxmodel.py
@@ -723,8 +792,8 @@ def si( tup ):
 pos = { 'S':(0,0), 'I_1':(1,0), 'I_2':(0,-1), 'I_1_2':(1,-0.7), 'I_2_1':(0.7,-1) }
 def bsi( x, y, z ):
     return dynamicalsystems.subscriptedsymbol('beta', si(x), si(y), si(z))*si(x)*si(y)
-bopgraph = DiGraph(
-    [ (si(x),si(z),bsi(x,y,z)) for x,y,s in boplist for z in s ],
+bopgraph = DiGraph( # this isn't working right
+    [ (si(s),si(t),bsi(s,c,t)) for s,c,ts in boplist for t in ts if si(t) != si(s) ],
     multiedges=True,
     pos = { SR.symbol(x):p for x,p in pos.iteritems() }
 )
@@ -841,7 +910,6 @@ def generate_boxmodel_from_binary_operation( bop, seed_set, pos=None ):
         if len(comps) > 1000:
 	    raise RuntimeError, 'Recurrence produces too many compartments'
     print 'edges', [ (si(s),si(t),bsi(s,c,t)) for (s,c),ts in trans.iteritems() for t in ts ]
-
     bopgraph = DiGraph(
         [ (si(s),si(t),bsi(s,c,t)) for (s,c),ts in trans.iteritems() for t in ts ],
         multiedges=True,
@@ -867,9 +935,19 @@ bopmodel = generate_boxmodel_from_binary_operation( codominance_op, seed_set, po
 bopmodel.plot_boxes( 'bop3.boxes.tex', figsize=(9,9) )
 </source-file>
 
+Here is a variant in which an encounter with an infected individual can
+knock out one or more of your strains, as well as giving you new ones:
+
 <project-file filename=bop4.boxes.crop.svg/>
 
+Here's a variant in which it's possible to get infected with both strains
+equally:
+
 <project-file filename=bop3.boxes.crop.svg/>
+
+Here's a hand-drawn box model with hierarchical coinfection where
+one strain can knock out the other.  If this is the model we want
+I can look for a general rule that generates it.
 
 <project-file filename=bop.boxes.crop.svg/>
 

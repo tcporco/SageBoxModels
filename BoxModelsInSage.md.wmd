@@ -1091,13 +1091,15 @@ def power_vertex_positioner( graph, models, compartment_renaming ):
     so we need to use the vertex positioner accordingly."""
     return default_vertex_positioner( graph, [ models[0] ] + list( models[2:] ), compartment_renaming )
 
-def power( model, i ):
+def power( model, i, compartment_renaming=lambda *x:x ):
     # require i=2 for now
     i_model = boxmodel.BoxModel( DiGraph( { j+1:[] for j in range(i) } ), [1,2] )
     empty_model = boxmodel.BoxModel( DiGraph( { v:[] for v in model._vars } ), model._vars )
+    # note compartment_renaming is applied AFTER power_compartment_renaming,
+    # e.g. to (S,I) not to (I,2,S)
     return BoxModelProduct( model, i_model, empty_model,
 	vertex_namer = x_namer,
-	compartment_renaming = power_compartment_renaming,
+	compartment_renaming = lambda *x: compartment_renaming( *power_compartment_renaming( *x ) ),
 	edge_generator = lambda m,v,w,x: default_edge_generator( m,v,w,x, single_edge_generator=power_edge_generator ),
 	vertex_positioner = power_vertex_positioner
     )
