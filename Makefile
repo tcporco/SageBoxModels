@@ -1,3 +1,19 @@
+
+# to make a single target, you can use make wmd_files/Project/target
+# or more usefully, make sync wmd_files/Project/target
+# using the rule below.
+# that puts the output of make on stdout.  To get the output in the
+# .make.log file, do make wmd_files/Project/target.make.log
+# using this rule.  Note sync is redundant because this includes the
+# sync operation.
+%.make.log : /proc/uptime
+	php $(WW_DIR)/wmd/wmd.php --post --cache-dir=wmd_files --default-project-name=$(subst /,,$(subst wmd_files/,,$(dir $*))) --make-single-file=$(notdir $*)
+
+kdjlfj:
+	echo wmd_make_single_file: $(notdir $*) > _make_single_file.yml
+	jekyll build --config=_config.yml,_make_single_file.yml
+	$(RM) _make_single_file.yml
+
 # make working files in their directories.
 # Note a file in a subdirectory of a working directory won't be made right,
 # you'll have to construct a make -C command yourself.
@@ -15,11 +31,17 @@ WW_CSS_TO_USE = $(patsubst %,$(WW_DIR)/resources/%,ext.workingwiki.latexml.css e
 css/auto-generated-from-ww.css : $(WW_CSS_TO_USE)
 	cat $(WW_CSS_TO_USE) > $@
 
+# to rebuild a single page, i.e. rebuild the site while only doing make
+# operations on a single page
+# $ make _site/page.html
+_site/%.html : /proc/uptime
+	echo wmd_make_page: $*.md > _make_page.yml
+	jekyll build --config=_config.yml,_make_page.yml
+	$(RM) _make_page.yml
+
 # experimental pandoc pipeline
 
 WW = /usr/local/src/workingwiki
-PROJECT=Notes
-TITLE="Definitions of Box Model objects"
 _pandoc/%.md : %.md.wmd wmd_files/.workingwiki/.wmd.data
 	php $(WW)/wmd/wmd.php --pre --title='$(TITLE)' --default-project-name=$(PROJECT) --cache-dir=wmd_files --data-store=.wmd.data --modification-time=`date +%Y%m%d%H%M%s` --process-inline-math=1 --output-format=tex < $< > $@
 
@@ -45,6 +67,8 @@ wmd_files/.workingwiki/.wmd.data : *.md.wmd # */*.md.wmd
 # the YAML header included).
 _pandoc/Measles.% : PROJECT=Measles 
 _pandoc/Measles.% : TITLE="Subcritical Measles Outbreak Size"
+_pandoc/Definitions.% : PROJECT=Notes
+_pandoc/Definitions.% : TITLE="Definitions of Box Model objects"
 
 .PRECIOUS: _pandoc/%.md _pandoc/%.tex
 
