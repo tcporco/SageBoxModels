@@ -668,18 +668,6 @@ class MakeMicro(IdentityConverter):
 from sage.all import *
 import dynamicalsystems, boxmodel
 
-def flatten( lst ):
-    try:
-	# nonempty list: flatten recursively
-	return flatten( lst[0] ) + flatten( lst[1:] )
-    except:
-	try:
-	    # empty list: return empty list
-	    return lst[:]
-	except:
-	    # not a list: return list of it
-	    return [ lst ]
-
 # function names used by the edge generator: we can't put tuples into
 # symbolic expressions directly so we represent them by instances like
 # bm_state( S, a ), bm_param( beta, S, I ), etc.
@@ -705,9 +693,6 @@ def default_compartment_aggregation(*args):
 # by default, make tuples of state variables into combined state variables by
 # subscripting the first with the others
 default_vertex_namer = dynamicalsystems.subscriptedsymbol
-#def default_vertex_namer( *vtuple ):
-#    ss = dynamicalsystems.subscriptedsymbol( *vtuple )
-#    return ss
 
 # sometimes we want to use this instead.  Rather than
 # (S,a) -> 'S_a', gives (S,a) -> 'X_{Sa}'.
@@ -746,52 +731,6 @@ def full_param_relabeling( *vtuple ):
 	    except TypeError:
 		yield t
     return bm_param( *(unwrap(*vtuple[:-1])) )
-
-# and make stratified transitions according to an appropriate rule
-def default_single_edge_stratifier( source, target, rate, i, models, vertex_namer, param_relabeling, compartment_renaming ):
-    """we are given (rate, i, (v, v, ...)) where rate is an expression
-    describing a transition of models[i],
-    and the vs are the Cartesian product of vertices at the arrow's
-    source (not processed by the state combiner).
-    This function assumes the rate is a product of parameters and
-    state variables, and will do weird and wrong stuff if that's not true."""
-    #print 'dealing with rate:', rate
-    ## list all compartments involved in the transition rate
-    rate_vars = rate.variables()
-    import itertools
-    ## list all the ways a compartment (of the relevant model) can be stratified
-    raw_strats = [ list(vst) for vst in itertools.product( *(models[j]._vars for j in range(len(models)) if j != i) ) ]
-    #print 'raw_strats:', raw_strats
-    ## make list of all stratifications of all relevant variables
-    all_strats = [ [] ]
-    for x in models[i]._vars:
-	if x in rate_vars or x is source:
-	    all_strats = [ str + [ (x,xstr) ] for str in all_strats for xstr in raw_strats ]
-    #print 'all_strats:', all_strats
-    ## produce a stratified edge for each of those
-    edges = []
-    for str in all_strats:
-	#stup = compartment_renaming( *[ tuple( sstr[:i] + [source] + sstr[i:] ) for x,sstr in str if x is source ][0] )
-	stup = bm_state( *compartment_renaming( *[ tuple( sstr[:i] + [source] + sstr[i:] ) for x,sstr in str if x is source ][0] ) )
-	#print 'stup, from', [ tuple( sstr[:i] + [source] + sstr[i:] ) for x,sstr in str if x is source ], 'to', stup
-	#ttup = compartment_renaming( *[ tuple( sstr[:i] + [target] + sstr[i:] ) for x,sstr in str if x is source ][0] )
-	ttup = bm_state( *compartment_renaming( *[ tuple( sstr[:i] + [target] + sstr[i:] ) for x,sstr in str if x is source ][0] ) )
-	repl = { x: bm_state( *compartment_renaming( *(xstr[:i] + [x] + xstr[i:]) ) ) for x,xstr in str }
-	psubs = reduce( lambda x,y:x+y, (xstr for x,xstr in str) )
-        #repl.update( { p: param_namer( [ p ] + psubs ) for p in models[i]._parameters } )
-        repl.update( { p: bm_param( *([ p ] + psubs) ) for p in models[i]._parameters } )
-	#print 'repl:', repl
-        edges += [ ( stup, ttup, rate.subs( repl ) ) ]
-    #print 'edges:', edges
-    return edges
-
-def default_edge_generator( models, vertex_namer, param_namer, compartment_renaming, single_edge_generator=default_single_edge_stratifier ):
-    #print 'edge_stratifier:', single_edge_generator( SR('S'), SR('I'), SR('S'), 0, models, vertex_namer, param_namer, compartment_renaming )
-    import itertools
-    return itertools.chain( *(
-        single_edge_generator( v, w, e, i, models, vertex_namer, param_namer, compartment_renaming )
-        for i in range(len(models)) for v,w,e in models[i]._flow_graph.edge_iterator()
-    ) )
 
 def default_vertex_positioner( graph, models, compartment_renaming ):
     """default_vertex_positioner:
@@ -1041,7 +980,7 @@ def tuple_inclusions( c, tup ):
 # component model, given a set of product vertices.  It loops
 # over those vertices and generates all the product edges involving
 # those vertices that are versions of that one component edge.
-def bop_single_edge_stratifier(
+def default_single_edge_stratifier(
 	source, target, rate, i, models,
 	seed_set, vertex_namer, param_relabeling, compartment_renaming,
 	old_set=Set(), cross_interactions=True,
@@ -1104,10 +1043,10 @@ def bop_single_edge_stratifier(
 # It calls its single_edge_generator once for each edge of each
 # component model, to generate all the product edges made from
 # that original edge.
-def bop_edge_generator(
+def default_edge_generator(
 	models,
 	vertex_namer, param_relabeling, compartment_renaming,
-	single_edge_generator=bop_single_edge_stratifier,
+	single_edge_generator=default_single_edge_stratifier,
 	seed_set=None, cross_interactions=True,
 	sop=default_sop, bop=default_bop,
 	inclusions=tuple_inclusions
@@ -1149,24 +1088,6 @@ def bop_edge_generator(
 	    raise RuntimeError, 'Recursion produces too many compartments'
     return [ ( bm_state( *compartment_renaming( *V ) ), bm_state( *compartment_renaming( *W ) ), r ) for V,W,r in edges ]
 
-def default_strong_edge_bundle_generator(
-	eis, models, seed_set,
-	vertex_namer, param_relabeling, compartment_renaming,
-	sop, bop, cross_interactions=True,
-	inclusions=tuple_inclusions,
-	old_set=Set()
-    ):
-    print 'strong edge bundle generator:', eis
-    # placeholder behavior
-    if len(eis) == 1:
-	(s, t, r), i = eis[0]
-	return bop_single_edge_stratifier( s,t,r,i, models, seed_set,
-	    vertex_namer, param_relabeling, compartment_renaming,
-	    sop=sop, bop=bop, cross_interactions=cross_interactions,
-	    inclusions=tuple_inclusions,
-	    old_set=old_set )
-    return Set()
-
 def default_sop_strong( s_tuple, eis ):
     # return set of t_tuples
     print 'sop', s_tuple, eis
@@ -1179,11 +1100,13 @@ def default_bop_strong( s_tuple, c_tuple, iset, i_set, eis ):
     for (v,w,r),i in eis: tl[i] = w
     return Set( [ tuple(tl) ] )
 
-# 'single edge stratifier' is called once for each set of
+# this thing is called once for each set of
 # component edges, given a set of product vertices.  It loops
 # over those vertices and generates all the product edges involving
 # those vertices that are versions of that combination of component
 # edges.
+# TODO: much duplication with the regular single_edge_generator.
+# maybe merge
 def default_strong_edge_bundle_generator(
 	eis, models,
 	seed_set, vertex_namer, param_relabeling, compartment_renaming,
@@ -1242,9 +1165,7 @@ def default_strong_edge_bundle_generator(
     		    source: bm_state( *compartment_renaming( *V ) ),
     		    catalyst: bm_state( *compartment_renaming( *C ) )
     	        }
-		Set( iota )
-		Set( list( iota_ ) )
-    	        ts = bop( V, C, Set( iota ), Set( list( iota_ ) ), eis )
+    	        ts = bop( V, C, list( iota ), list( iota_ ), eis )
 		print 'bop returns', ts
     	        for W in ts:
     	            repl.update( { p: param_relabeling( p, V, iota, C, iota_, W ) for p in rate_params } )
@@ -1258,7 +1179,7 @@ def default_strong_edge_bundle_generator(
     else: # wrong variables in rate
 	raise BoxModelProductException, "Don't understand rate ".str(rate)
 
-def strong_bop_edge_generator(
+def strong_edge_generator(
 	models,
 	vertex_namer, param_relabeling, compartment_renaming,
 	strong_edge_bundle_generator=default_strong_edge_bundle_generator,
@@ -1331,26 +1252,7 @@ def union( *models ):
 	vertex_positioner = union_positioner
     )
 
-def strong_edge_generator( models, vertex_namer, param_namer, compartment_renaming ):
-    """Generate all the edges of the strong product of models:
-    for each source vertex (v1,...,vn)
-        every vertex (w1,...,wn) is a target if each wi either
-            is target of an edge vi->wi
-            or is vi
-    """
-    import itertools
-    return (
-	( bm_state( *compartment_renaming( *vs ) ),
-	  bm_state( *compartment_renaming( *ws ) ),
-	  SR(1)
-	)
-	for vs in itertools.product( *(m._vars for m in models) )
-	for ws in itertools.product( *(m._graph.neighbors_out(v) + [v] for v,m in zip(vs,models)) )
-	if ws != vs
-    )
-    raw_strats = [ list(vst) for vst in itertools.product( *(models[j]._vars for j in range(len(models)) if j != i) ) ]
-
-## TODO: strong product doesn't do rates, only vertices and arrows
+## TODO: rewrite using new strong_edge_generator with bop
 def strong_product( *models, **kwargs ):
     compartment_renaming =  kwargs.pop( 'compartment_renaming',  default_compartment_renaming )
     vertex_namer =    kwargs.pop( 'vertex_namer',    default_vertex_namer )
@@ -1365,66 +1267,11 @@ def strong_product( *models, **kwargs ):
 	vertex_positioner = vertex_positioner
     )
 
-def power_compartment_renaming( s, pos, *ss ): # e.g. transform (S, 2, I) to (I, S)
-    cs = list( ss )
-    print 'power, combine:', s, pos, ss
-    cs.insert( int(pos)-1, s )
-    #print 'combine', s, pos, ss, ':', tuple(cs)
-    return tuple(cs)
-
-def power_edge_generator( source, target, rate, i, models, vertex_namer, param_namer, compartment_renaming ):
-    ## the power model has all the edges of the cross
-    edges = default_single_edge_stratifier( source, target, rate, i, models, vertex_namer, param_namer, compartment_renaming )
-    ## plus extra edges for within-group interactions.
-    ## I don't even want to think about interactions of more than two
-    ## classes, which could be partly within-group and partly between-groups.
-    ## The case we handle is a transition from stratified source to
-    ## similarly stratified target, due to interactions within the
-    ## source compartment
-    print 'within-pair interactions for', rate
-    import itertools
-    strats = [ list(vst) for vst in itertools.product( *(models[j]._vars for j in range(len(models)) if j is not i) ) ]
-    for str in strats:
-	print 'strat:', str
-	stup = bm_state( *compartment_renaming( *(str[:i] + [source] + str[i:]) ) )
-        ttup = bm_state( *compartment_renaming( *(str[:i] + [target] + str[i:]) ) )
-	#repl = { source: vertex_namer( stup ) }
-	repl = { source: stup }
-	for x in models[i]._vars:
-	    if x is not source:
-		if x in str:
-		    repl[x] = 1
-		else:
-		    repl[x] = 0
-	## note params are stratified differently here than in the default
-	## transitions - only one set of subscripts
-	#repl.update( { p: param_namer( [p] + str ) for p in models[i]._parameters } )
-	repl.update( { p: bm_param( *([p] + str) ) for p in models[i]._parameters } )
-	rrate = rate.subs( repl )
-	if rrate != 0:
-	    edges += [ ( stup, ttup, rrate ) ]
-    return edges
-
-def power_vertex_positioner( graph, models, compartment_renaming ):
-    """the compartment renaming transforms tuples from
-    model x i_model x empty_model into tuples from model x empty_model,
-    so we need to use the vertex positioner accordingly."""
-    return default_vertex_positioner( graph, [ models[0] ] + list( models[2:] ), compartment_renaming )
-
 def power( model, i, compartment_renaming=lambda *x:x ):
-    # require i=2 for now
-    i_model = boxmodel.BoxModel( DiGraph( { j+1:[] for j in range(i) } ), [1,2] )
-    empty_model = boxmodel.BoxModel( DiGraph( { v:[] for v in model._vars } ), model._vars )
-    # note compartment_renaming is applied AFTER power_compartment_renaming,
-    # e.g. to (S,I) not to (I,2,S)
-    return BoxModelProduct( model, i_model, empty_model,
-	vertex_namer = x_namer,
-	compartment_renaming = lambda *x: compartment_renaming( *power_compartment_renaming( *x ) ),
-	edge_generator = lambda m,v,w,x: default_edge_generator( m,v,w,x, single_edge_generator=power_edge_generator ),
-	vertex_positioner = power_vertex_positioner
+    return BoxModelProduct(
+	*([model] * i),
+	vertex_namer = x_namer
     )
-</source-file>
-
 <source-file filename=upstream.mk>
 # Makefile to connect the Sage code here with the code in SageDynamics
 

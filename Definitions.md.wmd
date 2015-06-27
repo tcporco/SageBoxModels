@@ -108,31 +108,15 @@ sys.path.append( os.environ['SageUtils'] )
 from latex_output import *
 from boxmodel import *
 from boxmodelproduct import *
-Ss, Is, betas = {}, {}, {}
-for i in ('a','b'):
-    Ss[i] = SR.symbol('X_'+i)
-    Is[i] = SR.symbol('Y_'+i)
-    betas[i] = SR.symbol('lambda_'+i, latex_name='\\lambda_{'+i+'}')
-XYab = BoxModel(
-    DiGraph(
-        { Ss[i]:{ Is[i]: Ss[i]*betas[i] } for i in ('a','b') },
-        pos = { Ss['a']:[ 0,1 ], Ss['b']:[ 0,0 ], Is['a']:[ 1/2,1 ], Is['b']:[ 1/2,0 ] }
-    ), [ Ss['a'], Ss['b'], Is['a'], Is['b'] ] )
+
+lb = SR.symbol( 'lmbda', latex_name='\\lambda' )
+X,Y,a,b = SR.var('X Y a b')
+XY = BoxModel( DiGraph( [ (X, Y, lb*X) ] ), [X, Y] )
+ab = BoxModel( DiGraph( {a:{b:[]}} ), [a,b] )
+XYab = BoxModelProduct( XY, ab )
 XYab.plot_boxes( 'XYab.boxes.tex', figsize=(7,1) )
 XYab.plot_boxes( 'XYab.boxes.tex-inline', inline=True, figsize=(7,1) )
-
-# check new stratifying
-lb = SR.symbol( 'lmbda', latex_name='\\lambda' )
-XY = BoxModel( DiGraph( [ (SR.symbol('X'), SR.symbol('Y'), lb*SR('X')) ] ), [SR('X'), SR('Y')] )
-ab = BoxModel( DiGraph( {SR('a'):{SR('b'):[]}} ), [SR('a'),SR('b')] )
-XYab_bop = BoxModelProduct(
-    XY, ab,
-    edge_generator=bop_edge_generator )
-XYab_bop.plot_boxes( 'XYab-bop.boxes.tex', figsize=(7,1) )
-XYab_bop.plot_boxes( 'XYab-bop.boxes.tex-inline', inline=True, figsize=(7,1) )
 </source-file>.
-
-<project-file filename=XYab-bop.boxes.crop.svg/>
 
 In the simple Cartesian product of models, we construct transitions by
 the following rule:
@@ -161,7 +145,6 @@ of stratified compartments.  The correct product model is this one:
 # requires: $(SageDynamics)/dynamicalsystems.py
 # requires: $(SageAdaptiveDynamics)/adaptivedynamics.py
 # produces: SIab2.sage.out.tex SIab2.boxes.tex
-# produces: SIab-bop.boxes.tex
 import os
 import sys
 sys.path.append( os.environ['BoxModels'] )
@@ -169,29 +152,12 @@ sys.path.append( os.environ['SageUtils'] )
 from latex_output import *
 from boxmodel import *
 from boxmodelproduct import *
-Ss, Is, betas = {}, {}, {}
-for i in ('a','b'):
-    Ss[i] = SR.symbol('S_'+i)
-    Is[i] = SR.symbol('I_'+i)
-    betas[i] = {
-	'a':SR.symbol('beta_'+i+'_a', latex_name='\\beta_{'+i+'a}'),
-	'b':SR.symbol('beta_'+i+'_b', latex_name='\\beta_{'+i+'b}')
-    }
-SIab = BoxModel(
-    DiGraph(
-	[ (Ss[i], Is[i], Ss[i]*betas[i][j]*Is[j]) for i in ('a','b') for j in ('a','b') ],
-        #{ Ss[i]:{ Is[i]: Ss[i]*(betas[i]['a']*Is['a']+betas[i]['b']*Is['b']) } for i in ('a','b') },
-        pos = { Ss['a']:[ 0,1/2 ], Ss['b']:[ 0,0 ], Is['a']:[ 1,1/2 ], Is['b']:[ 1,0 ] },
-	multiedges=True
-    ), [ Ss['a'], Ss['b'], Is['a'], Is['b'] ] )
-SIab.plot_boxes( 'SIab2.boxes.tex', figsize=(7,2) )
-#SIab.plot().save( filename='SIab2.png', figsize=(3,3), fig_tight=False )
 
 S, I, a, b, beta = SR.var( 'S I a b beta' )
 SI = BoxModel( DiGraph( [ (S, I, beta*S*I) ] ), [S,I] )
 ab = BoxModel( DiGraph( {a:{b:[]}} ), [a,b] )
-SIab_bop = BoxModelProduct( SI, ab, edge_generator=bop_edge_generator )
-SIab_bop.plot_boxes( 'SIab-bop.boxes.tex', figsize=(7,2) )
+SIab = BoxModelProduct( SI, ab )
+SIab.plot_boxes( 'SIab.boxes.tex', figsize=(7,2) )
 </source-file>.
 
 If we used the simple Cartesian product, we would not generate the correct
@@ -258,17 +224,13 @@ where
   \{ (V,\operatorname{dest}(w,V),\operatorname{rel}(r,\iota,\iota')) \mid v\xrightarrow[\iota]{}V, c\xrightarrow[\iota']{}C \} & \operatorname{comp}(r) = \{v,c\}
 \end{cases}$</latex>
 
-Yes: looks good!
-
-<project-file filename=SIab-bop.boxes.crop.svg/>
-
 ## Example: Infectious dynamics of couples (ordered pairs)
 
 Also, that multiple stratification isn't right for a model of
 pairs (or larger groupings) of people.  Here is what we get if we
 use that definition as is:
 
-<project-file filename=SI-pair-bop-naive.boxes.crop.svg/>
+<project-file filename=SI-pair-naive.boxes.crop.svg/>
 
 This models pairs of individuals taken from two completely separate,
 non-interacting populations.  The second individual of a pair can't
@@ -287,8 +249,7 @@ In total, we'll generate this model:
 # requires: $(SageDynamics)/dynamicalsystems.py
 # requires: $(SageAdaptiveDynamics)/adaptivedynamics.py
 # produces: defpairs.sage.out.tex SI-pair.sobj
-# produces: SI-pair-step1.boxes.tex SI-pair-step2.boxes.tex SI-pair-step3.boxes.tex
-# produces: SI-pair-bop.boxes.tex SI-pair-bop-naive.boxes.tex
+# produces: SI-pair.boxes.tex SI-pair-naive.boxes.tex
 import os, sys
 sys.path.append( os.environ['BoxModels'] )
 sys.path.append( os.environ['SageUtils'] )
@@ -304,67 +265,25 @@ def SI_combiner( s, pos, *ss ): # transform e.g. (S, 2, I) to (I, S)
 S, I, beta = SR.var( 'S I beta' )
 SI = boxmodel.BoxModel( DiGraph( [ (S, I, beta*S*I) ] ), [S, I] )
 
-# step 1
-if False:
-    SI2_1 = boxmodelproduct.BoxModelProduct( 
-        SI,
-        boxmodel.BoxModel( DiGraph( { 1:[], 2:[] } ), [1, 2] ),
-        boxmodel.BoxModel( DiGraph( { S:[], I:[] } ), [S, I] ),
-        vertex_namer = boxmodelproduct.x_namer
-    )
-    SI2_1.plot_boxes( 'SI-pair-step1.boxes.tex', figsize=(7,7) )
-    #SI2_1.plot().save( filename='SI-pair-step1.svg', figsize=(3,3), fig_tight=False )
-
-# step 2
-if False:
-    SI2_2 = boxmodelproduct.BoxModelProduct( 
-        SI,
-        boxmodel.BoxModel( DiGraph( { 1:[], 2:[] } ), [1, 2] ),
-        boxmodel.BoxModel( DiGraph( { S:[], I:[] } ), [S, I] ),
-        compartment_renaming = SI_combiner,
-        vertex_namer = boxmodelproduct.x_namer
-    )
-    SI2_2.plot_boxes( 'SI-pair-step2.boxes.tex', figsize=(7,7) )
-    #SI2_2.plot().save( filename='SI-pair-step2.svg', figsize=(3,3), fig_tight=False )
-
-# step 3
-if False:
-    def bij(i,j): return subscriptedsymbol('beta',i,j)*SI2_2._vertex_namer( i, j )
-    from boxmodelproduct import bm_state
-    SI2_3 = SI2_2.add_transitions( [ (bm_state(S,I),bm_state(I,I),bij(S,I)), (bm_state(I,S),bm_state(I,I),bij(I,S)) ] )
-    SI2_3.plot_boxes( 'SI-pair-step3.boxes.tex', figsize=(7,7) )
-    #SI2_3.plot().save( filename='SI-pair-step3.png', figsize=(3,3), fig_tight=False )
-else:
-    SI2_3 = boxmodelproduct.power( SI, 2 )
-    SI2_3.plot_boxes( 'SI-pair-step3.boxes.tex', figsize=(7,7) )
-    #SI2_3.plot().save( filename='SI-pair-step3.png', figsize=(3,3) )
-
-# step 4
-#SI0 = boxmodel.BoxModel( DiGraph( {k:[] for k in SI._vars} ), SI._vars )
-SI2_bop =boxmodelproduct.BoxModelProduct(
+SI2_naive = boxmodelproduct.BoxModelProduct(
     SI, SI, 
-    edge_generator=boxmodelproduct.bop_edge_generator,
-    param_relabeling=boxmodelproduct.full_param_relabeling,
+    edge_generator=lambda *xs: boxmodelproduct.default_edge_generator( *xs, cross_interactions=False ),
     vertex_namer=boxmodelproduct.x_namer
 )
-SI2_bop.plot_boxes( 'SI-pair-bop.boxes.tex', figsize=(7,7) ) 
+SI2_naive.plot_boxes( 'SI-pair-naive.boxes.tex', figsize=(7,7) )
 
-SI2_bop_naive = boxmodelproduct.BoxModelProduct(
-    SI, SI, 
-    edge_generator=lambda *xs: boxmodelproduct.bop_edge_generator( *xs, cross_interactions=False ),
-    vertex_namer=boxmodelproduct.x_namer
-)
-SI2_bop_naive.plot_boxes( 'SI-pair-bop-naive.boxes.tex', figsize=(7,7) )
+SI2 = boxmodelproduct.power( SI, 2 )
+SI2.plot_boxes( 'SI-pair.boxes.tex', figsize=(7,7) ) 
 
 save_session( 'SI-pair' )
 
 ltx = latex_output( 'defpairs.sage.out.tex' )
-ltx.write( SI2_3.ode() )
+ltx.write( SI2.ode() )
 ltx.close()
 exit(0r)
 </source-file>
 
-<project-file filename="SI-pair-step3.boxes.crop.svg"/>.
+<project-file filename="SI-pair.boxes.crop.svg"/>.
 
 <latex>\vspace{24pt}</latex>
 
@@ -408,10 +327,6 @@ $$R:P_M\to P_R$$, is a compartment model $$R(M)$$ in which
 * the transitions of $$R(M)$$ are $$(R(s),R(t),R(r))$$ for every transition
 $$(s,t,r)$$ of $$M$$, where
 $$R(r)(c'_1,\ldots,c'_{n'},p'_1,\ldots,p'_{m'})=r(R(c_1),\ldots,R(c_n),R(p_1),\ldots,R(p_m))$$, given $$C_R=\{c'_1,\ldots,c'_{n'}\}$$, and $$P_R=\{p_1,\ldots,p'_{m'}\}$$.
-
-Bop version:
-
-<project-file filename=SI-pair-bop.boxes.crop.svg/>
 
 Here is the above square, relabeled so that order within each pair
 isn't distinguished.  [TO DO: no it isn't]
@@ -536,16 +451,8 @@ def make_M(i):
     )
 M1 = make_M(1)
 M2 = make_M(2)
-#SII = boxmodel.BoxModel(
-#    DiGraph(
-#	[ (S[i], I[i], S[i]*beta[i]*I[i]) for i in (1,2) ],
-#	pos = { S[1]:[0,1], I[1]:[1,1], S[2]:[0,0], I[2]:[1,0] }
-#    ), [ S[1], I[1], S[2], I[2] ]
-#)
 M1M2 = boxmodelproduct.union( M1, M2 )
 M1M2.plot_boxes( 'M1M2.boxes.tex', figsize=(7,2) )
-#SII.plot().save( filename='M1M2.png', figsize=(3,3), fig_tight=False )
-
 save_session( 'M1M2' )
 </source-file>.
 
@@ -808,7 +715,7 @@ Here is a hierarchical coinfection model generated by software:
 # requires: $(BoxModels)/boxmodel.py $(BoxModels)/boxmodelproduct.py 
 # requires: $(SageDynamics)/dynamicalsystems.py
 # requires: $(SageAdaptiveDynamics)/adaptivedynamics.py
-# produces: bop.boxes.tex bop2.boxes.tex
+# produces: bop.boxes.tex bop2.boxes.tex bop3.boxes.tex bop4.boxes.tex
 import os, sys
 sys.path.append( os.environ['SageDynamics'] )
 sys.path.append( os.environ['SageUtils'] )
@@ -852,129 +759,6 @@ bopgraph = DiGraph( # this isn't working right
 )
 bopmodel = boxmodel.BoxModel( bopgraph )
 bopmodel.plot_boxes( 'bop.boxes.tex', figsize=(9,9) )
-#bopmodel.plot_boxes( 'bop.boxes.tex', edge_labels=False, figsize=(7,7) )
-
-# now with bop as a function, used recurrently on starting set
-# Each compartment is an ordered pair of sets
-# ( { dominant strains }, { subdominant strains } )
-
-# define the binary relation source + catalyst |-> target(s), in general
-
-def single_dominance_op( source, catalyst ):
-    targets = Set()
-    #print source, '+', catalyst
-    for sst in Subsets( union( *catalyst ) ):
-	# source can catch any subset of catalyst's infections
-	#print sst, 'is a subset of', Set( union( *catalyst ) )
-	if len(sst) == 0: # if empty subset, nothing happens
-	    next
-        if len(source[0]) > 0:
-	    # if source already has infections, new ones are subdominant
-	    target = ( source[0], source[1].union(sst-source[0]) )
-	    #print target
-	    targets += Set( [ target ] )
-        else:
-	    # if source is S, can get any combination of dom/sub
-	    sstdom_candidates = sst
-	    for sstdom in sstdom_candidates:
-	        target = ( Set( [sstdom] ), sst - Set( [sstdom] ) )
-	        #print target
-	        targets += Set( [ target ] )
-    #print source, '+', catalyst, '==>', targets
-    return targets
-
-def codominance_op( source, catalyst, allow_codominance=True, allow_displacement=False ):
-    targets = Set()
-    for sst in Subsets( union( *catalyst ) ):
-	# source can catch any subset of catalyst's infections
-	if len(sst) == 0: # if empty subset, nothing happens
-	    next
-        if len(source[0]) > 0:
-	    # if source already has infections, new ones are subdominant
-	    target = ( source[0], source[1].union(sst-source[0]) )
-	    targets += Set( [ target ] )
-        else:
-	    # if source is S, can get any combination of dom/sub
-	    for sstdom in Set(Subsets(sst)) - Set([Set()]):
-	        target = ( sstdom, sst - sstdom )
-	        targets += Set( [ target ] )
-    return targets
-
-def single_dominance_with_replacement_op( source, catalyst ):
-    targets = Set()
-    # source can catch any subset of catalyst's infections
-    # and might lose its own.  So basically, any subset of the
-    # union of the two.  Except that the dominant strains can't
-    # become subdominant and vice versa.  So we'll remove some
-    # it has, and add some it doesn't have.
-    source_strains = Set( union( *source ) )
-    strains = Set( union( union( *catalyst ), source_strains ) )
-    for target_strains in Subsets( strains ):
-	to_add = target_strains - source_strains
-	to_remove = target_strains - to_add
-	for new_doms in Subsets( to_add ):
-	    target = (
-		source[0] + new_doms - to_remove,
-		source[1] + (to_add - new_doms) - to_remove
-	    )
-	    if len(target[0])==1:
-	        targets += Set( [ target ] )
-    return targets
-
-def codominance_with_replacement_op( source, catalyst ):
-    targets = Set()
-    # source can catch any subset of catalyst's infections
-    # and might lose its own.  So basically, any subset of the
-    # union of the two.  Except that the dominant strains can't
-    # become subdominant and vice versa.  So we'll remove some
-    # it has, and add some it doesn't have.
-    source_strains = Set( union( *source ) )
-    strains = Set( union( union( *catalyst ), source_strains ) )
-    for target_strains in Subsets( strains ):
-	to_add = target_strains - source_strains
-	to_remove = target_strains - to_add
-	for new_doms in Subsets( to_add ):
-	    target = (
-		source[0] + new_doms - to_remove,
-		source[1] + (to_add - new_doms) - to_remove
-	    )
-	    if len(target[0])>0: # don't create strains with no doms
-	        targets += Set( [ target ] )
-    return targets
-
-# create a 'seed set' { S, I_1, I_2 }
-# and generate all the reaction products
-
-def generate_boxmodel_from_binary_operation( bop, seed_set, pos=None ):
-    old_trans = {}
-    comps = seed_set
-    trans = { (s,c):Set() for s in comps for c in comps }
-    while trans != old_trans:
-        old_trans = deepcopy( trans )
-        for s in comps:
-	    for c in comps:
-	        if (s,c) not in trans: trans[(s,c)] = Set()
-	        trans[(s,c)] += Set( t for t in bop(s,c) if t != s )
-        print 'trans from', old_trans,
-        print 'to', trans
-        print 'comps from', comps,
-        comps = Set( [ s for s,c in trans.keys() ] + [ c for s,c in trans.keys() ] + [ t for ts in trans.values() for t in ts ] )
-        print 'to', comps
-        if len(comps) > 1000:
-	    raise RuntimeError, 'Recurrence produces too many compartments'
-    print 'edges', [ (si(s),si(t),bsi(s,c,t)) for (s,c),ts in trans.iteritems() for t in ts ]
-    bopgraph = DiGraph(
-        [ (si(s),si(t),bsi(s,c,t)) for (s,c),ts in trans.iteritems() for t in ts ],
-        multiedges=True,
-        pos = pos
-    )
-    return boxmodel.BoxModel( bopgraph )
-
-print 'single dominance model'
-seed_set = Set( [ (Set(),Set()), (Set([1]),Set()), (Set([2]),Set()) ] )
-pos = { 'S':(0,0), 'I_1':(1,0), 'I_2':(0,-1), 'I_1_2':(1,-0.7), 'I_2_1':(0.7,-1) }
-pos = { SR.symbol(x):p for x,p in pos.iteritems() }
-#bopmodel = generate_boxmodel_from_binary_operation( single_dominance_op, seed_set, pos=pos )
 
 # In this model we don't distinguish S positions, only I positions,
 # being susceptible to strain i means you don't have I (or H) in the
@@ -986,69 +770,56 @@ pos = { SR.symbol(x):p for x,p in pos.iteritems() }
 # gained.
 H = SR.var('H')
 # eis is a tuple of ((s,t,r),i) pairs
-def single_dominance_bop( source, catalyst, iset, i_set, eis ):
-    print 'bop', source, catalyst, iset, i_set, eis
-    if iset != i_set: print 'wrong i_set'; return Set()
+def single_dominance_bop( source, catalyst, iotas, iota_s, eis ):
+    print 'bop', source, catalyst, iotas, iota_s, eis
+    if iotas != iota_s: print 'wrong iota_s'; return Set()
     # do where transitions, source compartments, and catalyst compartments
     # match
-    if Set( (i for e,i in eis) ) != iset: print 'wrong iset'; return Set()
+    if [ i for e,i in eis ] != iotas: print 'wrong iotas'; return Set()
     # do we need this?  check if all source compartments are S
-    if any( source[i] is not S for i in iset ):
-	print 'skipping', source, iset, 'because not all S'
+    if any( source[i] is not S for i in iotas ):
+	print 'skipping', source, iotas, 'because not all S'
 	return Set()
-    tl = [ (H if i in iset else source[i]) for i in range(len(source)) ]
-    #print 'start with', tl 
-    if not I in tl:
-	ts = Set( (tuple(tl[:i] + [I] + tl[i+1:]) for i in iset) )
+    if I in source:
+	return Set( [ tuple( (H if i in iotas else source[i]) for i in range(len(source)) ) ] )
     else:
-	ts = Set( [tuple(tl)] )
-    #print ts
+	return Set( [ tuple( (I if i == ii else H if i in iotas else source[i]) for i in range(len(source)) ) for ii in iotas  ] )
+
+def single_dominance_with_replacement_bop( source, catalyst, iotas, iota_s, eis ):
+    print 'bop', source, catalyst, iotas, iota_s, eis
+    if iotas != iota_s: print 'wrong iota_s'; return Set()
+    # do where transitions, source compartments, and catalyst compartments
+    # match
+    if [ i for e,i in eis ] != iotas: print 'wrong iotas'; return Set()
+    # do we need this?  check if all source compartments are S
+    if any( source[i] is not S for i in iotas ):
+	print 'skipping', source, iotas, 'because not all S'
+	return Set()
+    def gen_set( source, iotas ):
+        if I in source:
+	    return Set( [ tuple( (H if i in iotas else source[i]) for i in range(len(source)) ) ] )
+        else:
+	    return Set( [ tuple( (I if i == ii else H if i in iotas else source[i]) for i in range(len(source)) ) for ii in iotas  ] )
+    ts = gen_set( source, iotas )
+    print 'from', ts
+    for knockouts in Subsets( Set( [i for i,s in enumerate(source) if s!=S] ) - Set( iotas ) ):
+	ts += gen_set( tuple((S if i in knockouts else s) for i,s in enumerate(source)), iotas )
+    print 'with replacement we get', ts
     return ts
 
-# compartments may be tuples e.g. (S,I), but may also be meta-tuples like
-# ((S,I),(I,S)), where the second one is subdominant
-def single_dominance_bop_x( source, catalyst, s, t, r, iset, i_set ):
-    if iset != i_set: return Set()
-    targetset = Set()
-    try: source[1][0]
-    except TypeError: source = (source, ())
-    try: catalyst[1][0]
-    except TypeError: catalyst = (catalyst, ())
-    iset_ = lambda tup: Set( i for i in range(len(tup)) if tup[i]==SR.symbol('I') )
-    def iset( tup ):
-        return iset_(tup[0]).union(iset_(tup[1]))
-    #print source, '+', catalyst
-    source_doms, source_subs = iset_(source[0]), iset_(source[1])
-    sources = source_doms.union(source_subs)
-    targets = Set()
-    for sst in Subsets( iset( catalyst ) ):
-	# source can catch any subset of catalyst's infections
-	if (sst - sources).is_empty():
-	    continue # if nothing to add, nothing happens
-        if not source_doms.is_empty():
-	    # if source already has infections, new ones are subdominant
-	    target = ( source_doms, source_subs.union(sst-source_doms) )
-	    #print target
-	    print source, '+', sst, '=>', target
-	    targets += Set( [ target ] )
-        else:
-	    # if source is S, can get any one thing dominant, with the rest sub
-	    for sstdom in sst:
-	        target = ( Set( [sstdom] ), sst - Set( [sstdom] ) )
-		print source, '+', sst, '=>', target
-	        #print target
-	        targets += Set( [ target ] )
-    #print source, '+', catalyst, '==>', targets
-    length = len(source[0])
-    is_ = lambda yn: SR.symbol('I') if yn else SR.symbol('S')
-    itup_ = lambda iset: tuple( is_(i in iset) for i in range(length) )
-    def itup( doms, subs ):
-	if subs.is_empty(): return itup_(doms)
-	return ( itup_(doms), itup_(subs) )
-    return Set( itup( *t ) for t in targets )
-
-def single_dominance_bop_shim( source, catalyst, s, t, r, i, i_ ):
-    return single_dominance_bop( source, catalyst, ((s, t, r),i), Set([i]), Set([i_]) )
+def codominance_bop( source, catalyst, iotas, iota_s, eis ):
+    print 'codominance bop', source, catalyst, iotas, iota_s, eis
+    if iotas != iota_s: print 'wrong iota_s'; return Set()
+    # do where transitions, source compartments, and catalyst compartments
+    # match
+    if [ i for e,i in eis ] != iotas: print 'wrong iotas'; return Set()
+    # do we need this?  check if all source compartments are S
+    if any( source[i] is not S for i in iotas ):
+	print 'skipping', source, iotas, 'because not all S'
+	return Set()
+    ts = Set( [ tuple( (I if i in iis else H if i in iotas else s) for i,s in enumerate(source) ) for iis in Subsets( Set( iotas ) ) ] )
+    ts -= Set( [ t for t in ts if H in t and not I in t ] )
+    return ts
 
 def with_dominance_renaming( *args ):
     def unpack( tup ):
@@ -1062,43 +833,48 @@ def with_dominance_renaming( *args ):
     return r
 
 S, I, beta = var( 'S I beta' )
-def with_dominance_inclusions_x( c, C ):
-    if c is S: return Set( range(len(C)) ) - with_dominance_inclusions( I, C )
-    try: return Set( boxmodelproduct.tuple_inclusions( c, C[0] ) ).union( Set( boxmodelproduct.tuple_inclusions( c, C[1] ) ) )
-    except TypeError: return boxmodelproduct.tuple_inclusions( c, C )
-
 def with_dominance_inclusions( c, C ):
     if c is S: return Set( range(len(C)) ) - with_dominance_inclusions( I, C )
     return boxmodelproduct.tuple_inclusions( I, C ) + boxmodelproduct.tuple_inclusions( H, C )
 
+print 'single dominance model'
 SI = boxmodel.BoxModel( DiGraph( [ (S,I,beta*S*I) ] ), [S,I] )
-bpos = { (S,S):(0,0), (I,S):(1,0), (S,I):(0,-1), ((I,S),(S,I)):(1,-0.7), ((S,I),(I,S)):(0.7,-1), (I,I):(0.8,-0.8) }
 bpos = { (S,S):(0,0), (I,S):(1,0), (S,I):(0,-1), (I,H):(1,-0.7), (H,I):(0.7,-1), (I,I):(0.8,-0.8) }
 gpos = { boxmodelproduct.bm_state( *with_dominance_renaming( *x ) ):p for x,p in bpos.iteritems() }
 print 'gpos', gpos
 bopmodel = boxmodelproduct.BoxModelProduct(
     SI, SI, 
-    #edge_generator=lambda *x: boxmodelproduct.bop_edge_generator( *x, seed_set=Set( [ (S,S), (S,I), (I,S) ] ), bop=single_dominance_bop_shim, inclusions=with_dominance_inclusions ),
-    edge_generator=lambda *x: boxmodelproduct.strong_bop_edge_generator( *x, seed_set=Set( [ (S,S), (S,I), (I,S) ] ), bop=single_dominance_bop, inclusions=with_dominance_inclusions ),
+    edge_generator=lambda *x: boxmodelproduct.strong_edge_generator( *x, seed_set=Set( [ (S,S), (S,I), (I,S) ] ), bop=single_dominance_bop, inclusions=with_dominance_inclusions ),
     param_relabeling=boxmodelproduct.full_param_relabeling,
     compartment_renaming=with_dominance_renaming,
     vertex_namer=boxmodelproduct.x_namer,
     vertex_positioner=lambda *a:gpos
 )
-fpos = { boxmodelproduct.x_namer( *with_dominance_renaming( *x ) ):p for x,p in bpos.iteritems() }
-print 'fpos', fpos
-#bopmodel._graph.set_pos( gpos )
-#bopmodel._flow_graph.set_pos( fpos )
 bopmodel.plot_boxes( 'bop2.boxes.tex', figsize=(9,9) )
 
 print 'single dominance model with replacement'
-bopmodel = generate_boxmodel_from_binary_operation( single_dominance_with_replacement_op, seed_set, pos=pos )
+bopmodel = boxmodelproduct.BoxModelProduct(
+    SI, SI, 
+    edge_generator=lambda *x: boxmodelproduct.strong_edge_generator( *x, seed_set=Set( [ (S,S), (S,I), (I,S) ] ), bop=single_dominance_with_replacement_bop, inclusions=with_dominance_inclusions ),
+    param_relabeling=boxmodelproduct.full_param_relabeling,
+    compartment_renaming=with_dominance_renaming,
+    vertex_namer=boxmodelproduct.x_namer,
+    vertex_positioner=lambda *a:gpos
+)
 bopmodel.plot_boxes( 'bop4.boxes.tex', figsize=(9,9) )
 
 print 'codominance model'
 pos = { 'S':(0,0), 'I_1':(1,0), 'I_2':(0,-1), 'I_1_2':(1,-0.5), 'I_2_1':(0.5,-1), 'I_12':(0.8,-0.8) }
 pos = { SR.symbol(x):p for x,p in pos.iteritems() }
-bopmodel = generate_boxmodel_from_binary_operation( codominance_op, seed_set, pos)
+#bopmodel = generate_boxmodel_from_binary_operation( codominance_op, seed_set, pos)
+bopmodel = boxmodelproduct.BoxModelProduct(
+    SI, SI, 
+    edge_generator=lambda *x: boxmodelproduct.strong_edge_generator( *x, seed_set=Set( [ (S,S), (S,I), (I,S) ] ), bop=codominance_bop, inclusions=with_dominance_inclusions ),
+    param_relabeling=boxmodelproduct.full_param_relabeling,
+    compartment_renaming=with_dominance_renaming,
+    vertex_namer=boxmodelproduct.x_namer,
+    vertex_positioner=lambda *a:gpos
+)
 bopmodel.plot_boxes( 'bop3.boxes.tex', figsize=(9,9) )
 </source-file>
 
