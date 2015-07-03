@@ -1,6 +1,6 @@
 ---
 layout: page
-title: Definitions of Box Model objects
+title: Definitions of Box Model operations
 wmd_project: Notes
 wmd_prerequisite_projects:
   BoxModels: Box_Models
@@ -15,17 +15,21 @@ A transition is an ordered triple $$(s,t,r)$$, where $$s$$ and $$t$$ are the
 **source** and **target** compartments of the transition, and $$r$$ is its
 **rate**, which is a function of the compartments' names.
 Any variable involved in a transition rate that is not the name of a
-compartment is a **parameter** of the model.  Let $$C_M=\{c_1,\ldots,c_n\}$$
-be the set
-of compartments of model $$M$$ and let $$P_M=\{p_1,\ldots,p_m\}$$ be the set of all its
+compartment is a **parameter** of the model.  $$V(M)=\{c_1,\ldots,c_n\}$$,
+the vertex set of model $$M$$, is the set of its compartments, and
+$$E(M)$$ is the set of its edges.  Let $$X(M)$$ be the set of
+the names of the compartments of model $$M$$, 
+and let $$P(M)=\{p_1,\ldots,p_m\}$$ be the set of all its
 transitions' parameters; then each transition rate is a function
-$$r(c_1,\ldots,c_n,p_1,\ldots,p_m)\in\mathbb{R}$$.
+$$r(c_1,\ldots,c_n,p_1,\ldots,p_m)$$ taking values in $$\mathbb{R}$$.
 
 A box model is associated with an **ODE**, whose state variables are the
 compartments' names, and whose flow vector field is constructed from the
 transition rates:
 
-$$\frac{dX}{dt} = \sum_{\text{edges }e\text{ entering }X}\text{rate}(e) - \sum_{\text{edges }e\text{ leaving }X}\text{rate}(e)\quad$$ for each compartment $$X$$.
+$$\frac{dX}{dt} = \sum_{\{e\in E(M)\mid\operatorname{source}(e)=X\}}\text{rate}(e) - \sum_{\{e\in E(M)\mid\operatorname{target}(e)=X\}}\text{rate}(e)$$
+
+for each compartment $$X$$.
 
 There are also an SDE, a diffusion equation, individual-based models, 
 and possibly other models that can be automatically generated to describe
@@ -48,9 +52,12 @@ A **product** of box models, written $$M_1\times \cdots\times M_n$$, where
 each $$M_i$$ is a box model, is a box model whose set of compartments is the
 cross product, or
 [Cartesian product](https://en.wikipedia.org/wiki/Cartesian_product#Graph_theory),
-of the component box models' sets of compartments.  The transitions include
+of the component box models' sets of compartments (see Appendix for definitions
+of graph product operations).  The transitions include
 the edges of the Cartesian product of the components' graphs, but the product
 may include more transitions as well.
+
+[TODO: it may include added compartments as well?]
 
 * The compartments of the cross product are tuples $$(c_1,\ldots,c_n)$$
 where each $$c_i$$ is a compartment of $$M_i$$.  The name of
@@ -60,13 +67,13 @@ be named $$X_{cde\ldots w}$$, or some other naming may be used.
 target $$t$$, and rate $$r$$, there is a transition from each compartment
 $$(c_1,\ldots,c_{i-1},s,c_{i+1},\ldots,c_n)$$ of the product model to
 $$(c_1,\ldots,c_{i-1},t,c_{i+1},\ldots,c_n)$$.
-Its transition rate is derived from $$r$$.  The product may include other
-transitions derived from $$T$$ as well.
+Its transition rate is derived from $$r$$.
 
 I believe there are a few different products that are appropriate
 depending on the biology of the model, differing in what transitions
 are included and how their rates are constructed.
 
+<!--
 Before providing examples, here are some useful definitions:
 
 * A **stratification** $$S(X)$$ of a variable $$X$$ in a product of models
@@ -82,25 +89,31 @@ The name given to that stratified parameter may be
 $$P_{c_1\ldots c_{i-1}c_{i+1}\ldots c_n}$$,
 or some other naming may be used.  As we will see, parameters may be
 stratified multiple times, which corresponds to adding more subscripts.
+-->
 
-**Example: Simple Cartesian Product**
+### Simple Cross Product
 
-In many cases each model provides strata for the other(s), in some sense. 
 Sometime it's sufficient to construct a product model with one transition
-for each edge of the graph Cartesian product.  Assume each component
+for each edge of the graph Cartesian product.  For example, imagine a
+simple infection model $$M_{i}$$, in which all compartments are stratified together
+by some demographic variable.  Assume each component
 transition rate involves no compartments other than its source compartment.
-The compartments are labeled using subscripts, and transitions are copied
-to each stratum, by substituting the subscripted name of the source compartment
-and subscripting all parameters.  For example, given a model with
+Then the stratified model is a simple product of the infection model
+with the stratification.
+The compartments of the product are labeled using subscripts,
+and the infection transitions are replicated
+in each stratum, with stratified compartment names substituted and
+subscript added to all parameters.  For example, given a model with
 transition from X to Y at rate $$\lambda X$$, stratified by crossing with
-a model of two states $$a$$ and $$b$$, we would construct a model
+a trivial model providing two demographic states $$a$$ and $$b$$,
+we would construct a product model
 
-<source-file filename="XYab.sage.step" display="XYab.boxes.crop.svg">
+<source-file filename="XYab.sage.step" display="XYab.crop.svg">
 # requires: $(BoxModels)/boxmodel.py $(BoxModels)/boxmodelproduct.py
 # requires: $(SageDynamics)/dynamicalsystems.py
 # requires: $(SageAdaptiveDynamics)/adaptivedynamics.py
-# produces: XYab.sage.out.tex XYab.boxes.tex
-# produces: XYab-bop.boxes.tex
+# produces: XYab.sage.out.tex XYab.tex
+# produces: XYab-square.tex
 import os
 import sys
 sys.path.append( os.environ['BoxModels'] )
@@ -114,37 +127,66 @@ X,Y,a,b = SR.var('X Y a b')
 XY = BoxModel( DiGraph( [ (X, Y, lb*X) ] ), [X, Y] )
 ab = BoxModel( DiGraph( {a:{b:[]}} ), [a,b] )
 XYab = BoxModelProduct( XY, ab )
-XYab.plot_boxes( 'XYab.boxes.tex', figsize=(7,1) )
-XYab.plot_boxes( 'XYab.boxes.tex-inline', inline=True, figsize=(7,1) )
+write_product_formula( XY, ab, XYab, 'XYab.tex', size2=(1,3), size12=(4,3) )
+#XYab.plot_boxes( 'XYab.boxes.tex', figsize=(7,1) )
+#XYab.plot_boxes( 'XYab.boxes.tex-inline', inline=True, figsize=(7,1) )
+
+var( 'rho sigma' )
+abrs = ab.add_transitions( [ (a,b,rho*a), (b,a,sigma*b) ] )
+XYabrs = BoxModelProduct( XY, abrs )
+write_product_formula( XY, abrs, XYabrs, 'XYab-square.tex' )
 </source-file>.
 
-In the simple Cartesian product of models, we construct transitions by
-the following rule:
+This simple Cartesian product of models is defined by the following
+formula.
 
-* for each component model $$B_i$$
-    * for each transition of $$B_i$$, from $$s$$ to $$t$$ with rate $$r$$
-        * for each stratification $$S(s)$$ of $$s$$
-            * include a transition from $$S(s)$$ to $$S(t)$$,
-whose transition rate
-is constructed from $$r$$ by replacing $$s$$ by $$S(s)$$ and replacing all
-parameters $$P$$ by $$S(P)$$.
+**Definition.**  The *simple cross product* of models $$M_1,\ldots,M_n$$
+is defined as follows:
 
-**Example: Stratifying multiple interacting compartments**
+* $$V(M_1\,\square\,\cdots\,\square\,M_n) = V(M_1)\times\cdots\times V(M_n)$$
+(see Appendix for set product operations).
+* $$E(M_1\,\square\,\cdots\,\square\,M_n) = \cup_{\{\,(v_1,\ldots,v_n)\in V(M_1)\times\cdots\times V(M_n)\,\}} \cup_{i\in\{1,\ldots,n\}} \cup_{\{\,w,r\mid(v_i,w,r)\in E(M_i)\,\}}$$ $$\operatorname{stratify}((v_1,\ldots,v_n),w,r,(M_1,\ldots,M_n),i)$$
 
-The above stratification is not suitable for even a simple SI example with
+where
+
+* $$\operatorname{stratify}((v_1,\ldots,v_n),w,r,(M_1,\ldots,M_n),i) =$$ $$((v_1,\ldots,v_n),(v_1,\ldots,v_{i-1},w,v_{1+i},\ldots,v_n),r_s)$$,
+
+where $$r_s$$ is the rate $$r$$ with the name of $$v_i$$ replaced by the
+name of the stratified vertex $$(v_1,\ldots,v_n)$$ and all parameters
+subscripted by $$v_1,\ldots,v_{i-1},v_{i+1},\ldots,v_n$$.  
+
+The name of a product compartment $$(v_1,\ldots,v_n)$$ can be constructed
+in various ways.  It might be the name of $$v_1$$ subscripted by the names of
+the other compartments $$v_2,\ldots,v_n$$, or it might be $$X$$ subscripted
+by all the compartments' names, or some other rule might be used.
+
+Thus by crossing with the $$a$$-$$b$$ model, the single row of the
+$$X$$-$$Y$$ model gets replicated once for each compartment of the
+$$a$$-$$b$$ model.  In this case the stratifying model is trivial -- there
+are no vertical arrows -- but in general this product operation treats
+all the component models equally: if the "vertical" model has edges they
+are likewise replicated once for each compartment of the horizontal model:
+
+<project-file filename=XYab-square.crop.svg/>.
+
+### Cross product with interactions
+
+Unfortunately, the above definition of the cross product is not suitable
+for even a simple SI example with
 transition rate $$\beta S I$$, because this model violates the assumption that
 the rate involves no compartments other than $$S$$.  In this model it's
 reasonable to believe that either stratified $$S$$ class can be infected by
 individuals of both stratified $$I$$ classes.  This requires the $$S$$ and
 $$I$$ variables in that transition rate to be stratified separately, and a
 transition to be constructed for every combination
-of stratified compartments.  The correct product model is this one:
+of stratified compartments.  The correct product model is this one, with
+the one edge replicated four times, not only twice:
 
-<source-file filename="SIab2.sage.step" display="SIab2.boxes.crop.svg">
+<source-file filename="SIab2.sage.step" display="SIab.crop.svg">
 # requires: $(BoxModels)/boxmodel.py $(BoxModels)/boxmodelproduct.py
 # requires: $(SageDynamics)/dynamicalsystems.py
 # requires: $(SageAdaptiveDynamics)/adaptivedynamics.py
-# produces: SIab2.sage.out.tex SIab2.boxes.tex
+# produces: SIab2.sage.out.tex SIab.tex
 import os
 import sys
 sys.path.append( os.environ['BoxModels'] )
@@ -157,78 +199,107 @@ S, I, a, b, beta = SR.var( 'S I a b beta' )
 SI = BoxModel( DiGraph( [ (S, I, beta*S*I) ] ), [S,I] )
 ab = BoxModel( DiGraph( {a:{b:[]}} ), [a,b] )
 SIab = BoxModelProduct( SI, ab )
-SIab.plot_boxes( 'SIab.boxes.tex', figsize=(7,2) )
+#SIab.plot_boxes( 'SIab.boxes.tex', figsize=(7,2) )
+write_product_formula( SI, ab, SIab, 'SIab.tex', size1=(4,1), size2=(1,3), size12=(5,3) )
 </source-file>.
 
-If we used the simple Cartesian product, we would not generate the correct
+If we used the simple cross product, we would not generate the correct
 sum over $$\beta$$ and $$I$$ variables.
 
-To get this right, we may need to construct transitions as follows:
+To implement this, we need an extended product operation that provides
+stratification for the "catalyst" $$I$$ in the $$\beta S I$$ transition
+as well as the source $$S$$.  The simple cross product operation can
+be extended in this way to become a full cross product operation.
 
-* for each component model $$B_i$$
-    * for each transition of $$B_i$$, from $$s$$ to $$t$$ with rate $$r$$
-        * for every tuple of stratifications $$(S(s),S_1(X_1),\ldots,S_k(X_k))$$,
-where $$X_1,\ldots,X_k$$ are all the compartments other than $$s$$ whose
-names appear in $$r$$
-            * include a transition from $$S(s)$$ to $$S(t)$$
-whose rate is constructed from $$r$$ by replacing $$s$$ by $$S(s)$$,
-each $$X_j$$ by $$S_j(X_j)$$, and each parameter
-$$P$$ by $$S_n(\cdots S_1(S(P))\cdots)$$.
+Along with that extension, at this point I will introduce a complete
+definition of the cross product operation, including some details that
+will only become relevant in later examples.
 
-That would suffice for the above example.  Still, transitions whose rates
-are arbitrary functions of compartment sizes will probably not be handled
-adequately by this rule, and we'll need to allow users to supply their
-own rules for creation of transitions in the product model.
+**Definition.**  A *cross product* $$M_1\,\square\,\cdots\,\square\,M_n$$
+of models $$M_1,\ldots,M_n$$ is a box model $$M$$ such that
 
-Can I redefine this and the previous case using a binary relation of the
-form $$\text{source}+\text{catalyst}\to(\text{destination}, \text{rate})$$?
-
-I think so: it will require a concept of **inclusion** of a compartment
-in another.  The compartments
-of a compartment model are a partition of the population, and
-a product model's compartments are set-theoretical intersections of the
-component model's compartments.  For example, compartment $$S_b$$ in the
-above example is the intersection of the sets $$S$$ and $$b$$.  Thus $$S_b$$
-is a subset of $$S$$ and of $$b$$.  For precision, we'll say there is an
-**inclusion** of $$V$$ in $$v$$ when $$V$$ is a subset of $$v$$.
-But note there may be multiple such inclusions, for example when $$V$$ is
-$$(v,v)$$.  The "for every" clauses in the definition below must be applied
-once to each such inclusion, not once to each supercompartment $$v$$.
-We make the possible different inclusions $$\iota$$ explicit by writing
-$$V\xrightarrow[\iota]{}v$$.
-
-Given that, here is a definition of the cross product:
-
-The vertex set of the cross product of box models is the Cartesian product
-of their vertex sets.  Its edges are defined by the following relation:
-
-* For every edge $$(v,w,r)$$ of each component model
-    * if the rate is a constant multiple of the source $$v$$
-        * for every inclusion of every compartment $$V$$ in $$v$$
-            * produce a transition from $$V$$ to the corresponding $$W$$
-with stratified rate
-    * if the rate $$r$$ is a product of the source $$v$$ and a second
-compartment $$c$$, which we will call a **catalyst**
-        * for every inclusion of every compartment $$V$$ in $$v$$, for every inclusion of every compartment $$C$$ in $$c$$
-            * produce a transition from $$V$$ to corresponding $$W$$
-with appropriately stratified rate
-
-or $$M = M_1\times\cdots\times M_n$$ if
-
-$$E(M) = \cup_{M_i}\cup_{(v,w,r)\in E(M_i)}\operatorname{strat}(v,w,r)$$
+* $$V(M) = V(M_1)\times\cdots\times V(M_n)$$
+* $$E(M) = \cup_{i\in\{1,\ldots,n\}} \cup_{(s,t,r)\in E(M_i)} \Xi((s,t,r),i)$$
 
 where
 
-<latex>$\operatorname{strat}(v,w,r) = \begin{cases}
-  \{ (V,\operatorname{dest}(w,V),\operatorname{rel}(r,\iota)) \mid v\xrightarrow[\iota]{}V \} & \operatorname{comp}(r) = \{v\} \\
-  \{ (V,\operatorname{dest}(w,V),\operatorname{rel}(r,\iota,\iota')) \mid v\xrightarrow[\iota]{}V, c\xrightarrow[\iota']{}C \} & \operatorname{comp}(r) = \{v,c\}
-\end{cases}$</latex>
+* <latex>$\Xi((s,t,r),i) = \Xi_\square((s,t,r),i) = \begin{cases}
+  \{\,(S,T,\Phi_r(r,S,i_s,T)) \mid (S,i_s)\in \Sigma(s,V(M)), \\
+    \quad T\in\Omega_1( S, i_s, s, t, r, i )\,\} \\
+    \quad\quad\text{if $r$ is linear in $s$} \\
+  \{\,(S,T,\Phi_{2r}(r,S,i_s,C,i_c,T)) \mid (S,i_s)\in\Sigma(s,V(M)), \\
+    \quad (C,i_c)\in\Sigma(c,V(M)), T\in\Omega_2( S, i_s, C, i_c, s, t, r, i )\,\} \\
+  \mbox{} \cup \{\,(S,T,\Phi_{1r}( S, i_s, i_c, s, t, r, i )) \mid (S,i_s)\in\Sigma(s,V(M)), \\
+    \quad (S,i_c)\in\Sigma(c,V(M)), T\in\Omega_{2i}( S, i_s, i_c, s, t, r, i )\,\} \\
+    \quad\quad\text{if $r$ is bilinear in $s$ and $c$} \end{cases}
+$\\*</latex>
+generates the set of all product edges derived from the
+edge $$(s,t,r)$$;
+* $$\Sigma(v,\mathcal{V})$$ is a set of **inclusions** of compartment $$v$$ in the
+compartments $$\mathcal{V}$$ of the product model.  An inclusion is an ordered pair
+$$(V,i)\in\mathcal{V}\times\mathbb{N}$$, indicating that compartment $$v$$
+is in the $$i$$th position in product compartment $$V$$.
+In this stratification example, we only require simple inclusion in
+the $$i$$th model,
+$$\Sigma_1(v,\mathcal{V};i)=\{\,((v_1,\ldots,v_n),i)\mid (v_1,\ldots,v_n)\in\mathcal{V}, v_i=v\,\}$$,
+when stratifying a transition of that model.  In some cases, as we will
+see, we will require a full inclusion function allowing "cross interactions",
+as we need to allow
+compartments from different component models to interact with each other:
+$$\Sigma_c(v,\mathcal{V})=\{\,((v_1,\ldots,v_n),j)\mid (v_1,\ldots,v_n)\in\mathcal{V}, v_j=v\text{ for any }j\,\}$$.
+* $$\Omega_1( S, i_s, s, t, r, i ) = \{\,(S_1,\ldots,S_{i_s-1},t,S_{i_s+1},\ldots,S_n)\,\}$$
+is a **unary operation** defining the set of output (target) compartments
+produced by a given transition
+acting on source compartment $$S$$.  Here we provide a simple definition where
+$$S$$ just goes to the corresponding compartment $$T$$ in the same
+stratification of the model, but
+we allow for variant products defined by a different unary operation.
+* $$\Omega_2( S, i_s, C, i_c, s, t, r, i ) = \{\,(S_1,\ldots,S_{i_s-1},t,S_{i_s+1},\ldots,S_n)\,\}$$
+is a **binary operation** defining the set of output (target) compartments
+produced by a given transition
+acting on source compartment $$V$$ when compartment $$C$$ is the catalyst.
+Here as well, we simply transform $$S$$ into its stratified counterpart
+$$T$$, but 
+we allow for variant operations in which the same $$S$$ transitions to
+different targets depending on $$C$$.
+* $$\Omega_{2i}( S, i_s, i_c, s, t, r, i )$$ is a variant binary operation
+providing additional transitions in the case that $$s$$ and $$c$$ are both
+components of the same compartment $$S$$.  This allows for a 
+within-compartment interaction that is distinct from an interaction
+between two individuals of the same compartment.
+* $$\Phi_r$$, $$\Phi_{2r}$$, and $$\Phi_{1r}$$ are **rewritings** of
+transition rates.  We construct a rewritten rate for each edge of
+the product model
+based on its original rate $$r$$, by replacing the source $$s$$ by $$V$$, the
+catalyst $$c$$ by $$C$$ (if present), and adding subscripts to all
+parameters.  Parameters are subscripted by the compartment names indicating
+the stratification of the source compartment, in the simple case.  When
+a single transition is replicated to multiple output compartments, it's
+necessary to add subscripts indicating the output compartments; when it's 
+replicated using multiple catalyst compartments, we need subscripts naming
+the catalyst, and when it's replicated multiple times using different
+inclusions of compartments we need subscripts distinguishing the inclusions
+as well.  The software tries to be smart about applying as few subscripts
+as are necessary to provide unique parameters for each transition.
+
+This is a fairly general framework for defining products, at least in a
+world of linear and bilinear reactions among compartments.  If transitions
+arise whose rates
+are arbitrary functions of compartment sizes, we'll need to allow users to
+supply additional $$\Xi$$ and $$\Omega$$ functions to generate product
+transitions and rewrite their rates.
+
+This product operation generates the correctly stratified $$SI$$ model
+shown above.  In this case it's not necessary to distinguish which inclusion
+function $$\Sigma$$ it uses, because both produce the same result.  In the
+next model it does make a difference.
 
 ## Example: Infectious dynamics of couples (ordered pairs)
 
-Also, that multiple stratification isn't right for a model of
-pairs (or larger groupings) of people.  Here is what we get if we
-use that definition as is:
+Consider a system of pairs of individuals, where either can
+be susceptible or infected at any time.  The above definition
+with the simple inclusion function $$\Sigma_1$$ produces this
+model:
 
 <project-file filename=SI-pair-naive.boxes.crop.svg/>
 
@@ -238,11 +309,12 @@ infect the first individual of any pair.  We want a model that allows
 interactions across that division, where each S individual
 in either position of any paired compartment can be infected by any I
 individual in either position of any compartment: there are four such S types
-and four such I types, so we need to generate 16 infection transitions.
+and four such I types, so there will be 16 of these infection transitions.
 
-Actually we need to generate two more in addition to those, for within-pair
+In all we will have 18 transitions, including within-compartment
 infection events in compartments SI and IS.
-In total, we'll generate this model:
+Using the full inclusion function $$\Sigma_c$$, which generates
+the full set of 18 interactions, we construct this model:
 
 <source-file filename="defpairs.sage.step" display=none>
 # requires: $(BoxModels)/boxmodel.py $(BoxModels)/boxmodelproduct.py
@@ -267,13 +339,16 @@ SI = boxmodel.BoxModel( DiGraph( [ (S, I, beta*S*I) ] ), [S, I] )
 
 SI2_naive = boxmodelproduct.BoxModelProduct(
     SI, SI, 
-    edge_generator=lambda *xs: boxmodelproduct.default_edge_generator( *xs, cross_interactions=False ),
-    vertex_namer=boxmodelproduct.x_namer
+    single_edge_generator=boxmodelproduct.simple_edge_stratifier,
+    vertex_namer=boxmodelproduct.x_namer,
+    param_relabeling=boxmodelproduct.full_param_relabeling
 )
 SI2_naive.plot_boxes( 'SI-pair-naive.boxes.tex', figsize=(7,7) )
 
-SI2 = boxmodelproduct.power( SI, 2 )
-SI2.plot_boxes( 'SI-pair.boxes.tex', figsize=(7,7) ) 
+SI2 = boxmodelproduct.power( SI, 2,
+    param_relabeling=boxmodelproduct.full_param_relabeling
+)
+SI2.plot_boxes( 'SI-pair.boxes.tex', figsize=(8,8) ) 
 
 save_session( 'SI-pair' )
 
@@ -293,77 +368,14 @@ exit(0r)
 breakup events, with compartments for unpaired individuals.  We can add this
 if needed.]
 
-We can do the above product in three steps:
-
-* Stratify the SI model doubly, by position in the pair (first or second), and
-by partner's infectious class.  This gives us stratified compartments 
-of the form $$(S,1,I)$$ (susceptible first
-partner, with an infectious counterpart), $$(I,2,S)$$ (infectious second
-partner, with a susceptible counterpart), etc.
-There are 8 of these compartments -- four S
-compartments and four I compartments -- and 16 transitions, one for each
-possible contact from an I compartment to an S compartment.
-
-* Merge equivalent classes, relabeling $$(S,1,I)$$ and $$(I,2,S)$$ as
-$$(S,I)$$, etc.  This reduces the 8 compartments to 4, giving us the
-square we want, with 16 transitions.
-
-* Add the two within-pair infection events, from $$(S,I)$$ and $$(I,S)$$
-to $$(I,I)$$.
-
-The first of these is the Cartesian product operation with multiple
-stratification that we defined above.  The others are other operations that
-are probably also worth defining formally:
-
-### Relabeling compartments
-
-A **relabeling** of compartment model $$M$$ by
-a state-relabeling function $$R:C_M\to C_R$$ which maps compartments into
-a set of relabeled
-compartments $$C_R$$, and a similarly defined parameter-relabeling function
-$$R:P_M\to P_R$$, is a compartment model $$R(M)$$ in which
-
-* the compartments of $$R(M)$$ are the set $$\{R(C) | C\in C_M\}$$
-* the transitions of $$R(M)$$ are $$(R(s),R(t),R(r))$$ for every transition
-$$(s,t,r)$$ of $$M$$, where
-$$R(r)(c'_1,\ldots,c'_{n'},p'_1,\ldots,p'_{m'})=r(R(c_1),\ldots,R(c_n),R(p_1),\ldots,R(p_m))$$, given $$C_R=\{c'_1,\ldots,c'_{n'}\}$$, and $$P_R=\{p_1,\ldots,p'_{m'}\}$$.
-
-Here is the above square, relabeled so that order within each pair
-isn't distinguished.  [TO DO: no it isn't]
-
-<source-file filename="SI-pair-unordered.sage.step" display=SI-pair-unordered.boxes.crop.svg>
-# requires: $(BoxModels)/boxmodel.py $(BoxModels)/boxmodelproduct.py
-# requires: $(SageDynamics)/dynamicalsystems.py
-# requires: SI-pair.sobj
-# produces: SI-pair-unordered.boxes.tex
-import os, sys
-sys.path.append( os.environ['BoxModels'] )
-sys.path.append( os.environ['SageUtils'] )
-from latex_output import *
-import boxmodel, boxmodelproduct
-from dynamicalsystems import subscriptedsymbol
-
-load_session( 'SI-pair' )
-
-uno = boxmodelproduct.power( SI, 2 )
-uno.plot_boxes( 'SI-pair-unordered.boxes.tex', figsize=(7,7) )
-</source-file>
-
-### Constructing within-pair events and adding to a box model
-
-These two operations also need to be formalized.  Once that's done
-we'll be able to say
-
-$$ M^2 = R(M\times M_{12}\times M_{SI}) + \text{within-pair\,transitions}(R(M\times M_{12}\times M_{SI})) $$
-
-with suitably defined objects $$M_{12}$$, $$M_{SI}$$, $$R$$.
-
 ## Example: Infectious dynamics of couples (unordered pairs)
+
+[TODO]
 
 If we want to consider pairs without distinguishing the two individuals by
 gender or otherwise differentiating the first from second individual, we
 reduce the model to fewer compartments -- for instance, in our example, we
-will have one $$(S,I)$$ class standing for both $$(S,I)$$ and $$(I,S)$$.
+will have one compartment that combines $$(S,I)$$ and $$(I,S)$$.
 
 The unordered pair dynamics must be consistent with the ordered pair model
 because they are different descriptions of the same events. So we should
@@ -376,9 +388,10 @@ The formal construction of the unordered model, then, is
 
 * construct the ordered pair model
 * collect the compartments of that model into equivalence classes: in the
-SI case, $$\{\{(S,S)\}, \{(S,I),(I,S)\}, \{(I,I)\}\}$$.  Sum over those
+SI case, $$\{\,\{\,(S,S)\,\}, \{\,(S,I),(I,S)\,\}, \{\,(I,I)\,\}\,\}$$. 
+Sum over those
 classes to generate the reduced compartments: in this case
-$$Z_{SI} = X_{SI} + X_{IS}$$ where we use the letter $$Z$$ for reduced
+$$Z_{SI} = X_{SI} + X_{IS}$$, where we use the letter $$Z$$ for reduced
 (unordered) compartment variables and $$X$$ for the compartments of
 the ordered-pair model $$M^2$$.
 * Construct reduced transition rates by transforming all $$X$$ variables to
@@ -399,12 +412,12 @@ transformation $$A(M)$$ of that model by a pair of mappings
 $$A:C_M\to C_A$$ and
 $$A:P_M\to P_A$$, defined as for a relabeling, such that
 
-* The compartments of $$A(M)$$ are the set $$\{A(C)|C\in C_M\}$$
+* The compartments of $$A(M)$$ are the set $$\{\,A(C)|C\in C_M\,\}$$
 * There is an equation $$C'_i = \sum C_j$$ for each
 compartment $$C'_i$$ of $$A(M)$$, where the sum is over all the compartments
 $$C_j$$ such that $$A(C_j)=C'_i$$.
 * The set of transitions of $$A(M)$$ is the set of triples
-$$(A(s),A(t),(C'_1,\ldots,C'_{n'},P'_1,\ldots,P'_{m'})\mapsto\sum_{\{(s',t',r')|A(s')=A(s), A(t')=A(t)\}}r'(C_1,\ldots,C_n,P_1,\ldots,P_m))$$
+$$(A(s),A(t),(C'_1,\ldots,C'_{n'},P'_1,\ldots,P'_{m'})\mapsto\sum_{\{\,(s',t',r') \mid A(s')=A(s), A(t')=A(t)\,\}}r'(C_1,\ldots,C_n,P_1,\ldots,P_m))$$
 generated by all transitions $$(s,t,r)$$ of $$M$$.  The sum is simplified
 to a function of the $$C'_i$$ variables using the above sum equations.
 
@@ -426,6 +439,27 @@ $$M_U = Z(M^2)$$
 where $$M^2$$ is the ordered-pair model defined above.  (Note: To make the
 transitions reduce to $$Z$$ expressions we'll have to construct the right
 renaming for the indexed $$\beta$$ parameters.)
+
+This will be a picture of the reduced pair model, with only 3 compartments,
+but it isn't yet:
+
+<source-file filename="SI-pair-unordered.sage.step" display=SI-pair-unordered.boxes.crop.svg>
+# requires: $(BoxModels)/boxmodel.py $(BoxModels)/boxmodelproduct.py
+# requires: $(SageDynamics)/dynamicalsystems.py
+# requires: SI-pair.sobj
+# produces: SI-pair-unordered.boxes.tex
+import os, sys
+sys.path.append( os.environ['BoxModels'] )
+sys.path.append( os.environ['SageUtils'] )
+from latex_output import *
+import boxmodel, boxmodelproduct
+from dynamicalsystems import subscriptedsymbol
+
+load_session( 'SI-pair' )
+
+uno = boxmodelproduct.power( SI, 2 )
+uno.plot_boxes( 'SI-pair-unordered.boxes.tex', figsize=(7,7) )
+</source-file>
 
 ## Combining infection models into a multi-infection model
 
@@ -457,308 +491,123 @@ save_session( 'M1M2' )
 </source-file>.
 
 We wish to combine these infection processes into a single model
-$$M_1\boxtimes M_2$$, in
-which a single susceptible class is infected by both agents, producing
-not only the $$I_1$$ and $$I_2$$ classes, but also an $$I_{12}$$
-class which is infected by both, and potentially an $$I_{21}$$ class as
-well, if the order of infection events is important.  This has some
-characteristics of the
-[strong product](https://en.wikipedia.org/wiki/Strong_product_of_graphs)
-of the models' graphs, because it includes at least one diagonal arrow,
-representing multiple infection from a single contact,
-as well as the horizontal and vertical arrows representing simple infection
-events:
+$$M_{12}$$, in
+which a single susceptible population is infected by both agents, producing
+not only the $$I_1$$ and $$I_2$$ classes, but also one or more superinfected
+classes.  Order of infection events might matter, in diseases in which
+an individual acquiring a second strain develops a weaker infection.
 
-<source-file filename="SIII-sketch.sage.step" display="SIII-sketch.boxes.crop.svg">
-# requires: $(BoxModels)/boxmodel.py $(BoxModels)/boxmodelproduct.py
-# requires: $(SageDynamics)/dynamicalsystems.py
-# requires: $(SageAdaptiveDynamics)/adaptivedynamics.py
-# produces: SIII-sketch.sage.out.tex SIII-sketch.boxes.tex
-import os
-import sys
-sys.path.append( os.environ['SageDynamics'] )
-sys.path.append( os.environ['SageUtils'] )
-sys.path.append( os.environ['BoxModels'] )
-import dynamicalsystems, latex_output, boxmodel, boxmodelproduct
-S = SR.var('S')
-I, beta = (dynamicalsystems.indexer(v) for v in ('I','beta'))
-SIII = boxmodel.BoxModel(
-    DiGraph(
-	[ (S, I[i], S*beta[i]*I[i]) for i in (1,2,12,21) ] +
-	 [ (I[1],I[12],I[1]*beta[112]*I[12]) ] +
-	 [ (I[2],I[21],I[2]*beta[221]*I[21]) ],
-	pos = { S:(0,1), I[1]:(1,1), I[2]:(0,0), I[21]:(0.9,0), I[12]:(1,0.1) }
-    ), [ S, I[1], I[2], I[12], I[21] ]
-)
-SIII.plot_boxes( 'SIII-sketch.boxes.tex', figsize=(7,7) )
-#SIII.plot().save( filename='SIII-sketch.png', figsize=(3,3), fig_tight=False )
-</source-file>.
+In this case, we need to use the simple inclusion function $$\Sigma_1$$,
+because there is no interaction between an individual infected with one
+strain and one susceptible to a different strain.  With that, the cross
+product as defined gives us this product model:
 
-There may also be cases in which one infection excludes the other:
-
-<source-file filename="SIII-sketch-2.sage.step" display="SIII-sketch-2.boxes.crop.svg">
-# requires: $(BoxModels)/boxmodel.py
-# requires: $(SageDynamics)/dynamicalsystems.py
-# requires: $(SageAdaptiveDynamics)/adaptivedynamics.py
-# produces: SIII-sketch-2.sage.out.tex SIII-sketch-2.boxes.tex
-import os
-import sys
-sys.path.append( os.environ['SageDynamics'] )
-sys.path.append( os.environ['SageUtils'] )
-sys.path.append( os.environ['BoxModels'] )
-import dynamicalsystems, latex_output, boxmodel
-S = SR.symbol('S')
-I = dynamicalsystems.indexer('I')
-def beta(n): return SR.symbol( 'beta_'+n, latex_name='\\beta_{'+n+'}' )
-SIII = boxmodel.BoxModel(
-    DiGraph(
-	[ (S, I[i], S*beta('0\\to'+str(i))*I[i]) for i in (1,2,12,21) ] +
-	 [ (I[1],I[12],I[1]*beta('1\\to12')*I[12]) ] +
-	 [ (I[2],I[21],I[2]*beta('2\\to21')*I[21]) ] +
-	 [ (I[1],I[2], I[1]*beta('1\\to2') *I[2]) ] +
-	 [ (I[2],I[1], I[2]*beta('2\\to1') *I[1]) ],
-	pos = { S:(0,1), I[1]:(1,1), I[2]:(0,0), I[21]:(0.9,0), I[12]:(1,0.1) }
-    ), [ S, I[1], I[2], I[12], I[21] ]
-)
-SIII.plot_boxes( 'SIII-sketch-2.boxes.tex', figsize=(7,7) )
-#SIII.plot().save( filename='SIII-sketch-2.png', figsize=(3,3), fig_tight=False )
-</source-file>.
-
-How are we to define this product of simple SI models? Each of the two
-original infection arrows becomes four: the simple infection event from $$S$$,
-the superinfection event from the other model's $$I$$ class, an
-replacement event in which it replaces the other model's infection, and
-one of the two double-infection events.
-
-We can probably use that list to define the "multiple-infection product".
-But how does this product generalize to $$n$$ generic compartment models
-with some quadratic transition rates and some other rates?
-
-This product is distinguished from the ones above in three ways:
-
-* The order of events makes a difference: infection by agent 1 and then 
-agent 2 is different from infection by agent 2 and then agent 1.
-* It's possible to "jump forward" over two transitions at once, from
-$$S$$ to $$I_{12}$$ for example.
-* There are "lateral" transitions, for instance from $$I_1$$ to $$I_2$$
-by contact with an $$I_2$$ individual, rather than the more standard
-transition to $$I_{12}$$ that would be triggered by that contact.
-
-Let's take those in order.
-
-### Distinguishing the order of events
-
-In a simple, standard cross product of models, compartments $$I_{12}$$ and
-$$I_{21}$$ would both be the same compartment $$(I_1,I_2)$$.  The difference
-is whether an individual arrives from compartment $$I_1$$ or from $$I_2$$
-(we'll consider the double-infection transition from a contact between
-$$S$$ and $$I_{12}$$ separately, below).
-
-We can formalize this by identifying the compartments of the product model
-with, not the vertices of the Cartesian product of graphs, but directed
-paths in the graph.  Instead of ordered pairs such as $$(S_1,I_2)$$, each
-compartment of the product model would be a sequence of ordered pairs, such
-as $$((S_1,S_2),(S_1,I_2),(I_1,I_2))$$.  Instead of producing a square
-graph, this construction produces a branching tree:
-
-<source-file filename="SII-tree.sage.step" display="SII-tree.boxes.crop.svg">
-# requires: $(BoxModels)/boxmodel.py
-# requires: $(SageDynamics)/dynamicalsystems.py
-# requires: $(SageAdaptiveDynamics)/adaptivedynamics.py
-# produces: SII-tree.sage.out.tex SII-tree.boxes.tex SII-tree-component.boxes.tex
-# produces: SII-strong.boxes.tex
-import os
-import sys
-sys.path.append( os.environ['SageDynamics'] )
-sys.path.append( os.environ['SageUtils'] )
-sys.path.append( os.environ['BoxModels'] )
-import dynamicalsystems, latex_output, boxmodel, boxmodelproduct
-S = dynamicalsystems.indexer('S')
-I = dynamicalsystems.indexer('I')
-def beta(n): return SR.symbol( 'beta_'+n, latex_name='\\beta_{'+n+'}' )
-def SI(i):
-    return boxmodel.BoxModel(
-	DiGraph( [ (S[i], I[i], beta(str(i))*S[i]*I[i]) ] ),
-	[ S[i], I[i] ]
-    )
-SII = boxmodelproduct.BoxModelProduct( SI(1), SI(2),
-    vertex_namer = boxmodelproduct.x_namer
-)
-
-def recur_edges( xprod, seq=None ):
-    edges = []
-    targets = set()
-    iter = ( xprod._graph.edge_iterator() if seq is None else xprod._graph.outgoing_edge_iterator(seq[-1]) )
-    for v,w,e1 in iter:
-	sseq = ( ( v, ) if seq is None else seq )
-	tseq = tuple( list( sseq ) + [ w ] )
-	edges.append( (
-	    tuple( [ tuple(s.operands()) for s in sseq ] ),
-	    tuple( [ tuple(s.operands()) for s in tseq ] ),
-	    e1 # todo: rate
-	) )
-	targets.add(tseq)
-    for tseq in targets:
-	edges = edges + recur_edges( xprod, tseq )
-    #print 'recur_edges', seq, edges
-    return edges
-
-def seq_renaming( *seq ):
-    # input: sequence of pairs such as ((S_1,S_2),(S_1,I_2))
-    # output: summary sequence such as (2).  Used to construct name such as I_2
-    import re
-    indices = []
-    for v in seq[0]: # un-count pre-existing conditions
-	match = re.match( 'I_(.*)', str(v) )
-	if match:
-	    indices.append(-int(match.group(1r)))
-    for s in seq[1:]:
-	for v in s:
-	    match = re.match( 'I_(.*)', str(v) )
-	    if match:
-		n = int(match.group(1r))
-		if n not in indices and -n not in indices:
-		    indices.append(n)
-    #print 'seq', seq, indices
-    return indices
- 
-def seq_namer( *indices ): # names of states, with history
-    if len(indices):
-	def withparens(x): return x if x >= 0 else SR.symbol('Paren_'+str(-x), latex_name='('+str(-x)+')')
-	return dynamicalsystems.subscriptedsymbol('I',
-	    *[ withparens(x) for x in indices ] )
-    return SR.symbol('S')
-
-def seq_pos( *indices ):
-    pos = [ 0, 0 ]
-    for i in range(len(indices)):
-	scale = 1/(1+0.1*i)
-	if indices[i] < 0:
-	    pos[-indices[i]-1] += 2*scale
-	else:
-	    pos[indices[i]-1] += scale
-    pos = ( pos[0], 1-pos[1] )
-    return pos
-
-def strong_recur_edges( xprod, seq=None ):
-    edges = []
-    targets = set()
-    iter = ( xprod._graph.edge_iterator() if seq is None else xprod._graph.outgoing_edge_iterator(seq[-1]) )
-    for v,w,e1 in iter:
-	sseq = ( ( v, ) if seq is None else seq )
-	tseq = tuple( list( sseq ) + [ w ] )
-	edges.append( (
-	    tuple( [ tuple(s.operands()) for s in sseq ] ),
-	    tuple( [ tuple(s.operands()) for s in tseq ] ),
-	    e1 # todo: rate
-	) )
-	targets.add(tseq)
-    for tseq in targets:
-	edges = edges + recur_edges( xprod, tseq )
-    # add transitive edges
-    #print 'recur_edges', seq, edges
-    return edges
-
-edges_0 = [ (tuple(seq_renaming(*v)),tuple(seq_renaming(*w)),e) for v,w,e in recur_edges(SII) ]
-edges = [ (seq_namer(*v),seq_namer(*w),e) for v,w,e in edges_0 ]
-vertices = dict( reduce( lambda x,y:x+y, ( [ (v,1), (w,1) ] for v,w,e in edges_0 ) ) )
-pos = { seq_namer(*v):seq_pos(*v) for v in vertices }
-SItree_graph = DiGraph( edges, pos=pos, multiedges=True )
-SItree = boxmodel.BoxModel( SItree_graph )
-SItree.plot_boxes( 'SII-tree.boxes.tex', edge_labels=False, figsize=(7,7) )
-
-edges_0 = [ (tuple(seq_renaming(*v)),tuple(seq_renaming(*w)),e) for v,w,e in recur_edges(SII, (SII._tuples[0],)) ]
-edges = [ (seq_namer(*v),seq_namer(*w),e) for v,w,e in edges_0 ]
-vertices = dict( reduce( lambda x,y:x+y, ( [ (v,1), (w,1) ] for v,w,e in edges_0 ) ) )
-pos = { seq_namer(*v):seq_pos(*v) for v in vertices }
-SItree_graph = DiGraph( edges, pos=pos, multiedges=True )
-SItree = boxmodel.BoxModel( SItree_graph )
-SItree.plot_boxes( 'SII-tree-component.boxes.tex', edge_labels=False, figsize=(7,7) )
-
-SII_strong = boxmodelproduct.strong_product( SI(1), SI(2),
-    vertex_namer = boxmodelproduct.x_namer
-)
-
-edges_strong = [ (tuple(seq_renaming(*v)),tuple(seq_renaming(*w)),e) for v,w,e in recur_edges(SII_strong, (SII_strong._tuples[0],)) ]
-edges = [ (seq_namer(*v),seq_namer(*w),e) for v,w,e in edges_strong ]
-vertices = dict( reduce( lambda x,y:x+y, ( [ (v,1), (w,1) ] for v,w,e in edges_strong ) ) )
-pos = { seq_namer(*v):seq_pos(*v) for v in vertices }
-print 'strong edges:', edges_strong
-SII_strong_graph = DiGraph( edges, pos=pos, multiedges=True )
-SII_strong = boxmodel.BoxModel( SII_strong_graph )
-SII_strong.plot_boxes( 'SII-strong.boxes.tex', edge_labels=False, figsize=(7,7) )
-
-</source-file>.
-
-It generates some extra edges, starting at places other than $$(S_1,S_2)$$.
-We should think about whether those might ever be meaningful.
-
-We can generate just the component we want by specifying a starting
-compartment.  In this case the starting compartment is the pair $$(S_1,S_2)$$,
-which is labelled $$S$$ in the diagram.
-
-<project-file filename=SII-tree-component.boxes.crop.svg/>
-
-This diagram also makes clear that the sketch above doesn't have enough
-arrows.  There are multiple kinds of interactions driving transitions
-across each pair of compartments.  There must be more than that as well:
-nearly every possible encounter between two types needs at least one
-transition, sometimes more.
-
-I have an implementation of this product using a recursive binary relation.
-I want to understand a little better what it has to do with the other
-formulations in this paper, then I'll write it up.
-
-Here is a hierarchical coinfection model generated by software:
-
-<source-file filename="binary-ops.sage.step" display="bop2.boxes.crop.svg">
+<source-file filename="SII-simple.sage.step" display="SII-simple.boxes.crop.svg">
 # requires: $(BoxModels)/boxmodel.py $(BoxModels)/boxmodelproduct.py 
 # requires: $(SageDynamics)/dynamicalsystems.py
 # requires: $(SageAdaptiveDynamics)/adaptivedynamics.py
-# produces: bop.boxes.tex bop2.boxes.tex bop3.boxes.tex bop4.boxes.tex
+# produces: SII-simple.boxes.tex
 import os, sys
 sys.path.append( os.environ['SageDynamics'] )
 sys.path.append( os.environ['SageUtils'] )
 sys.path.append( os.environ['BoxModels'] )
 import dynamicalsystems, latex_output, boxmodel, boxmodelproduct
 
-import operator
-# Partial coinfection: I_{ab|cd} means someone has strains a and b fully,
-# and c and d partially.
-# Represent compartment by ({a,b},{c,d}). ({},{}) is called S, all others
-# are called I_something.
-# bop is a list of (source,catalyst,[target,...]) triples.
-# source, catalyst, and targets are compartments, in the above form.
-boplist = ( [ ([()],[x],[(x,),()]) for x in ((1,),(2,)) ]
-+ [ ([()],xx,[[(1,)],[(2,)],[(1,),(2,)],[(2,),(1,)]]) for xx in ([(1,),(2,)],[(2,),(1,)]) ]
-+ [ ([(x,)],[(y,)],[[(y,)],[(x,),(y,)]]) for x,y in ((1,2),(2,1)) ]
-+ [ ([(x,)],y,[[(3-x,)],[(x,),(3-x,)]]) for x in (1,2) for y in ([(1,),(2,)],[(2,),(1,)]) ]
+S, I, beta = var( 'S I beta' )
+SI = boxmodel.BoxModel( DiGraph( [ (S,I,beta*S*I) ] ), [S,I] )
+
+bopmodel = boxmodelproduct.BoxModelProduct(
+    SI, SI, 
+    single_edge_generator = boxmodelproduct.simple_edge_stratifier,
+    param_relabeling=boxmodelproduct.full_param_relabeling,
+    vertex_namer=boxmodelproduct.x_namer,
 )
-#print boplist
-def si( tup ):
-    #print 'si of', tup
-    if len(tup) == 0 or union( *tup ) == []: return SR.symbol('S')
-    cs = reduce( lambda s1,s2:s1+str(s2), tup[0], '' )
-    csl = cs
-    try:
-	c2 = reduce( lambda s1,s2:s1+str(s2), tup[1], '' )
-	if c2 is not '':
-	    csl = csl + '|' + c2
-	    cs = cs + '_' + c2
-    except IndexError: pass
-    #print 'I_' + cs
-    return SR.symbol( 'I_' + cs, latex_name='I_{' + csl + '}' )
-    #return dynamicalsystems.subscriptedsymbol( 'I', latex_output.wrap_latex(cs) )
-pos = { 'S':(0,0), 'I_1':(1,0), 'I_2':(0,-1), 'I_1_2':(1,-0.7), 'I_2_1':(0.7,-1) }
-def bsi( x, y, z ):
-    return dynamicalsystems.subscriptedsymbol('beta', si(x), si(y), si(z))*si(x)*si(y)
-bopgraph = DiGraph( # this isn't working right
-    [ (si(s),si(t),bsi(s,c,t)) for s,c,ts in boplist for t in ts if si(t) != si(s) ],
-    multiedges=True,
-    pos = { SR.symbol(x):p for x,p in pos.iteritems() }
-)
-bopmodel = boxmodel.BoxModel( bopgraph )
-bopmodel.plot_boxes( 'bop.boxes.tex', figsize=(9,9) )
+bopmodel.plot_boxes( 'SII-simple.boxes.tex', figsize=(9,9) )
+</source-file>
+
+We need to modify this to account for order of infection, and to allow
+for the possibility that both strains can be transmitted in a single
+contact event.
+
+[Note: we might want to explain why we didn't worry about double transmission
+events in the pair model]
+
+To model partial superinfection, we need to introduce a "half-infected"
+class $$H$$, and provide a modified binary operation:
+
+<latex>$\Sigma_H( S, i_s, C, i_s, S, I, I, i ) = \begin{cases}
+  \{\, (S_1,\ldots,S_{i_s-1},H,S_{i_s+1},\ldots,S_n) \,\} &
+    \text{if $S$ includes $I$} \\  
+  \{\, (S_1,\ldots,S_{i_s-1},I,S_{i_s+1},\ldots,S_n) \,\} &
+    \text{if not}
+\end{cases}$</latex>
+
+[TODO: the vertex set is generated by the $$\Sigma$$ operation,
+not by the Cartesian product of vertex sets as claimed in the definition]
+
+<project-file filename=SIH.boxes.crop.svg/>
+
+To account for simultaneous transmission of both strains, we need to
+construct a
+[strong product](https://en.wikipedia.org/wiki/Strong_product_of_graphs)
+rather than the cross product we have been studying.  As described in
+the appendix, a strong product contains all the edges of the cross product,
+plus edges constructed from edges of multiple component graphs at once.
+In this model, the edges of the cross product are transitions where $S$
+changes to $I$ in one or the other of the component models, i.e. where an
+individual acquires one of the disease strains.  Transitions in which an
+individual acquires both strains in a single event are edges of the
+strong product.
+
+The strong product of box models can be defined using most of the formal
+apparatus of the cross product, but with an edge generation
+function that generates derived edges from each combination
+of models' edges, rather than from each edge individually.
+
+**Definition.** A *strong product* $$M_1\boxtimes\cdots\boxtimes M_n$$
+of box models $$M_1,\ldots,M_n$$ is a box model such that
+
+* $$V(M) = V(M_1)\times\cdots\times V(M_n)$$
+* $$E(M) = \cup_{\sigma\subseteq\{1,\ldots,n\}} \cup_{\varepsilon\in\prod_{i\in\sigma}E(M_i)} \Xi_\boxtimes( \varepsilon )$$
+* <latex>$\Xi_\boxtimes( \varepsilon ) = \begin{cases}
+    \{\,(S,T,\tilde{\Phi}_r(r,S,\iota_s,T)) \mid S\in V(M), \{\,(S,i)\mid i\in\sigma\,\}\subseteq\Sigma(s,\{S\}), \\
+    \quad T\in \tilde{\Omega}_1(S, \iota_s, \varepsilon)\,\} \\
+    \qquad\text{if $e=(s,t,r)\ \forall e\in\varepsilon$ and $r$ is linear in $s$} \\
+    \{\,(S,T,\tilde{\Phi}_{2r}(r,S,\iota_s,C,\iota_c,C)) \mid S\in V(M), \{S\}\times\sigma\subseteq\Sigma_c(s,\{S\})\\
+    \quad C\in V(M), \{C\}\times\sigma\subseteq\Sigma_c(c,\{C\}), \\
+    \quad T\in\tilde{\Omega}_2(S, \{S\}\times\sigma, C, \{C\}\times\sigma, \varepsilon)\,\} \\
+    \qquad\text{if $e=(s,t,r)\ \forall e\in\varepsilon$ and $r$ is bilinear in $s$ and $c$} 
+\end{cases}$</latex>
+* $$\tilde{\Omega}_1$$ and $$\tilde{\Omega}_2$$ generate the destination
+compartment for each transition given the transitions it's constructed from,
+and the source and catalyst compartments, and $$\tilde{\Phi}_r$$ and
+$$\tilde{\Phi}_{2r}$$ provide rewritten rate expressions.
+
+This definition is surely opaque [and not actually correct: we distinguish
+the order of elements in $$\iota_s$$ and $$\iota_c$$, we have strong products with and
+without cross interactions, and we may need within-compartment interactions
+for some applications-lw],
+but the upshot is that, in our example,
+for every way of locating one or more $S$ labels in a compartment, and for
+every way of locating one or more $I$ labels in a compartment, it uses the
+$$\tilde{\Omega}_2$$ function to generate a set of transitions resulting
+from the interactions of those pairs.  In this model, we want the $$S$$
+and $$I$$ labels to match up in the same positions (no cross interactions),
+so we provide an
+$$\tilde{\Omega}_2$$ function that yields outputs only in those cases.
+
+Using a strong product allows us to produce this model:
+
+<source-file filename="binary-ops.sage.step" display=SIH-strong.boxes.crop.svg>
+# requires: $(BoxModels)/boxmodel.py $(BoxModels)/boxmodelproduct.py 
+# requires: $(SageDynamics)/dynamicalsystems.py
+# requires: $(SageAdaptiveDynamics)/adaptivedynamics.py
+# produces: SIH.boxes.tex SIH-strong.boxes.tex
+import os, sys
+sys.path.append( os.environ['SageDynamics'] )
+sys.path.append( os.environ['SageUtils'] )
+sys.path.append( os.environ['BoxModels'] )
+import dynamicalsystems, latex_output, boxmodel, boxmodelproduct
 
 # In this model we don't distinguish S positions, only I positions,
 # being susceptible to strain i means you don't have I (or H) in the
@@ -770,12 +619,12 @@ bopmodel.plot_boxes( 'bop.boxes.tex', figsize=(9,9) )
 # gained.
 H = SR.var('H')
 # eis is a tuple of ((s,t,r),i) pairs
-def single_dominance_bop( source, catalyst, iotas, iota_s, eis ):
-    print 'bop', source, catalyst, iotas, iota_s, eis
+def single_dominance_bop( source, iotas, catalyst, iota_s, eis ):
+    print 'bop', source, iotas, catalyst, iota_s, eis
     if iotas != iota_s: print 'wrong iota_s'; return Set()
     # do where transitions, source compartments, and catalyst compartments
     # match
-    if [ i for e,i in eis ] != iotas: print 'wrong iotas'; return Set()
+    if [ i for e,i in eis ] != list(iotas): print 'wrong iotas'; return Set()
     # do we need this?  check if all source compartments are S
     if any( source[i] is not S for i in iotas ):
 	print 'skipping', source, iotas, 'because not all S'
@@ -785,7 +634,10 @@ def single_dominance_bop( source, catalyst, iotas, iota_s, eis ):
     else:
 	return Set( [ tuple( (I if i == ii else H if i in iotas else source[i]) for i in range(len(source)) ) for ii in iotas  ] )
 
-def single_dominance_with_replacement_bop( source, catalyst, iotas, iota_s, eis ):
+def strong_to_cross_shim( bop ):
+    return lambda S, i, C, i_, s, t, r: bop( S, Set([i]), C, Set([i_]), (((s,t,r),i),) )
+
+def single_dominance_with_replacement_bop( source, iotas, catalyst, iota_s, eis ):
     print 'bop', source, catalyst, iotas, iota_s, eis
     if iotas != iota_s: print 'wrong iota_s'; return Set()
     # do where transitions, source compartments, and catalyst compartments
@@ -807,7 +659,7 @@ def single_dominance_with_replacement_bop( source, catalyst, iotas, iota_s, eis 
     print 'with replacement we get', ts
     return ts
 
-def codominance_bop( source, catalyst, iotas, iota_s, eis ):
+def codominance_bop( source, iotas, catalyst, iota_s, eis ):
     print 'codominance bop', source, catalyst, iotas, iota_s, eis
     if iotas != iota_s: print 'wrong iota_s'; return Set()
     # do where transitions, source compartments, and catalyst compartments
@@ -837,31 +689,50 @@ def with_dominance_inclusions( c, C ):
     if c is S: return Set( range(len(C)) ) - with_dominance_inclusions( I, C )
     return boxmodelproduct.tuple_inclusions( I, C ) + boxmodelproduct.tuple_inclusions( H, C )
 
-print 'single dominance model'
+print 'single dominance cross product'
 SI = boxmodel.BoxModel( DiGraph( [ (S,I,beta*S*I) ] ), [S,I] )
-bpos = { (S,S):(0,0), (I,S):(1,0), (S,I):(0,-1), (I,H):(1,-0.7), (H,I):(0.7,-1), (I,I):(0.8,-0.8) }
+bpos = { (S,S):(0,0), (I,S):(1,0), (S,I):(0,-1), (I,H):(1,-0.6), (H,I):(0.6,-1), (I,I):(1,-1) }
 gpos = { boxmodelproduct.bm_state( *with_dominance_renaming( *x ) ):p for x,p in bpos.iteritems() }
 print 'gpos', gpos
 bopmodel = boxmodelproduct.BoxModelProduct(
     SI, SI, 
-    edge_generator=lambda *x: boxmodelproduct.strong_edge_generator( *x, seed_set=Set( [ (S,S), (S,I), (I,S) ] ), bop=single_dominance_bop, inclusions=with_dominance_inclusions ),
+    binary_operation=strong_to_cross_shim( single_dominance_bop ),
+    inclusions=with_dominance_inclusions,
+    seed_set = Set( [ (S,S), (S,I), (I,S) ] ),
     param_relabeling=boxmodelproduct.full_param_relabeling,
     compartment_renaming=with_dominance_renaming,
     vertex_namer=boxmodelproduct.x_namer,
     vertex_positioner=lambda *a:gpos
 )
-bopmodel.plot_boxes( 'bop2.boxes.tex', figsize=(9,9) )
+bopmodel.plot_boxes( 'SIH.boxes.tex', figsize=(9,9) )
+
+print 'single dominance strong product'
+bopmodel = boxmodelproduct.BoxModelProduct(
+    SI, SI, 
+    edge_generator=boxmodelproduct.strong_edge_generator,
+    binary_operation=single_dominance_bop,
+    inclusions=with_dominance_inclusions,
+    seed_set = Set( [ (S,S), (S,I), (I,S) ] ),
+    param_relabeling=boxmodelproduct.full_param_relabeling,
+    compartment_renaming=with_dominance_renaming,
+    vertex_namer=boxmodelproduct.x_namer,
+    vertex_positioner=lambda *a:gpos
+)
+bopmodel.plot_boxes( 'SIH-strong.boxes.tex', figsize=(9,9) )
 
 print 'single dominance model with replacement'
 bopmodel = boxmodelproduct.BoxModelProduct(
     SI, SI, 
-    edge_generator=lambda *x: boxmodelproduct.strong_edge_generator( *x, seed_set=Set( [ (S,S), (S,I), (I,S) ] ), bop=single_dominance_with_replacement_bop, inclusions=with_dominance_inclusions ),
+    edge_generator=boxmodelproduct.strong_edge_generator,
+    binary_operation=single_dominance_with_replacement_bop,
+    inclusions=with_dominance_inclusions,
+    seed_set = Set( [ (S,S), (S,I), (I,S) ] ),
     param_relabeling=boxmodelproduct.full_param_relabeling,
     compartment_renaming=with_dominance_renaming,
     vertex_namer=boxmodelproduct.x_namer,
     vertex_positioner=lambda *a:gpos
 )
-bopmodel.plot_boxes( 'bop4.boxes.tex', figsize=(9,9) )
+bopmodel.plot_boxes( 'SIH-across.boxes.tex', figsize=(9,9) )
 
 print 'codominance model'
 pos = { 'S':(0,0), 'I_1':(1,0), 'I_2':(0,-1), 'I_1_2':(1,-0.5), 'I_2_1':(0.5,-1), 'I_12':(0.8,-0.8) }
@@ -869,123 +740,45 @@ pos = { SR.symbol(x):p for x,p in pos.iteritems() }
 #bopmodel = generate_boxmodel_from_binary_operation( codominance_op, seed_set, pos)
 bopmodel = boxmodelproduct.BoxModelProduct(
     SI, SI, 
-    edge_generator=lambda *x: boxmodelproduct.strong_edge_generator( *x, seed_set=Set( [ (S,S), (S,I), (I,S) ] ), bop=codominance_bop, inclusions=with_dominance_inclusions ),
+    edge_generator=boxmodelproduct.strong_edge_generator,
+    binary_operation=codominance_bop,
+    inclusions=with_dominance_inclusions,
     param_relabeling=boxmodelproduct.full_param_relabeling,
     compartment_renaming=with_dominance_renaming,
     vertex_namer=boxmodelproduct.x_namer,
     vertex_positioner=lambda *a:gpos
 )
-bopmodel.plot_boxes( 'bop3.boxes.tex', figsize=(9,9) )
+bopmodel.plot_boxes( 'SIH-II.boxes.tex', figsize=(9,9) )
 </source-file>
 
+We can construct products based on different assumptions by writing
+slightly different $$\tilde{\Omega}_2$$ functions.
 Here is a variant in which an encounter with an infected individual can
-knock out one or more of your strains, as well as giving you new ones:
+knock out one or more strains, as well as infecting the contact with
+new ones:
 
-<project-file filename=bop4.boxes.crop.svg/>
+<project-file filename=SIH-across.boxes.crop.svg/>
 
-Here's a variant in which it's possible to get infected with both strains
-equally:
+Here's a variant in which it's also possible to get infected with both strains
+equally, in addition to having one infection weaker than the other:
 
-<project-file filename=bop3.boxes.crop.svg/>
-
-Here's a hand-drawn box model with hierarchical coinfection where
-one strain can knock out the other.  If this is the model we want
-I can look for a general rule that generates it.
-
-<project-file filename=bop.boxes.crop.svg/>
-
-<!---
-
-To think about how to generalize to more than
-two states per model, it might be worth thinking carefully through how we
-would cross two SIR models with multiple infection.  How many $$R$$
-classes would
-the product have in the general case?  I think they too would have to be
-enumerated in terms of the sequence of
-events: $$(i_1,r_1,i_2,r_2)$$ for example.  That history might be considered 
-different from $$(i_1,i_2,r_2,r_1)$$, etc.
-
-This suggests a system for creating the compartments of the cross product:
-one for each sequence of component transitions.  Given a SIS or SIRS model,
-though, or any that contains a cycle of transitions, this system will
-produce an infinite set of compartments unless some equivalence is defined
-to identify all those sequences with a finite number of states.
-
-Also, there needs to be
-a bit more apparatus to produce all the transitions we want, because
-there are more transitions in the product than there are sequences of
-component transitions: for example, in the sketch above there are 
-three transitions corresponding to the sequence $$(i_1,i_2)$$, and
-likewise for $$(i_2,i_1)$$.
-
-I guess with full generality there need to be transitions from $$S$$ to
-all $$I$$ classes, and from every $$I$$ class to every other $$I$$ class.
-How does that generalize to the SIR case? I think recovery events are much
-more constrained -- there's probably no co-recovery.  But if there were?
-One would recover from any subset of a given set of $$I$$ agents, I guess.
-Presumably we wouldn't distinguish the order of recovery, e.g.
-between $$r_{12}$$ and $$r_{21}$$,
-though, even though we do have separate $$I$$ classes distinguishing
-order of infection.  Let's say we did, and had full order of events, with
-"jump-overs": [...]
-
---->
-
-### Transitive transitions ("jump-overs")
-
-The above implementation doesn't generate the diagonal arrows.
-First let's consider the "forward" arrows from $$S$$ to the
-co-infection compartments $$I_{12}$$ and $$I_{21}$$.  These
-are the events that make this a "strong product", the ones
-that combine two events of the cross product into one.
-Semantically, these denote events in which two transitions
-of the cross product happen in a single encounter: one
-individual gives the subject two infections at the same time.
-
-First of all, here is an unadorned strong product of $$M_1$$
-and $$M_2$$:
-
-<source-file filename="M1M2-strong.sage.step" display="M1M2-strong.boxes.crop.svg">
-# requires: $(BoxModels)/boxmodel.py $(BoxModels)/boxmodelproduct.py
-# requires: $(SageDynamics)/dynamicalsystems.py
-# requires: $(SageAdaptiveDynamics)/adaptivedynamics.py
-# requires: M1M2.sobj
-# produces: M1M2-strong.boxes.tex
-import os, sys
-sys.path.append( os.environ['SageDynamics'] )
-sys.path.append( os.environ['SageUtils'] )
-sys.path.append( os.environ['BoxModels'] )
-import dynamicalsystems, latex_output, boxmodel, boxmodelproduct
-
-load_session( 'M1M2' )
-
-SII = boxmodelproduct.strong_product( M1, M2, vertex_namer=boxmodelproduct.x_namer )
-SII.plot_boxes( 'M1M2-strong.boxes.tex', edge_labels=False, figsize=(7,4) )
-</source-file>
-
-Clearly we need more structure than that.  Try this:
-
-<project-file filename=SII-strong.boxes.crop.svg/>
-
-### Lateral transitions
-
-(to come)
+<project-file filename=SIH-II.boxes.crop.svg/>
 
 ## Forward equations for a box model
 
 Given a box model, rather than ODE as defined above, we can generate
 Kolmogorov forward and backward equations for the model.  Both are
 ODEs, but the forward equations are the
-ODE of a box model, so we define it as a box model.
+ODE of a box model, so we define that system as a box model.
 
 Given an integer
 number $$N$$ of total individuals, the compartments, that is the state
 variables, for the forward
-equations are $$p_{(\frac{i_1}{N},\ldots,\frac{i_n}{N})}$$ for each
+equations are $$p_{({i_1}/{N},\ldots,{i_n}/{N})}$$ for each
 $$(i_1,\ldots,i_n)\in\{0,1,\ldots,N\}^n$$, where $$n$$ is the number of
 compartments.  If total mass is conserved, as it often is in box models,
 we reduce the dimension by eliminating the last of the model's
-compartments, under the assumption that the sum of all compartments is 1.
+compartments, and assume that the sum of all compartments is 1.
 
 For each compartment $$X$$ let $$\mathbf{e}_X$$ be the vector
 $$(0,\ldots,0,1,0,\ldots,0)$$ with 1 in the place corresponding to 
@@ -993,7 +786,7 @@ compartment $$X$$.
 
 The transitions are
 
-$$ (p_S,p_{S-\frac{\mathbf{e}_s}{N}+\frac{\mathbf{e}_t}{N}},r(S) p_S) $$
+$$ (p_S,p_{S-{\mathbf{e}_s}/{N}+{\mathbf{e}_t}/{N}},r(S) p_S) $$
 
 for each transition with source, target, and rate $$s,t,r$$ of the original
 box model, and for every state $$S$$,
@@ -1018,9 +811,23 @@ S, I, beta = var('S I beta')
 SI = boxmodel.BoxModel( DiGraph( [ (S,I,beta*I*S) ] ), [S,I] )
 SIf = SI.forward_boxmodel(3)
 SIf.ode().write_latex( 'SI-forward-3.tex' )
+SIf.plot_boxes( 'SI-forward-3.boxes.tex', figsize=(5,5) )
 </source-file>
 
 <project-file filename=SI-forward-3.tex/>
+<!--
+Here is the box model that has the forward equations as its ODE:
+
+<project-file filename=SI-forward-3.boxes.crop.svg/>.
+-->
+
+## To do: forward equations of large power of infection model
+
+In this section, we will document the Sage code (yet to be written)
+that implements large powers of a single model efficiently (as in the
+$$SI\times SI$$ pair model presented above), binds its transition rate
+parameters to something sane, and constructs its forward equations in
+a way that collapses to something usable.
 
 # Appendix: graph products
 
@@ -1032,13 +839,13 @@ of products of box models.
 
 The **Cartesian product of sets** $$S_1$$, $$S_2$$, $$\ldots$$, $$S_n$$
 is the set
-$$S_1\times S_2\times\ldots\times S_n = \{(s_1,s_2,\ldots,s_n)\mid s_1\in S_1\and s_2\in S_2\and\ldots\and s_n\in S_n\}$$.
+$$S_1\times S_2\times\ldots\times S_n = \{\,(s_1,s_2,\ldots,s_n)\mid s_1\in S_1, s_2\in S_2,\ldots, s_n\in S_n\,\}$$.
 The elements of $$S_1\times S_2\times\ldots\times S_n$$ are referred to
 as **tuples** of elements
 of the component sets $$S_1$$, $$S_2$$, $$\ldots$$, $$S_n$$.
 
 We define a **directed graph** (and we are not concerned with undirected
-graphs) as a set $$\{(v,w,e)\}\subseteq V\times V\times E$$, where
+graphs) as a set $$\{\,(v,w,e)\,\}\subseteq V\times V\times E$$, where
 $$V$$ is the **vertex set** of the graph and $$E$$ is its set of edge
 labels.  Each of these tuples is visualized as an arrow from $$v$$ to
 $$w$$ with label $$e$$. 
@@ -1047,10 +854,11 @@ transition rates.] Note
 that this definition allows multiple edges between the same vertices
 $$v,w$$, so we are properly discussing directed multigraphs.
 
-## The Cartesian product of graphs
+## The cross product of graphs
 
-The **Cartesian product** (or cross product)
-$$G_1\times G_2\times\ldots\times G_n$$ **of directed graphs**
+The **cross product**
+$$G_1\:\square\:G_2\:\square\:\cdots\:\square\:G_n$$
+**of directed graphs**
 $$G_1$$, $$G_2$$, $$\ldots$$, $$G_n$$ is a graph whose vertex
 set is the Cartesian product $$V_1\times V_2\times\ldots\times V_n$$
 of the vertex sets $$V_i$$ of each graph $$G_i$$, and whose edges
@@ -1061,22 +869,17 @@ Most definitions of this product do not provide labels for the edges
 of the product graph.  In the body of this paper we construct these
 labels (transition rates) in a variety of ways.
 
-The Cartesian product of graphs is sometimes written
-$$G_1\,\square\, G_2\,\square\cdots\square\,G_n$$, which is visually resonant
-with the shape of the product graph.
+The square symbol is chosen to suggest the shape of the cross product
+graph.
 
 ## The tensor product
 
 The **tensor product** of directed graphs $$G_1$$, $$\ldots$$, $$G_n$$
-is a graph $$G_1\cdot G_2\cdot\ldots\cdot G_n$$ whose vertex set
+is a graph $$G_1\times \cdots\times G_n$$  whose vertex set
 is the Cartesian product of the graphs' vertex sets, and which has
 an edge from $$(v_1,v_2,\ldots,v_n)$$ to $$(w_1,w_1,\ldots,w_n)$$
 if and only if there is an edge from $$v_i$$ to $$w_i$$ in *every*
 graph $$G_i$$.
-
-This is often written $$G_1\times \cdots\times G_n$$ when the $$\square$$
-operator is used for Cartesian products,
-since this product produces X-shaped diagrams.
 
 The tensor product is the natural product in the category of graphs
 (with graph homomorphisms as the category's morphisms), because the
@@ -1091,25 +894,26 @@ an "exactly one of" operation.
 
 ## The strong product
 
-The **strong product** of two graphs $$G_1$$, $$G_2$$, written
-$$G_1\boxtimes G_2$$, is
+The **strong product** $$G_1\,\boxtimes\,G_2$$ of two graphs
+$$G_1$$, $$G_2$$ is
 the union of the Cartesian product and tensor product of the
-graphs.  That is, it contains all the edges of the two product graphs.
+graphs.  That is, it contains all the edges of those two
+product graphs.
 
-If we extend that definition to $$n$$ graphs, we get an
+If we extend that definition verbatim to $$n$$ graphs, we get an
 "all or exactly one" product. In modeling infectious dynamics
 we are probably more interested in a "one or more" product.
-Therefore I propose the following definition:
+Therefore I prefer the following definition:
 
 The **strong product** of graphs $$G_1$$, $$\ldots$$, $$G_n$$, written
-$$G_1\boxtimes G_2\boxtimes\cdots\boxtimes G_n$$, is
+$$G_1\,\boxtimes\,G_2\,\boxtimes\,\cdots\,\boxtimes\,G_n$$, is
 the graph whose vertex set is the Cartesian product of the graphs'
 vertex sets, and which has an edge from
 $$(v_1,\ldots,v_n)$$ to $$(w_1,\ldots,w_n)$$ if and only if, for
 every $$i$$, either there is an edge from $$v_i$$ to $$w_i$$, or
 $$v_i=w_i$$.
 
-This graph contains edges belonging to the transitive closure of
+This graph is a subgraph of the transitive closure of
 the Cartesian product graph, but it is not the transitive closure,
-because it's limited to transitive combinations of exactly zero or
+because it's limited to transitive combinations of at most
 one edge from each component graph.

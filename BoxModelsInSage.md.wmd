@@ -502,7 +502,8 @@ class BoxModel(SageObject):
 	# tuples suitable for adding to self._graph (rather than _flow_graph).
 	nbm = deepcopy(self)
 	nbm._graph.add_edges( trs )
-	nbm._flow_graph.add_edges( trs )
+	if self._flow_graph is not self._graph:
+	    nbm._flow_graph.add_edges( trs )
 	return nbm
     def ode_flow(self):
 	flow = { v:0 for v in self._vars }
@@ -559,6 +560,14 @@ class BoxModel(SageObject):
 	vargs.update( aargs )
 	print 'plot vargs:', vargs
 	return lfg.plot( *args, **vargs )
+    def transpose_graph_in_place( self ):
+	self._graph.set_pos( { v:(-y,-x) for v,(x,y) in self._graph.get_pos().iteritems() } )
+	if self._flow_graph is not self._graph:
+	    self._flow_graph.set_pos( { v:(-y,-x) for v,(x,y) in self._flow_graph.get_pos().iteritems() } )
+    def transpose_graph( self ):
+	nm = deepcopy( self )
+        nm.transpose_graph_in_place()
+	return nm
     def micro_transitions( self ):
 	# This could produce micro transitions but it isn't right so far
 	ltx = latex_output.latex_output_base( latex_output.write_to_string() )
@@ -723,14 +732,6 @@ def full_param_relabeling( *vtuple ):
     print 'full_param_relabeling', vtuple
     from matplotlib.cbook import flatten
     return bm_param( *(flatten(vtuple[:-1])) )
-    def unwrap( *stuff ): # unpack contents of tuples
-	for t in stuff:
-	    try:
-		for i in t:
-		    yield i
-	    except TypeError:
-		yield t
-    return bm_param( *(unwrap(*vtuple[:-1])) )
 
 def default_vertex_positioner( graph, models, compartment_renaming ):
     """default_vertex_positioner:
@@ -767,9 +768,135 @@ def default_vertex_positioner( graph, models, compartment_renaming ):
         )
     }
 
-# letter or whatever for making names of states of full cross product,
-# when they're used as an intermediate step in a combined-state product
-internal_vertex_name_base = None
+def default_sop( s_tuple, i, s, t, r ):
+    #print 'sop', s_tuple, i, s, t, r
+    # return set of t_tuples
+    return Set( [ s_tuple[:i] + (t,) + s_tuple[i+1:] ] )
+def default_bop( s_tuple, i, c_tuple, i_, s, t, r ):
+    # return set of t_tuples
+    return Set( [ s_tuple[:i] + (t,) + s_tuple[i+1:] ] )
+
+def tuple_inclusions( c, tup ):
+    return [ iota for iota,x in enumerate(tup) if x == c ]
+
+# 'single edge stratifier' is called once for each edge of each
+# component model, given a set of product vertices.  It loops
+# over those vertices and generates all the product edges involving
+# those vertices that are versions of that one component edge.
+def default_single_edge_stratifier(
+	source, target, rate, i, models,
+	seed_set, vertex_namer, param_relabeling, compartment_renaming,
+	old_set=Set(), cross_interactions=True,
+	unary_operation=default_sop, binary_operation=default_bop,
+	inclusions=tuple_inclusions
+    ):
+    print 'old set', old_set, '/ seed set', seed_set
+    # produce all product edges made from this component edge
+    # list the compartments involved in the transition
+    rate_comps = [ x for x in rate.variables() if x in models[i]._vars ]
+    rate_params = set( rate.variables() ) - set( rate_comps )
+    # we can handle linear or bilinear transitions
+    if rate_comps == [source]:
+	for V in seed_set:
+	    s_inclusions = inclusions( source, V )
+	    for iota in s_inclusions:
+		repl = { source: bm_state( *compartment_renaming( *V ) ) }
+	        for W in unary_operation( V, iota, source, target, rate ):
+		    print W
+		    # TODO: param_namer
+		    repl.update( { p: param_relabeling( p, V, iota, W ) for p in rate_params } )
+		    yield ( V, W, rate.subs( repl ) )
+    elif len(rate_comps) == 2 and source in rate_comps:
+	catalyst, = set(rate_comps) - set([source])
+        import itertools
+	for V,C in itertools.chain( itertools.product(seed_set, old_set), itertools.product(old_set + seed_set, seed_set) ):
+	    print 'consider', V, '+', C, 'at', i
+	    # do only the one source inclusion here to avoid duplication
+	    #s_inclusions = [ iota for iota,x in enumerate(V) if x == source and iota == i ]
+	    s_inclusions = Set( inclusions( source, V ) ).intersection( Set( [i] ) )
+	    print source, 'in V:', s_inclusions
+	    for iota in s_inclusions:
+		if cross_interactions:
+		    c_inclusions = inclusions( catalyst, C )
+		else:
+		    c_inclusions = Set( inclusions( catalyst, C ) ).intersection( Set( [i] ) )
+		print catalyst, 'in C:', c_inclusions
+		for iota_ in c_inclusions:
+	            print 'do edges for', V, iota, C, iota_
+		    repl = {
+			source: bm_state( *compartment_renaming( *V ) ),
+			catalyst: bm_state( *compartment_renaming( *C ) )
+		    }
+		    for W in binary_operation( V, iota, C, iota_, source, target, rate ):
+		        repl.update( { p: param_relabeling( p, V, iota, C, iota_, W ) for p in rate_params } )
+		        print V, iota, C, iota_, ':', compartment_renaming( *W ), rate.subs( repl )
+		        yield ( V, W, rate.subs( repl ) )
+		        if V == C:
+			    # TODO: is this within-class case right in general?
+			    # A: no, needs iota_ somewhere
+		            repl.update( { p: param_relabeling( p, V, iota, iota_, W ) for p in rate_params } )
+		            print V, iota, iota_, ':', W, rate.subs( repl ) / bm_state(*C)
+		            yield( V, W, rate.subs( repl ) / bm_state(*compartment_renaming(*C)) )
+    else: # wrong variables in rate
+	raise BoxModelProductException, "Don't understand rate ".str(rate)
+
+def simple_edge_stratifier( *args, **kwargs ):
+    kwargs['cross_interactions'] = False
+    return default_single_edge_stratifier( *args, **kwargs )
+
+# This edge generator is called to generate a set of product edges
+# given a set of product compartments and the component models.
+# It calls its single_edge_generator once for each edge of each
+# component model, to generate all the product edges made from
+# that original edge.
+def default_edge_generator(
+	models,
+	vertex_namer, param_relabeling, compartment_renaming,
+	single_edge_generator=None,
+	seed_set=None, cross_interactions=True,
+	unary_operation=default_sop, binary_operation=default_bop,
+	inclusions=tuple_inclusions
+    ):
+    if single_edge_generator is None:
+	single_edge_generator = default_single_edge_stratifier
+    # TODO: hacky, fix
+    if (
+	(param_relabeling is default_param_relabeling) and
+	cross_interactions and
+	any( not Set(m1._vars).intersection( Set(m2._vars) ).is_empty() for m1 in models for m2 in models if m2 is not m1 )
+    ):
+	param_relabeling = full_param_relabeling
+    import itertools
+    if seed_set is None:
+	seed_set = Set( itertools.product( *(m._vars for m in models) ) )
+    edges = []
+    old_vertices = Set()
+    while not seed_set.is_empty():
+        # for each edge of each model, we generate a set of derived edges
+        # in the product model
+        new_edges = list( itertools.chain( *(
+	    single_edge_generator(
+	        v, w, r, i, models, seed_set,
+	        vertex_namer, param_relabeling, compartment_renaming,
+		old_set=old_vertices,
+	        unary_operation=unary_operation,
+		binary_operation=binary_operation,
+		cross_interactions=cross_interactions,
+		inclusions=inclusions
+	    )
+	    for i in range(len(models))
+	    for v,w,r in models[i]._graph.edge_iterator()
+        ) ) )
+	edges += new_edges
+	# the edges returned may involve vertices we didn't anticipate
+	# so we expand our set of vertices dynamically
+	# in which case, we have to do the generation again to include
+	# transitions involving the new vertices
+        old_vertices += seed_set
+        seed_set = Set( v for v,w,r in new_edges ).union( Set( w for v,w,r in new_edges ) ) - old_vertices
+	if len(old_vertices) + len(seed_set) > 100:
+	    raise RuntimeError, 'Recursion produces too many compartments'
+    return [ ( bm_state( *compartment_renaming( *V ) ), bm_state( *compartment_renaming( *W ) ), r ) for V,W,r in edges ]
 
 class BoxModelProduct(boxmodel.BoxModel):
     def __init__(
@@ -782,10 +909,25 @@ class BoxModelProduct(boxmodel.BoxModel):
 	vertex_namer =    kwargs.pop( 'vertex_namer',    default_vertex_namer )
 	param_relabeling =  kwargs.pop( 'param_relabeling',     default_param_relabeling )
 	edge_generator = kwargs.pop( 'edge_generator', default_edge_generator )
+	single_edge_generator = kwargs.pop( 'single_edge_generator', None )
 	vertex_positioner = kwargs.pop( 'vertex_positioner', default_vertex_positioner )
+	unary_operation = kwargs.pop( 'unary_operation', default_sop )
+	binary_operation = kwargs.pop( 'binary_operation', default_bop )
+	inclusions = kwargs.pop( 'inclusions', tuple_inclusions )
+	seed_set = kwargs.pop( 'seed_set', None )
 	if kwargs: raise TypeError, "Unknown named arguments to BoxModelProduct: %s" % str(kwargs)
 
-	edges = list( edge_generator( models, vertex_namer, param_relabeling, compartment_renaming ) )
+	edges = list( edge_generator(
+	    models,
+	    vertex_namer,
+	    param_relabeling,
+	    compartment_renaming,
+	    single_edge_generator=single_edge_generator,
+	    unary_operation=unary_operation,
+	    binary_operation=binary_operation,
+	    inclusions=inclusions,
+	    seed_set=seed_set
+	) )
 	print 'edges for product graph:', edges
 	self._graph = DiGraph( edges, multiedges=True )
 
@@ -862,6 +1004,7 @@ class BoxModelProduct(boxmodel.BoxModel):
 	        esc = compartment_renaming
 	        vars_combine = None
 	    else:
+		# this was defined globally, I removed
 	        global internal_vertex_name_base
 	        if internal_vertex_name_base is None:
 	            #internal_vertex_name_base = SR.symbol()
@@ -965,136 +1108,13 @@ class BoxModelProduct(boxmodel.BoxModel):
 	    bindings = self._bindings + bindings
 	)
 
-def default_sop( s_tuple, s, t, r, i ):
-    # return set of t_tuples
-    print 'sop', s_tuple, s, t, r, i
-    return Set( [ s_tuple[:i] + (t,) + s_tuple[i+1:] ] )
-def default_bop( s_tuple, c_tuple, s, t, r, i, i_ ):
-    # return set of t_tuples
-    return Set( [ s_tuple[:i] + (t,) + s_tuple[i+1:] ] )
-
-def tuple_inclusions( c, tup ):
-    return [ iota for iota,x in enumerate(tup) if x == c ]
-
-# 'single edge stratifier' is called once for each edge of each
-# component model, given a set of product vertices.  It loops
-# over those vertices and generates all the product edges involving
-# those vertices that are versions of that one component edge.
-def default_single_edge_stratifier(
-	source, target, rate, i, models,
-	seed_set, vertex_namer, param_relabeling, compartment_renaming,
-	old_set=Set(), cross_interactions=True,
-	sop=default_sop, bop=default_bop,
-	inclusions=tuple_inclusions
-    ):
-    print 'old set', old_set, '/ seed set', seed_set
-    # produce all product edges made from this component edge
-    # list the compartments involved in the transition
-    rate_comps = [ x for x in rate.variables() if x in models[i]._vars ]
-    rate_params = set( rate.variables() ) - set( rate_comps )
-    # we can handle linear or bilinear transitions
-    if rate_comps == [source]:
-	for V in seed_set:
-	    s_inclusions = inclusions( source, V )
-	    # todo: something funny about iota and i here
-	    for iota in s_inclusions:
-		repl = { source: bm_state( *compartment_renaming( *V ) ) }
-	        for W in sop( V, source, target, rate, i ):
-		    print W
-		    # TODO: param_namer
-		    repl.update( { p: param_relabeling( p, V, iota, W ) for p in rate_params } )
-		    yield ( V, W, rate.subs( repl ) )
-    elif len(rate_comps) == 2 and source in rate_comps:
-	catalyst, = set(rate_comps) - set([source])
-        import itertools
-	for V,C in itertools.chain( itertools.product(seed_set, old_set), itertools.product(old_set + seed_set, seed_set) ):
-	    print 'consider', V, '+', C, 'at', i
-	    # do only the one source inclusion here to avoid duplication
-	    #s_inclusions = [ iota for iota,x in enumerate(V) if x == source and iota == i ]
-	    s_inclusions = Set( inclusions( source, V ) ).intersection( Set( [i] ) )
-	    print source, 'in V:', s_inclusions
-	    for iota in s_inclusions:
-		if cross_interactions:
-		    c_inclusions = inclusions( catalyst, C )
-		else:
-		    c_inclusions = Set( inclusions( catalyst, C ) ).intersection( Set( [i] ) )
-		print catalyst, 'in C:', c_inclusions
-		for iota_ in c_inclusions:
-	            print 'do edges for', V, iota, C, iota_
-		    repl = {
-			source: bm_state( *compartment_renaming( *V ) ),
-			catalyst: bm_state( *compartment_renaming( *C ) )
-		    }
-		    for W in bop( V, C, source, target, rate, iota, iota_ ):
-		        repl.update( { p: param_relabeling( p, V, iota, C, iota_, W ) for p in rate_params } )
-		        print V, iota, C, iota_, ':', compartment_renaming( *W ), rate.subs( repl )
-		        yield ( V, W, rate.subs( repl ) )
-		        if V == C:
-			    # TODO: is this within-class case right in general?
-			    # A: no, needs iota_ somewhere
-		            repl.update( { p: param_relabeling( p, V, iota, W ) for p in rate_params } )
-		            print V, iota, iota_, ':', W, rate.subs( repl ) / bm_state(*C)
-		            yield( V, W, rate.subs( repl ) / bm_state(*compartment_renaming(*C)) )
-    else: # wrong variables in rate
-	raise BoxModelProductException, "Don't understand rate ".str(rate)
-
-# This edge generator is called to generate a set of product edges
-# given a set of product compartments and the component models.
-# It calls its single_edge_generator once for each edge of each
-# component model, to generate all the product edges made from
-# that original edge.
-def default_edge_generator(
-	models,
-	vertex_namer, param_relabeling, compartment_renaming,
-	single_edge_generator=default_single_edge_stratifier,
-	seed_set=None, cross_interactions=True,
-	sop=default_sop, bop=default_bop,
-	inclusions=tuple_inclusions
-    ):
-    # TODO: hacky, fix
-    if (
-	(param_relabeling is default_param_relabeling) and
-	cross_interactions and
-	any( not Set(m1._vars).intersection( Set(m2._vars) ).is_empty() for m1 in models for m2 in models if m2 is not m1 )
-    ):
-	param_relabeling = full_param_relabeling
-    import itertools
-    if seed_set is None:
-	seed_set = Set( itertools.product( *(m._vars for m in models) ) )
-    edges = []
-    old_vertices = Set()
-    while not seed_set.is_empty():
-        # for each edge of each model, we generate a set of derived edges
-        # in the product model
-        new_edges = list( itertools.chain( *(
-	    single_edge_generator(
-	        v, w, r, i, models, seed_set,
-	        vertex_namer, param_relabeling, compartment_renaming,
-		old_set=old_vertices,
-	        sop=sop, bop=bop, cross_interactions=cross_interactions,
-		inclusions=inclusions
-	    )
-	    for i in range(len(models))
-	    for v,w,r in models[i]._graph.edge_iterator()
-        ) ) )
-	edges += new_edges
-	# the edges returned may involve vertices we didn't anticipate
-	# so we expand our set of vertices dynamically
-	# in which case, we have to do the generation again to include
-	# transitions involving the new vertices
-        old_vertices += seed_set
-        seed_set = Set( v for v,w,r in new_edges ).union( Set( w for v,w,r in new_edges ) ) - old_vertices
-	if len(old_vertices) + len(seed_set) > 100:
-	    raise RuntimeError, 'Recursion produces too many compartments'
-    return [ ( bm_state( *compartment_renaming( *V ) ), bm_state( *compartment_renaming( *W ) ), r ) for V,W,r in edges ]
-
-def default_sop_strong( s_tuple, eis ):
+def default_sop_strong( s_tuple, iset, eis ):
     # return set of t_tuples
     print 'sop', s_tuple, eis
     tl = list(s_tuple)
     for (v,w,r),i in eis: tl[i] = w
     return Set( [ tuple(tl) ] )
-def default_bop_strong( s_tuple, c_tuple, iset, i_set, eis ):
+def default_bop_strong( s_tuple, iset, c_tuple, i_set, eis ):
     # return set of t_tuples
     tl = list(s_tuple)
     for (v,w,r),i in eis: tl[i] = w
@@ -1111,7 +1131,7 @@ def default_strong_edge_bundle_generator(
 	eis, models,
 	seed_set, vertex_namer, param_relabeling, compartment_renaming,
 	old_set=Set(), cross_interactions=True,
-	sop=default_sop_strong, bop=default_bop_strong,
+	unary_operation=default_sop_strong, binary_operation=default_bop_strong,
 	inclusions=tuple_inclusions
     ):
     if len(eis) == 0: return
@@ -1132,9 +1152,9 @@ def default_strong_edge_bundle_generator(
     # we can handle linear or bilinear transitions
     if rate_comps == [source]:
 	for V in seed_set:
-	    if all( i in inclusions( v, V ) for ((v,w,r),i) in eis ):
+	    if all( i in inclusions( v, V ) for (v,w,r),i in eis ):
 		repl = { v: bm_state( *compartment_renaming( *V ) ) }
-	        for W in sop( V, eis ):
+	        for W in unary_operation( V, [i for e,i in eis], eis ):
 		    print W
 		    # TODO: param_namer
 		    repl.update( { p: param_relabeling( p, V, iota, W ) for p in rate_params } )
@@ -1165,15 +1185,16 @@ def default_strong_edge_bundle_generator(
     		    source: bm_state( *compartment_renaming( *V ) ),
     		    catalyst: bm_state( *compartment_renaming( *C ) )
     	        }
-    	        ts = bop( V, C, list( iota ), list( iota_ ), eis )
+    	        ts = binary_operation( V, list( iota ), C, list( iota_ ), eis )
 		print 'bop returns', ts
+		# TODO: check if in-compartment interaction is right
     	        for W in ts:
     	            repl.update( { p: param_relabeling( p, V, iota, C, iota_, W ) for p in rate_params } )
     	            #print V, iota, C, iota_, ':', compartment_renaming( *W ), rate.subs( repl )
     	            yield ( V, W, rate.subs( repl ) )
     	            if V == C:
     		        # TODO: is this within-class case right in general?
-    	                repl.update( { p: param_relabeling( p, V, iota, W ) for p in rate_params } )
+    	                repl.update( { p: param_relabeling( p, V, iota, iota_, W ) for p in rate_params } )
     	                #print V, iota, iota_, ':', W, rate.subs( repl ) / bm_state(*C)
     	                yield( V, W, rate.subs( repl ) / bm_state(*compartment_renaming(*C)) )
     else: # wrong variables in rate
@@ -1182,11 +1203,13 @@ def default_strong_edge_bundle_generator(
 def strong_edge_generator(
 	models,
 	vertex_namer, param_relabeling, compartment_renaming,
-	strong_edge_bundle_generator=default_strong_edge_bundle_generator,
+	single_edge_generator=None,
 	seed_set=None, cross_interactions=True,
-	sop=default_sop, bop=default_bop,
+	unary_operation=default_sop, binary_operation=default_bop,
 	inclusions=tuple_inclusions
     ):
+    if single_edge_generator is None:
+	single_edge_generator = default_strong_edge_bundle_generator
     # TODO: hacky, fix
     if (
 	(param_relabeling is default_param_relabeling) and
@@ -1206,11 +1229,13 @@ def strong_edge_generator(
 	    # call this thing once for each edge in each model, and
 	    # in fact more generally once for each tuple ( (e1,i1), (ex,ix), ... )
 	    # where ei is an edge in model i for some set of the models
-	    strong_edge_bundle_generator(
+	    single_edge_generator(
 	        eis, models, seed_set,
 	        vertex_namer, param_relabeling, compartment_renaming,
 		old_set=old_vertices,
-	        sop=sop, bop=bop, cross_interactions=cross_interactions,
+	        unary_operation=unary_operation,
+		binary_operation=binary_operation,
+		cross_interactions=cross_interactions,
 		inclusions=inclusions
 	    )
 	    for iset in Subsets( Set( range(len(models)) ) )
@@ -1244,6 +1269,7 @@ def union_positioner( graph, models, compartment_renaming ):
 ## union is not a product, but it's easy to implement as one
 ## it just combines the graphs "side by side"
 ## (except if they share vertices and possibly edges, they'll be combined)
+## note if we didn't combine those it would be direct sum rather than union
 def union( *models ):
     """union of the models' vertex and edge sets"""
     return BoxModelProduct( *models,
@@ -1267,11 +1293,24 @@ def strong_product( *models, **kwargs ):
 	vertex_positioner = vertex_positioner
     )
 
-def power( model, i, compartment_renaming=lambda *x:x ):
+def power( model, i, compartment_renaming=lambda *x:x, param_relabeling=default_param_relabeling ):
     return BoxModelProduct(
 	*([model] * i),
-	vertex_namer = x_namer
+	vertex_namer = x_namer,
+	compartment_renaming=compartment_renaming,
+	param_relabeling=param_relabeling
     )
+
+def write_product_formula( M1, M2, M12, tfnm, size1=(3,1), size2=(1,4), size12=(4,4) ):
+    # do I need to do this before opening the file, to get preamble right?
+    Mtz = M1.tikz_boxes( figsize=size1, inline=True )
+    import latex_output
+    ltx = latex_output.latex_output( tfnm )
+    ltx.write( '$\\raisebox{-0.5\\height}{\\hbox{', Mtz, '}} \\times\\raisebox{-0.5\\height}{\\hbox{', M2.transpose_graph().tikz_boxes( figsize=size2, inline=True ), '}} = \\raisebox{-0.5\\height}{\\hbox{', M12.tikz_boxes( figsize=size12, inline=True ), '}}$' )
+    ltx.close()
+
+</source-file>
+
 <source-file filename=upstream.mk>
 # Makefile to connect the Sage code here with the code in SageDynamics
 
