@@ -682,7 +682,7 @@ import dynamicalsystems, boxmodel
 # bm_state( S, a ), bm_param( beta, S, I ), etc.
 from sage.symbolic.function_factory import function
 bm_state = function( 'bm_state', latex_name='X' )
-bm_param = function( 'bm_param', print_latex_func=lambda p, *xs:latex(p)+'('+', '.join( latex(x) for x in xs )+')' )
+bm_param = function( 'bm_param', print_latex_func=lambda bmp, p, *xs:'{0}({1})'.format(latex(p),','.join( latex(x) for x in xs )) )
 
 # The general cross product represents its states as tuples of the
 # original model's states.  This function can be replaced by another
@@ -709,7 +709,7 @@ def x_namer( *ss ):
     return dynamicalsystems.subscriptedsymbol( 'X', *ss )
 
 # We are given an original parameter plus a list of tuples and indices into
-# them.  For example, (beta, (S,I), 1, (I,I), 1, (I,I)),
+# them.  For example, (beta, (S,I), 0, (I,I), 0, (I,I)),
 # for the beta parameter for the transition in the first S of (S,I) to
 # I as a result of contact with the first I in (I,I).
 # We return a bm_param expression that can be used in SR
@@ -733,7 +733,7 @@ def full_param_relabeling( *vtuple ):
     from matplotlib.cbook import flatten
     return bm_param( *(flatten(vtuple[:-1])) )
 
-def default_vertex_positioner( graph, models, compartment_renaming ):
+def default_vertex_positioner( graph, models ):
     """default_vertex_positioner:
     construct an X-Y position for each vertex of the product graph.
     assumes the vertices of the graph are tuples of vertices of the
@@ -860,6 +860,7 @@ def default_edge_generator(
     if single_edge_generator is None:
 	single_edge_generator = default_single_edge_stratifier
     # TODO: hacky, fix
+    # should be if param_relabeling is none then deduce labeling
     if (
 	(param_relabeling is default_param_relabeling) and
 	cross_interactions and
@@ -898,23 +899,155 @@ def default_edge_generator(
 	    raise RuntimeError, 'Recursion produces too many compartments'
     return [ ( bm_state( *compartment_renaming( *V ) ), bm_state( *compartment_renaming( *W ) ), r ) for V,W,r in edges ]
 
-class BoxModelProduct(boxmodel.BoxModel):
+class CompositeBoxModel(boxmodel.BoxModel):
+    """CompositeBoxModel is a boxmodel structure in which compartment names,
+    and maybe some parameters, have structure.  Unlike the base BoxModel,
+    here we maintain two representations of the graph: one with structure --
+    in which each compartment is represented by a 'bm_state' function of
+    multiple arguments, and all or some parameters are represented by a
+    'bm_param' function of multiple arguments.  Those argument lists are
+    transformed to simple SR variable names by the vertex_namer and
+    param_namer functions."""
+    def __init__(
+	    self,
+	    graph,
+	    var_tuples,
+	    vertex_namer=x_namer,
+	    param_namer=dynamicalsystems.subscriptedsymbol,
+	    bindings=dynamicalsystems.Bindings()
+	):
+
+	self._graph = graph
+	self._graph.set_latex_options( edge_labels=True, vertex_shape='rectangle' )
+
+	# now for consumption by humans and math software, we map vertex
+	# tuples to regular variable names with subscripts
+	bm_to_vars = lambda e: e.substitute_function( bm_param, param_namer ).substitute_function( bm_state, vertex_namer )
+	self._flow_graph = DiGraph( [
+	        ( bm_to_vars(v), bm_to_vars(w), bindings(bm_to_vars(e)) )
+	        for v, w, e in self._graph.edge_iterator()
+	    ],
+	    multiedges=True
+	)
+	self._flow_graph.set_latex_options( edge_labels=True, vertex_shape='rectangle' )
+	positions = self._graph.get_pos()
+	if positions is not None:
+	    self._flow_graph.set_pos( { bm_to_vars(v):pos for v,pos in positions.items() } )
+
+	self._var_tuples = var_tuples
+	self._vars = [ bm_to_vars(v) for v in var_tuples ]
+	self._vertex_namer = vertex_namer
+	self._param_namer = param_namer
+	self._bindings = bindings
+    def bind(self, *args, **vargs):
+	return CompositeBoxModel(
+	    self._graph,
+	    self._tuple_vars,
+	    self._vertex_namer,
+	    self._param_namer,
+	    self._bindings + dynamicalsystems.Bindings( *args, **vargs )
+	)
+    def aggregate_compartments( self, compartment_aggregation,
+	    param_namer_after=lambda *x:x,
+	    vertex_namer_after=lambda *x:x ):
+        aggregate = {}
+        for vt in self._graph.vertex_iterator():
+            aggregate.setdefault( compartment_aggregation( vt.operands() ), [] ).append( vt.operands() )
+        ## aggregate is { new_tuple: [old tuples], ... }
+        print 'aggregate:', aggregate
+        flow_sums = {}
+        for v in self._graph.vertex_iterator():
+	    av = bm_state( *compartment_aggregation( v.operands() ) )
+	    if av not in flow_sums: flow_sums[av] = {}
+	    for _,w,e in self._graph.outgoing_edge_iterator(v):
+		aw = bm_state( *compartment_aggregation( w.operands() ) )
+	        flow_sums[av].setdefault( aw, SR(0) )
+		es = e.substitute_function( bm_param, param_namer_after ).substitute_function( bm_state, self._vertex_namer )
+		print 'substitute:', e, '|||', es
+	        flow_sums[av][aw] += es
+	## flow_sums[av][aw] is sum of all transitions from
+	## (aggregated tuple) av to aw
+	## transitions are in terms of old vertex names and new param names
+
+        ## now do substitutions to transform the transition sums
+        agg_eqns, agg_symbols = [], []
+        agg_subs = dynamicalsystems.Bindings()
+        for newt,oldts in aggregate.items():
+            print 'will combine', sum( self._vertex_namer(*oldt) for oldt in oldts ), '==', vertex_namer_after(*newt)
+            agg_symbols.append( self._vertex_namer(*oldts[0]) )
+            agg_eqns.append( self._vertex_namer(*oldts[0]) == vertex_namer_after(*newt) - sum( self._vertex_namer(*oldt) for oldt in oldts[1:] ) )
+        agg_graph_dict = {}
+        for av, ve in flow_sums.iteritems():
+	    vn = av.substitute_function( bm_state, vertex_namer_after )
+            agg_graph_dict[vn] = {}
+            for aw, e in ve.iteritems():
+		wn = aw.substitute_function( bm_state, vertex_namer_after )
+    	        sym = SR.symbol()
+    	        print e,
+    	        solns = solve( [ sym == e ] + agg_eqns, sym, *agg_symbols, solution_dict=True )
+    	        #print 'solve', [ sym == e ] + agg_eqns, ',', [sym] + agg_symbols, '\n  ', solns
+    	        if len(solns) == 1:
+    	            #print '  ', maxima(sym), [str(k) == str(sym) for k in solns[0].keys()]
+    	            el = [ex for k,ex in solns[0].items() if str(k) == str(sym)]
+    	            print '==>', el[0]
+    	            agg_graph_dict[vn][wn] = el[0]
+		    # TODO: separate transformed sum into multiple arrows
+    	        else:
+    	            raise RuntimeError, 'Could not simplify expression ' + str(e) + ':' + str(solns)
+	print 'agg_graph_dict', agg_graph_dict
+        #self._vc_eqns = vc_eqns
+	## make list of transformed variables
+	## they are in those dicts, but we want the order
+        agg_vars = []
+	def xform_state( *t ):
+	    s = compartment_aggregation( t )
+	    return vertex_namer_after( *s )
+        for v in self._var_tuples:
+	    av = v.substitute_function( bm_state, xform_state )
+	    if av not in agg_vars: agg_vars.append(av)
+	print 'agg_vars', agg_vars
+        ## position the aggregates by matching them to a subset of original
+	## compartments
+	apos = {}
+	for t,p in self._graph.get_pos().iteritems():
+	    at = t.substitute_function( bm_state, xform_state )
+	    if at not in apos: apos[at] = p
+	print 'apos', apos
+	## The transformation produces a flow_graph only, not a structured
+	## representation
+        return boxmodel.BoxModel( DiGraph( agg_graph_dict, pos=apos ), agg_vars )
+    def add_transitions( self, trs ):
+	# it's an immutable object, so this operation
+	# returns a new BoxModel.  trs is a list of (source,target,rate)
+	# tuples suitable for adding to self._graph (rather than _flow_graph).
+	fg = deepcopy(self._flow_graph)
+	bm_to_vars = lambda e: e.substitute_function( bm_state, self._vertex_namer).substitute_function( bm_param, self._param_namer )
+	fg.add_edges( [ (bm_to_vars(v), bm_to_vars(w), bm_to_vars(e)) for v,w,e in trs ] )
+	return boxmodel.BoxModel(
+	    fg,
+	    vars = self._vars,
+	    bindings = self._bindings
+        )
+
+class BoxModelProduct(CompositeBoxModel):
     def __init__(
 	    self,
 	    *models,
 	    **kwargs
 	):
 	self._models = models
-	compartment_renaming =  kwargs.pop( 'compartment_renaming',  default_compartment_renaming )
-	vertex_namer =    kwargs.pop( 'vertex_namer',    default_vertex_namer )
-	param_relabeling =  kwargs.pop( 'param_relabeling',     default_param_relabeling )
-	edge_generator = kwargs.pop( 'edge_generator', default_edge_generator )
+	compartment_renaming =  kwargs.pop( 'compartment_renaming', default_compartment_renaming )
+	vertex_namer =          kwargs.pop( 'vertex_namer', default_vertex_namer )
+	param_relabeling =      kwargs.pop( 'param_relabeling', default_param_relabeling )
+	edge_generator =        kwargs.pop( 'edge_generator', default_edge_generator )
 	single_edge_generator = kwargs.pop( 'single_edge_generator', None )
-	vertex_positioner = kwargs.pop( 'vertex_positioner', default_vertex_positioner )
-	unary_operation = kwargs.pop( 'unary_operation', default_sop )
-	binary_operation = kwargs.pop( 'binary_operation', default_bop )
-	inclusions = kwargs.pop( 'inclusions', tuple_inclusions )
-	seed_set = kwargs.pop( 'seed_set', None )
+	compartment_aggregation = kwargs.pop( 'compartment_aggregation',
+	    lambda x:x )
+	vertex_positioner =     kwargs.pop( 'vertex_positioner', default_vertex_positioner )
+	unary_operation =       kwargs.pop( 'unary_operation', default_sop )
+	binary_operation =      kwargs.pop( 'binary_operation', default_bop )
+	inclusions =            kwargs.pop( 'inclusions', tuple_inclusions )
+	seed_set =              kwargs.pop( 'seed_set', None )
 	if kwargs: raise TypeError, "Unknown named arguments to BoxModelProduct: %s" % str(kwargs)
 
 	edges = list( edge_generator(
@@ -929,128 +1062,31 @@ class BoxModelProduct(boxmodel.BoxModel):
 	    seed_set=seed_set
 	) )
 	print 'edges for product graph:', edges
-	self._graph = DiGraph( edges, multiedges=True )
+	graph = DiGraph( edges, multiedges=True )
 
-	self._aggregate_tuples = {}
+	# graphical positions of graph vertices
+	graph.set_pos( vertex_positioner( graph, models ) )
+
+	from collections import OrderedDict
+	vars_d = OrderedDict( (v,None) for v,w,e in edges )
+	vars_d.update( (w,None) for v,w,e in edges )
+	super(BoxModelProduct,self).__init__(
+	    graph, vars_d.keys(), vertex_namer
+	)
+
+	self._inclusion_tuples = {}
 	for vbm in self._graph.vertex_iterator():
 	    vs = vbm.operands()
 	    for v in vs:
-	        self._aggregate_tuples.setdefault(v, []).append( vs )
+	        self._inclusion_tuples.setdefault(v, []).append( vs )
 
-	if False:
-	    # do the cross product of graphs first
-	    self._vars = []
-	    self._aggregate_variables = {}
-            graph_dict = {}
-	    vars_combine = {}
-            import itertools
-            for vst in itertools.product( *(m._vars for m in models) ):
-	        # each vst is a vertex of the product graph
-	        vs = tuple( flatten( vst ) )
-	        vs_combined = compartment_renaming( *vs )
-	        vars_combine.setdefault( vs_combined, [] ).append(vs)
-	        if vs_combined not in self._vars: self._vars.append(vs_combined)
-	        graph_dict.setdefault(vs_combined, {})
-	        for i in range(len(vs)):
-		    # each vertex has outgoing edges from every graph
-	            #mip = MarkInnerProducts( models[i]._parameter_dependencies )
-	            for v,w,rate in models[i]._graph.outgoing_edges(vs[i]):
-		        ws = list(vs)
-		        ws[i] = w
-		        #iprate = mip(rate) # this is being done redundantly
-		        #print 'marked inner products:', rate, '-->', iprate
-		        erate = [rate, i, vs]
-		        ws_combined = compartment_renaming( *ws )
-		        graph_dict[vs_combined].setdefault(tuple(ws_combined),[]).append(tuple(erate))
-		    self._aggregate_variables.setdefault(vs[i], []).append( vs_combined )
-	    print 'graph dict is', graph_dict
-	    #bm_tmp_sum = sage.symbolic.function_factory.function( 'bm_tmp_sum' )
-	    self._graph = DiGraph( { v:{w:tuple(el) for w,el in vd.items() } for v,vd in graph_dict.items() } )
-
-	self._graph.set_latex_options( edge_labels=True, vertex_shape='rectangle' )
-	#for v in self._graph.vertices():
-	#    for _,w,el in self._graph.outgoing_edges(v):
-	#	print v,w,el
-
-	# graphical positions of graph vertices
-	positions = vertex_positioner( self._graph, models, compartment_renaming )
-	self._graph.set_pos( positions )
-
-	# now for consumption by humans and math software, we map vertex
-	# tuples to regular variable names with subscripts
-	bm_to_vars = lambda e: e.substitute_function( bm_state, vertex_namer ).substitute_function( bm_param, dynamicalsystems.subscriptedsymbol )
-        flow_edges = [
-	    [ bm_to_vars(v), bm_to_vars(w), bm_to_vars(e) ]
-	    for v, w, e in edges
-	]
-	print 'flow edges:', flow_edges
-
-	# TODO: inherit bindings in a smart way?
-	self._bindings = dynamicalsystems.Bindings()
-
-	#print self._aggregate_tuples
-	self._aggregate_variables = {
+	#print self._inclusion_tuples
+	self._inclusion_variables = {
 	    k:[vertex_namer(*v) for v in vl]
-	    for k,vl in self._aggregate_tuples.iteritems()
+	    for k,vl in self._inclusion_tuples.iteritems()
 	}
-	for k,vl in self._aggregate_variables.iteritems():
+	for k,vl in self._inclusion_variables.iteritems():
 	    self._bindings[k] = sum( vl )
-
-	if False: # skip this for now
-	    ## maintain inverse image of each aggregate compartment
-	    print 'vars combine:', vars_combine
-	    if not any( len(v) > 1 for v in vars_combine.values() ):
-	        evn = vertex_namer
-	        esc = compartment_renaming
-	        vars_combine = None
-	    else:
-		# this was defined globally, I removed
-	        global internal_vertex_name_base
-	        if internal_vertex_name_base is None:
-	            #internal_vertex_name_base = SR.symbol()
-	            internal_vertex_name_base = 'X'
-	        print 'do internal state variables,', internal_vertex_name_base
-	        evn = lambda args: dynamicalsystems.subscriptedsymbol(
-		    internal_vertex_name_base,
-		    *args
-	        )
-	        esc = default_compartment_renaming
-	    flow_dict = {
-	        vertex_namer(v):{
-		    vertex_namer(w):sum(edge_renamer(e, models, evn, param_relabeling, esc ) for e in el)
-		    for vv,w,el in self._graph.outgoing_edges(v)
-	        } for v in self._graph.vertices()
-	    }
-            if vars_combine is not None:
-	        # do substitutions to make the aggregate rates
-	        vc_eqns, vc_symbols = [], []
-	        vc_subs = dynamicalsystems.Bindings()
-	        for v,c in vars_combine.items():
-		    print 'will combine', sum( evn(zv) for zv in c ), '==', vertex_namer(v)
-		    vc_symbols.append( evn(c[0]) )
-		    vc_eqns.append( evn(c[0]) == vertex_namer(v) - sum( evn(zv) for zv in c[1:] ) )
-	        nfd = {}
-	        for v, ve in flow_dict.items():
-		    nfd[v] = {}
-		    for w, e in ve.items():
-		        sym = SR.symbol()
-		        print e,
-		        solns = solve( [ sym == e ] + vc_eqns, sym, *vc_symbols, solution_dict=True )
-		        #print 'solve', [ sym == e ] + vc_eqns, ',', [sym] + vc_symbols, '\n  ', solns
-		        if len(solns) == 1:
-		            #print '  ', maxima(sym), [str(k) == str(sym) for k in solns[0].keys()]
-		            el = [ex for k,ex in solns[0].items() if str(k) == str(sym)]
-		            print '==>', el[0]
-			    nfd[v][w] = el[0]
-		        else:
-		            raise RuntimeError, 'Could not simplify expression ' + str(e) + ':' + str(solns)
-	        flow_dict = nfd
-	        self._vc_eqns = vc_eqns
-	    self._flow_graph = DiGraph( flow_dict )
-
-	self._flow_graph = DiGraph( flow_edges, multiedges=True )
-	self._flow_graph.set_latex_options( edge_labels=True, vertex_shape='rectangle' )
-	self._flow_graph.set_pos( { bm_to_vars(v):pos for v,pos in positions.items() } )
 
 	# make list of variables, in order, by taking product
         import itertools
@@ -1073,40 +1109,6 @@ class BoxModelProduct(boxmodel.BoxModel):
 
 	self._vertex_namer = vertex_namer
 	self._param_relabeling = param_relabeling
-    def add_transitions( self, trs ):
-	# it's an immutable object, so this operation
-	# returns a new BoxModel.  trs is a list of (source,target,rate)
-	# tuples suitable for adding to self._graph (rather than _flow_graph).
-	fg = deepcopy(self._flow_graph)
-	bm_to_vars = lambda e: e.substitute_function( bm_state, self._vertex_namer).substitute_function( bm_param, self._param_relabeling )
-	fg.add_edges( [ (bm_to_vars(v), bm_to_vars(w), bm_to_vars(e)) for v,w,e in trs ] )
-	return boxmodel.BoxModel(
-	    fg,
-	    vars = self._vars,
-	    bindings = self._bindings
-        )
-    def bind(self, *args, **vargs):
-	bindings = dynamicalsystems.Bindings( *args, **vargs )
-	# TODO: this produces a regular BoxModel, destroys information
-	# about the cross product
-	flow_pos = {
-	    bindings(v):p for v,p in self._flow_graph.get_pos().items() 
-	} if self._flow_graph.get_pos() is not None else None
-	return boxmodel.BoxModel(
-	    self._flow_graph,
-	    vars = [ bindings(v) for v in self._vars ],
-	    parameters = [ bindings(p) for p in self._parameters ],
-	    #parameter_dependencies = {
-	    #	bindings(p):[(bindings(d),t) for d,t in pd] for p,pd in self._parameter_dependencies.items()
-	    #},
-	    flow_graph = DiGraph( [
-	            ( bindings(v),bindings(w),bindings(e)) for v,w,e in self._flow_graph.edge_iterator()
-	        ],
-		pos = flow_pos,
-		multiedges=True
-	    ),
-	    bindings = self._bindings + bindings
-	)
 
 def default_sop_strong( s_tuple, iset, eis ):
     # return set of t_tuples

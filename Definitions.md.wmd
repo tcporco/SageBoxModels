@@ -140,7 +140,7 @@ write_product_formula( XY, abrs, XYabrs, 'XYab-square.tex' )
 This simple Cartesian product of models is defined by the following
 formula.
 
-**Definition.**  The *simple cross product* of models $$M_1,\ldots,M_n$$
+**Definition.**  The **simple cross product** of models $$M_1,\ldots,M_n$$
 is defined as follows:
 
 * $$V(M_1\,\square\,\cdots\,\square\,M_n) = V(M_1)\times\cdots\times V(M_n)$$
@@ -215,7 +215,7 @@ Along with that extension, at this point I will introduce a complete
 definition of the cross product operation, including some details that
 will only become relevant in later examples.
 
-**Definition.**  A *cross product* $$M_1\,\square\,\cdots\,\square\,M_n$$
+**Definition.**  A **cross product** $$M_1\,\square\,\cdots\,\square\,M_n$$
 of models $$M_1,\ldots,M_n$$ is a box model $$M$$ such that
 
 * $$V(M) = V(M_1)\times\cdots\times V(M_n)$$
@@ -224,29 +224,28 @@ of models $$M_1,\ldots,M_n$$ is a box model $$M$$ such that
 where
 
 * <latex>$\Xi((s,t,r),i) = \Xi_\square((s,t,r),i) = \begin{cases}
-  \{\,(S,T,\Phi_r(r,S,i_s,T)) \mid (S,i_s)\in \Sigma(s,V(M)), \\
+  \{\,(S,T,\Phi_r(r,S,i_s,T)) \mid S\in V(M), i_s\in \Sigma(s,S), \\
     \quad T\in\Omega_1( S, i_s, s, t, r, i )\,\} \\
     \quad\quad\text{if $r$ is linear in $s$} \\
-  \{\,(S,T,\Phi_{2r}(r,S,i_s,C,i_c,T)) \mid (S,i_s)\in\Sigma(s,V(M)), \\
-    \quad (C,i_c)\in\Sigma(c,V(M)), T\in\Omega_2( S, i_s, C, i_c, s, t, r, i )\,\} \\
-  \mbox{} \cup \{\,(S,T,\Phi_{1r}( S, i_s, i_c, s, t, r, i )) \mid (S,i_s)\in\Sigma(s,V(M)), \\
-    \quad (S,i_c)\in\Sigma(c,V(M)), T\in\Omega_{2i}( S, i_s, i_c, s, t, r, i )\,\} \\
+  \{\,(S,T,\Phi_{2r}(r,S,i_s,C,i_c,T)) \mid S\in V(M), i_s\in\Sigma(s,S), \\
+    \quad C\in V(M), i_c\in\Sigma(c,C), T\in\Omega_2( S, i_s, C, i_c, s, c, t, r, i )\,\} \\
+  \mbox{} \cup \{\,(S,T,\Phi_{1r}( S, i_s, i_c, s, t, r, i )) \mid S\in V(M), i_s\in\Sigma(s,S), \\
+    \quad i_c\in\Sigma(c,S), T\in\Omega_{2i}( S, i_s, i_c, s, c, t, r, i )\,\} \\
     \quad\quad\text{if $r$ is bilinear in $s$ and $c$} \end{cases}
 $\\*</latex>
 generates the set of all product edges derived from the
 edge $$(s,t,r)$$;
-* $$\Sigma(v,\mathcal{V})$$ is a set of **inclusions** of compartment $$v$$ in the
-compartments $$\mathcal{V}$$ of the product model.  An inclusion is an ordered pair
-$$(V,i)\in\mathcal{V}\times\mathbb{N}$$, indicating that compartment $$v$$
-is in the $$i$$th position in product compartment $$V$$.
+* $$\Sigma(v,V)$$ is the set of **inclusions** of compartment $$v$$ in the
+tuple $$V$$, which is a set of indices $$i$$ for which the $$i$$th entry in
+the tuple is $$v$$.
 In this stratification example, we only require simple inclusion in
 the $$i$$th model,
-$$\Sigma_1(v,\mathcal{V};i)=\{\,((v_1,\ldots,v_n),i)\mid (v_1,\ldots,v_n)\in\mathcal{V}, v_i=v\,\}$$,
+$$\Sigma_1(v,(v_1,\ldots,v_n);i)=\{i\}$$ if $$v_i=v$$, else $$\{\}$$,
 when stratifying a transition of that model.  In some cases, as we will
 see, we will require a full inclusion function allowing "cross interactions",
 as we need to allow
 compartments from different component models to interact with each other:
-$$\Sigma_c(v,\mathcal{V})=\{\,((v_1,\ldots,v_n),j)\mid (v_1,\ldots,v_n)\in\mathcal{V}, v_j=v\text{ for any }j\,\}$$.
+$$\Sigma_c(v,(v_1,\ldots,v_n))=\{\,j \mid v_j=v\,\}$$.
 * $$\Omega_1( S, i_s, s, t, r, i ) = \{\,(S_1,\ldots,S_{i_s-1},t,S_{i_s+1},\ldots,S_n)\,\}$$
 is a **unary operation** defining the set of output (target) compartments
 produced by a given transition
@@ -254,7 +253,7 @@ acting on source compartment $$S$$.  Here we provide a simple definition where
 $$S$$ just goes to the corresponding compartment $$T$$ in the same
 stratification of the model, but
 we allow for variant products defined by a different unary operation.
-* $$\Omega_2( S, i_s, C, i_c, s, t, r, i ) = \{\,(S_1,\ldots,S_{i_s-1},t,S_{i_s+1},\ldots,S_n)\,\}$$
+* $$\Omega_2( S, i_s, C, i_c, s, c, t, r, i ) = \{\,(S_1,\ldots,S_{i_s-1},t,S_{i_s+1},\ldots,S_n)\,\}$$
 is a **binary operation** defining the set of output (target) compartments
 produced by a given transition
 acting on source compartment $$V$$ when compartment $$C$$ is the catalyst.
@@ -262,7 +261,7 @@ Here as well, we simply transform $$S$$ into its stratified counterpart
 $$T$$, but 
 we allow for variant operations in which the same $$S$$ transitions to
 different targets depending on $$C$$.
-* $$\Omega_{2i}( S, i_s, i_c, s, t, r, i )$$ is a variant binary operation
+* $$\Omega_{2i}( S, i_s, i_c, s, c, t, r, i )$$ is a variant binary operation
 providing additional transitions in the case that $$s$$ and $$c$$ are both
 components of the same compartment $$S$$.  This allows for a 
 within-compartment interaction that is distinct from an interaction
@@ -370,78 +369,71 @@ if needed.]
 
 ## Example: Infectious dynamics of couples (unordered pairs)
 
-[TODO]
+In some cases we don't want to track the order of the individuals
+in a pair -- we don't care about the difference between $$(S,I)$$ and
+$$(I,S)$$, and we just want to distinguish the number of
+people infected in each pair.
 
-If we want to consider pairs without distinguishing the two individuals by
-gender or otherwise differentiating the first from second individual, we
-reduce the model to fewer compartments -- for instance, in our example, we
-will have one compartment that combines $$(S,I)$$ and $$(I,S)$$.
-
-The unordered pair dynamics must be consistent with the ordered pair model
+This unordered pair dynamics must be consistent with the above,
+ordered-pair model,
 because they are different descriptions of the same events. So we should
 be able to generate the unordered pair model from the ordered one, by
 combining compartments.  We will define the unordered dynamics in that way,
-even though we're likely to end up generating them in a more direct way for
+even though we may end up generating them in a more direct way for
 efficiency.
 
 The formal construction of the unordered model, then, is
 
 * construct the ordered pair model
-* collect the compartments of that model into equivalence classes: in the
-SI case, $$\{\,\{\,(S,S)\,\}, \{\,(S,I),(I,S)\,\}, \{\,(I,I)\,\}\,\}$$. 
-Sum over those
-classes to generate the reduced compartments: in this case
-$$Z_{SI} = X_{SI} + X_{IS}$$, where we use the letter $$Z$$ for reduced
-(unordered) compartment variables and $$X$$ for the compartments of
-the ordered-pair model $$M^2$$.
-* Construct reduced transition rates by transforming all $$X$$ variables to
-$$Z$$ variables, and assign their source and target vertices to the
-appropriate $$Z$$ variables.
+* define unordered compartments by counting the number infected in each
+of the ordered compartments, that is, construct
+an **aggregation function** $$A:V(M)\to V_{\text{new}}$$ assigning
+the contents of each compartment to a new, aggregate compartment.
+* write equations defining the size of each aggregate compartment as the
+sum of its preimages.  In our example, these equations are
+$$Z_0 = X_{SS}$$; $$Z_1 = X_{SI} + X_{IS}$$; $$Z_2 = X_{II}$$.
+* for each pair $$V,W$$ of aggregate compartments, sum together all the
+transition rates from $$V$$ to $$W$$ in the ordered model,
+and use the sum equations to
+transform the sum into terms of the unordered compartment names.
+* This step requires us to change the names of the
+parameters as well as the compartments, as some of them need to be
+assumed equal for this to work.  Thus we have the following definition:
 
-Note that this is a different way of combining compartments than the
-combining we did when constructing the ordered pair model.  There we
-simply defined one compartment to be a synonym of the other and
-merged them by moving
-the arrows from one to the other; here we define a new compartment to be
-the sum of the old compartments and transform the transition rate
-expressions as well as relocating their arrows.  Here is a definition
-for this operation:
+**Definition.** An **aggregation of compartments** of a compartment model is a
+model $$A(M)$$, given by a transformation of compartments
+$$A(V)$$ for $$V$$ in $$V(M)$$ and a transformation of parameters
+$$A(P)$$ for the parameters $$P$$ of $$M$$, in which
 
-An **aggregation of compartments** of a compartment model is a
-transformation $$A(M)$$ of that model by a pair of mappings
-$$A:C_M\to C_A$$ and
-$$A:P_M\to P_A$$, defined as for a relabeling, such that
-
-* The compartments of $$A(M)$$ are the set $$\{\,A(C)|C\in C_M\,\}$$
-* There is an equation $$C'_i = \sum C_j$$ for each
-compartment $$C'_i$$ of $$A(M)$$, where the sum is over all the compartments
-$$C_j$$ such that $$A(C_j)=C'_i$$.
+* The vertex set of $$A(M)$$ is the set $$\{A(C) \mid C\in V(M)\}$$ of
+aggregate compartments
+* For each aggregate compartment $$C$$, there is an equality
+$$C = \sum_{\{V\mid A(V)=C\}} A$$, equating the aggregate compartment with
+the sum of its preimage compartments.
 * The set of transitions of $$A(M)$$ is the set of triples
-$$(A(s),A(t),(C'_1,\ldots,C'_{n'},P'_1,\ldots,P'_{m'})\mapsto\sum_{\{\,(s',t',r') \mid A(s')=A(s), A(t')=A(t)\,\}}r'(C_1,\ldots,C_n,P_1,\ldots,P_m))$$
-generated by all transitions $$(s,t,r)$$ of $$M$$.  The sum is simplified
-to a function of the $$C'_i$$ variables using the above sum equations.
+$$(S,T,\sum_{\{\,(V,W,r) \mid A(V)=S, A(W)=T\,\}}A(r))$$, where
+$$A(r)$$ is the transition rate expression $$r$$ with all 
+parameter names $$P$$ replaced by $$A(P)$$, and with sums of
+unaggregated compartment names replaced by their equivalent aggregated
+compartment names.
 
-That is, the transitions of the model $$M$$ are summed together where their
-sources and targets are mapped to the same places by the aggregation, and
-sums of compartments of $$M$$ are simplified in terms of the compartments 
-of $$A(M)$$. This reduction doesn't work for general
-box models, so this can only be done in particular cases.  Also, it's
-probably necessary to relabel the parameters just so using $$A(P_i)$$,
+This aggregation process doesn't work for general
+box models -- the sum of transition rates doesn't necessarily reduce to
+terms of the aggregate quantities -- so this can only be done in
+particular cases, and the parameters have to be relabeled just right
 so that the sums will come out right.
 
-Given that definition, we define a **sorting operation** $$Z$$ such that
-$$Z((S,I))=Z((I,S))=(S,I)$$ (we sort the compartments in the order
-$$S, I, R$$).  Using that as an aggregation function, the definition above
-gives us $$Z_{SI}=X_{SI}+X_{IS}$$, and we define the unordered pair model as
+To construct our unordered-pair model, now, we define an aggregation
+function for compartments $$A(X_{pq})=Z_c$$, where $$c$$ is the number of
+occurrences of $$I$$ in the labels $$p$$ and $$q$$.  Along with this
+we use a congruent aggregation function for parameters,
+$$A(\beta_{pqirsj})=\beta_{cd}$$, where $$c$$ is the number of $$I$$
+in $$(p,q)$$ and $$d$$ is the number of $$I$$ in $$(r,s)$$.  For the
+within-pair rate $$\beta_{pqi}$$
+we put $$\beta_c$$, using the count in $$(p,q)$$.
 
-$$M_U = Z(M^2)$$
-
-where $$M^2$$ is the ordered-pair model defined above.  (Note: To make the
-transitions reduce to $$Z$$ expressions we'll have to construct the right
-renaming for the indexed $$\beta$$ parameters.)
-
-This will be a picture of the reduced pair model, with only 3 compartments,
-but it isn't yet:
+This aggregation produces the following model, with three states instead
+of four:
 
 <source-file filename="SI-pair-unordered.sage.step" display=SI-pair-unordered.boxes.crop.svg>
 # requires: $(BoxModels)/boxmodel.py $(BoxModels)/boxmodelproduct.py
@@ -455,11 +447,40 @@ from latex_output import *
 import boxmodel, boxmodelproduct
 from dynamicalsystems import subscriptedsymbol
 
-load_session( 'SI-pair' )
+#load_session( 'SI-pair' ) # having some trouble with the pickle
 
-uno = boxmodelproduct.power( SI, 2 )
+S, I, beta = SR.var( 'S I beta' )
+SI = boxmodel.BoxModel( DiGraph( [ (S, I, beta*S*I) ] ), [S, I] )
+SI2 = boxmodelproduct.power( SI, 2,
+    param_relabeling=boxmodelproduct.full_param_relabeling
+)
+
+SI_count = lambda t: ( list(t).count(I), )
+def param_transform( *t ):
+    print 'bm_param',  t, ' ==>> ',
+    if t[0] == beta:
+	subs = t[1:]
+	if len(subs) == 6: # C, C, n, C, C, n
+	    print subs[0:2], ':', SI_count(subs[0:2]), ',', subs[3:5], ':', SI_count(subs[3:5])
+	    ss = subscriptedsymbol(*((beta,) + SI_count(subs[0:2]) + SI_count(subs[3:5])))
+	elif len(subs) == 4: # C, C, n, n
+	    print subs[0:2], ':', SI_count(subs[0:2])
+	    ss = subscriptedsymbol(*((beta,) + SI_count(subs[0:2])))
+    else:
+        ss = subscriptedsymbol( *t )
+    print ss
+    return ss
+z_namer = lambda *t: subscriptedsymbol( 'Z', *t )
+uno = SI2.aggregate_compartments( SI_count, param_transform, z_namer )
 uno.plot_boxes( 'SI-pair-unordered.boxes.tex', figsize=(7,7) )
 </source-file>
+
+We can verify that this is equivalent to the original 18 transitions
+by noticing that 
+$$Z_1$$ stands for two compartments of the unaggregated model.  Thus
+each term involving a single $$Z_1$$ is two of the original transitions, and the
+$$Z_1^2$$ term is four of them.  With that multiplication, the transitions
+can be seen to sum up to the original 18.
 
 ## Combining infection models into a multi-infection model
 
@@ -535,12 +556,13 @@ events in the pair model]
 To model partial superinfection, we need to introduce a "half-infected"
 class $$H$$, and provide a modified binary operation:
 
-<latex>$\Sigma_H( S, i_s, C, i_s, S, I, I, i ) = \begin{cases}
+<latex>$\Omega_H( S, i, C, i, S, I, I, r, i ) = \begin{cases}
   \{\, (S_1,\ldots,S_{i_s-1},H,S_{i_s+1},\ldots,S_n) \,\} &
     \text{if $S$ includes $I$} \\  
   \{\, (S_1,\ldots,S_{i_s-1},I,S_{i_s+1},\ldots,S_n) \,\} &
     \text{if not}
-\end{cases}$</latex>
+\end{cases}$\\*
+$\Omega_H( S, i_s, C, i_c, s, c, t, r, i ) = \{\}\text{ otherwise}.$</latex>
 
 [TODO: the vertex set is generated by the $$\Sigma$$ operation,
 not by the Cartesian product of vertex sets as claimed in the definition]
@@ -564,7 +586,7 @@ apparatus of the cross product, but with an edge generation
 function that generates derived edges from each combination
 of models' edges, rather than from each edge individually.
 
-**Definition.** A *strong product* $$M_1\boxtimes\cdots\boxtimes M_n$$
+**Definition.** A **strong product** $$M_1\boxtimes\cdots\boxtimes M_n$$
 of box models $$M_1,\ldots,M_n$$ is a box model such that
 
 * $$V(M) = V(M_1)\times\cdots\times V(M_n)$$

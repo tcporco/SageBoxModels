@@ -69,6 +69,8 @@ _pandoc/Measles.% : PROJECT=Measles
 _pandoc/Measles.% : TITLE="Subcritical Measles Outbreak Size"
 _pandoc/Definitions.% : PROJECT=Notes
 _pandoc/Definitions.% : TITLE="Definitions of Box Model objects"
+_pandoc/sde.% : PROJECT=SDE
+_pandoc/sde.% : TITLE=SDE
 
 .PRECIOUS: _pandoc/%.md _pandoc/%.tex
 
