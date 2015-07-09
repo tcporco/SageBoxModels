@@ -779,6 +779,8 @@ def default_bop( s_tuple, i, c_tuple, i_, s, t, r ):
 def tuple_inclusions( c, tup ):
     return [ iota for iota,x in enumerate(tup) if x == c ]
 
+class BoxModelProductException(Exception): pass
+
 # 'single edge stratifier' is called once for each edge of each
 # component model, given a set of product vertices.  It loops
 # over those vertices and generates all the product edges involving
@@ -795,8 +797,8 @@ def default_single_edge_stratifier(
     # list the compartments involved in the transition
     rate_comps = [ x for x in rate.variables() if x in models[i]._vars ]
     rate_params = set( rate.variables() ) - set( rate_comps )
-    # we can handle linear or bilinear transitions
-    if rate_comps == [source]:
+    # we can handle constant, linear or bilinear transitions
+    if rate_comps == [] or rate_comps == [source]:
 	for V in seed_set:
 	    s_inclusions = inclusions( source, V )
 	    for iota in s_inclusions:
@@ -838,7 +840,7 @@ def default_single_edge_stratifier(
 		            print V, iota, iota_, ':', W, rate.subs( repl ) / bm_state(*C)
 		            yield( V, W, rate.subs( repl ) / bm_state(*compartment_renaming(*C)) )
     else: # wrong variables in rate
-	raise BoxModelProductException, "Don't understand rate ".str(rate)
+	raise BoxModelProductException, "Don't understand rate {0}".format(rate)
 
 def simple_edge_stratifier( *args, **kwargs ):
     kwargs['cross_interactions'] = False
@@ -1200,7 +1202,7 @@ def default_strong_edge_bundle_generator(
     	                #print V, iota, iota_, ':', W, rate.subs( repl ) / bm_state(*C)
     	                yield( V, W, rate.subs( repl ) / bm_state(*compartment_renaming(*C)) )
     else: # wrong variables in rate
-	raise BoxModelProductException, "Don't understand rate ".str(rate)
+	raise BoxModelProductException, "Don't understand rate {0}".format(rate)
 
 def strong_edge_generator(
 	models,
@@ -1303,12 +1305,12 @@ def power( model, i, compartment_renaming=lambda *x:x, param_relabeling=default_
 	param_relabeling=param_relabeling
     )
 
-def write_product_formula( M1, M2, M12, tfnm, size1=(3,1), size2=(1,4), size12=(4,4) ):
+def write_product_formula( M1, M2, M12, tfnm, op=r'\times', size1=(3,1), size2=(1,4), size12=(4,4) ):
     # do I need to do this before opening the file, to get preamble right?
     Mtz = M1.tikz_boxes( figsize=size1, inline=True )
     import latex_output
     ltx = latex_output.latex_output( tfnm )
-    ltx.write( '$\\raisebox{-0.5\\height}{\\hbox{', Mtz, '}} \\times\\raisebox{-0.5\\height}{\\hbox{', M2.transpose_graph().tikz_boxes( figsize=size2, inline=True ), '}} = \\raisebox{-0.5\\height}{\\hbox{', M12.tikz_boxes( figsize=size12, inline=True ), '}}$' )
+    ltx.write( '$\\raisebox{-0.5\\height}{\\hbox{', Mtz, '}}', op, '\\raisebox{-0.5\\height}{\\hbox{', M2.transpose_graph().tikz_boxes( figsize=size2, inline=True ), '}} = \\raisebox{-0.5\\height}{\\hbox{', M12.tikz_boxes( figsize=size12, inline=True ), '}}$' )
     ltx.close()
 
 </source-file>

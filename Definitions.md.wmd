@@ -104,11 +104,11 @@ The compartments of the product are labeled using subscripts,
 and the infection transitions are replicated
 in each stratum, with stratified compartment names substituted and
 subscript added to all parameters.  For example, given a model with
-transition from X to Y at rate $$\lambda X$$, stratified by crossing with
-a trivial model providing two demographic states $$a$$ and $$b$$,
+transition from $$x$$ to $$y$$ at rate $$\lambda x$$, stratified by crossing with
+a simple model providing two demographic states $$a$$ and $$b$$,
 we would construct a product model
 
-<source-file filename="XYab.sage.step" display="XYab.crop.svg">
+<source-file filename="XYab.sage.step" display="XYab-square.crop.svg">
 # requires: $(BoxModels)/boxmodel.py $(BoxModels)/boxmodelproduct.py
 # requires: $(SageDynamics)/dynamicalsystems.py
 # requires: $(SageAdaptiveDynamics)/adaptivedynamics.py
@@ -123,19 +123,24 @@ from boxmodel import *
 from boxmodelproduct import *
 
 lb = SR.symbol( 'lmbda', latex_name='\\lambda' )
-X,Y,a,b = SR.var('X Y a b')
+X,Y,a,b,alpha = SR.var('x y a b alpha')
 XY = BoxModel( DiGraph( [ (X, Y, lb*X) ] ), [X, Y] )
-ab = BoxModel( DiGraph( {a:{b:[]}} ), [a,b] )
+ab = BoxModel( DiGraph( [ (a, b, alpha) ] ), [a,b] )
 XYab = BoxModelProduct( XY, ab )
-write_product_formula( XY, ab, XYab, 'XYab.tex', size2=(1,3), size12=(4,3) )
+write_product_formula( XY, ab, XYab, 'XYab.tex', op=r'\square', size2=(1,3), size12=(4,3) )
 #XYab.plot_boxes( 'XYab.boxes.tex', figsize=(7,1) )
 #XYab.plot_boxes( 'XYab.boxes.tex-inline', inline=True, figsize=(7,1) )
 
 var( 'rho sigma' )
 abrs = ab.add_transitions( [ (a,b,rho*a), (b,a,sigma*b) ] )
 XYabrs = BoxModelProduct( XY, abrs )
-write_product_formula( XY, abrs, XYabrs, 'XYab-square.tex' )
+write_product_formula( XY, abrs, XYabrs, 'XYab-square.tex', op=r'\square' )
 </source-file>.
+
+Thus by crossing with the $$a$$-$$b$$ model, the single row of the
+$$x$$-$$y$$ model gets replicated once for each compartment of the
+$$a$$-$$b$$ model.  Symmetrically, the full $$a$$-$$b$$ model is
+replicated once for each compartment of the $$x$$-$$y$$ model.
 
 This simple Cartesian product of models is defined by the following
 formula.
@@ -160,15 +165,6 @@ in various ways.  It might be the name of $$v_1$$ subscripted by the names of
 the other compartments $$v_2,\ldots,v_n$$, or it might be $$X$$ subscripted
 by all the compartments' names, or some other rule might be used.
 
-Thus by crossing with the $$a$$-$$b$$ model, the single row of the
-$$X$$-$$Y$$ model gets replicated once for each compartment of the
-$$a$$-$$b$$ model.  In this case the stratifying model is trivial -- there
-are no vertical arrows -- but in general this product operation treats
-all the component models equally: if the "vertical" model has edges they
-are likewise replicated once for each compartment of the horizontal model:
-
-<project-file filename=XYab-square.crop.svg/>.
-
 ### Cross product with interactions
 
 Unfortunately, the above definition of the cross product is not suitable
@@ -180,7 +176,8 @@ individuals of both stratified $$I$$ classes.  This requires the $$S$$ and
 $$I$$ variables in that transition rate to be stratified separately, and a
 transition to be constructed for every combination
 of stratified compartments.  The correct product model is this one, with
-the one edge replicated four times, not only twice:
+the one edge replicated four times, not only twice (with a trivial
+stratification model, for simplicity):
 
 <source-file filename="SIab2.sage.step" display="SIab.crop.svg">
 # requires: $(BoxModels)/boxmodel.py $(BoxModels)/boxmodelproduct.py
@@ -200,7 +197,7 @@ SI = BoxModel( DiGraph( [ (S, I, beta*S*I) ] ), [S,I] )
 ab = BoxModel( DiGraph( {a:{b:[]}} ), [a,b] )
 SIab = BoxModelProduct( SI, ab )
 #SIab.plot_boxes( 'SIab.boxes.tex', figsize=(7,2) )
-write_product_formula( SI, ab, SIab, 'SIab.tex', size1=(4,1), size2=(1,3), size12=(5,3) )
+write_product_formula( SI, ab, SIab, 'SIab.tex', op=r'\square', size1=(4,1), size2=(1,3), size12=(5,3) )
 </source-file>.
 
 If we used the simple cross product, we would not generate the correct
@@ -218,23 +215,23 @@ will only become relevant in later examples.
 **Definition.**  A **cross product** $$M_1\,\square\,\cdots\,\square\,M_n$$
 of models $$M_1,\ldots,M_n$$ is a box model $$M$$ such that
 
-* $$V(M) = V(M_1)\times\cdots\times V(M_n)$$
 * $$E(M) = \cup_{i\in\{1,\ldots,n\}} \cup_{(s,t,r)\in E(M_i)} \Xi((s,t,r),i)$$
 
 where
 
 * <latex>$\Xi((s,t,r),i) = \Xi_\square((s,t,r),i) = \begin{cases}
-  \{\,(S,T,\Phi_r(r,S,i_s,T)) \mid S\in V(M), i_s\in \Sigma(s,S), \\
+  \{\,(S,T,\Phi_r(r,S,i_s,T)) \mid S\in V_M, i_s\in \Sigma(s,S), \\
     \quad T\in\Omega_1( S, i_s, s, t, r, i )\,\} \\
     \quad\quad\text{if $r$ is linear in $s$} \\
-  \{\,(S,T,\Phi_{2r}(r,S,i_s,C,i_c,T)) \mid S\in V(M), i_s\in\Sigma(s,S), \\
-    \quad C\in V(M), i_c\in\Sigma(c,C), T\in\Omega_2( S, i_s, C, i_c, s, c, t, r, i )\,\} \\
-  \mbox{} \cup \{\,(S,T,\Phi_{1r}( S, i_s, i_c, s, t, r, i )) \mid S\in V(M), i_s\in\Sigma(s,S), \\
+  \{\,(S,T,\Phi_{2r}(r,S,i_s,C,i_c,T)) \mid S\in V_M, i_s\in\Sigma(s,S), \\
+    \quad C\in V_M, i_c\in\Sigma(c,C), T\in\Omega_2( S, i_s, C, i_c, s, c, t, r, i )\,\} \\
+  \mbox{} \cup \{\,(S,T,\Phi_{1r}( S, i_s, i_c, s, t, r, i )) \mid S\in V_M, i_s\in\Sigma(s,S), \\
     \quad i_c\in\Sigma(c,S), T\in\Omega_{2i}( S, i_s, i_c, s, c, t, r, i )\,\} \\
     \quad\quad\text{if $r$ is bilinear in $s$ and $c$} \end{cases}
 $\\*</latex>
 generates the set of all product edges derived from the
-edge $$(s,t,r)$$;
+edge $$(s,t,r)$$.
+* $$V_M = V(M_1)\times\cdots\times V(M_n)$$.
 * $$\Sigma(v,V)$$ is the set of **inclusions** of compartment $$v$$ in the
 tuple $$V$$, which is a set of indices $$i$$ for which the $$i$$th entry in
 the tuple is $$v$$.
@@ -280,6 +277,9 @@ the catalyst, and when it's replicated multiple times using different
 inclusions of compartments we need subscripts distinguishing the inclusions
 as well.  The software tries to be smart about applying as few subscripts
 as are necessary to provide unique parameters for each transition.
+* The vertex set $$V(M)$$ is the set of compartments occurring as source or
+target vertices in the above set of edges, which may or may not be equal
+to the product set $$V_M$$.
 
 This is a fairly general framework for defining products, at least in a
 world of linear and bilinear reactions among compartments.  If transitions
@@ -587,23 +587,26 @@ function that generates derived edges from each combination
 of models' edges, rather than from each edge individually.
 
 **Definition.** A **strong product** $$M_1\boxtimes\cdots\boxtimes M_n$$
-of box models $$M_1,\ldots,M_n$$ is a box model such that
+of box models $$M_1,\ldots,M_n$$ is a box model $$M$$ such that
 
-* $$V(M) = V(M_1)\times\cdots\times V(M_n)$$
-* $$E(M) = \cup_{\sigma\subseteq\{1,\ldots,n\}} \cup_{\varepsilon\in\prod_{i\in\sigma}E(M_i)} \Xi_\boxtimes( \varepsilon )$$
-* <latex>$\Xi_\boxtimes( \varepsilon ) = \begin{cases}
-    \{\,(S,T,\tilde{\Phi}_r(r,S,\iota_s,T)) \mid S\in V(M), \{\,(S,i)\mid i\in\sigma\,\}\subseteq\Sigma(s,\{S\}), \\
-    \quad T\in \tilde{\Omega}_1(S, \iota_s, \varepsilon)\,\} \\
+* $$E(M) = \cup_{\sigma\subseteq\{1,\ldots,n\}} \cup_{\varepsilon\in\prod_{i\in\sigma}E(M_i)} \Xi_\boxtimes( \sigma, \varepsilon )$$
+* <latex>$\Xi_\boxtimes( \sigma, \varepsilon ) = \begin{cases}
+    \{\,(S,T,\tilde{\Phi}_r(r,S,\sigma,T)) \mid S\in V_M, \{\,(S,i)\mid i\in\sigma\,\}\subseteq\Sigma_1(s,\{S\}), \\
+    \quad T\in \tilde{\Omega}_1(S, \sigma, \varepsilon)\,\} \\
     \qquad\text{if $e=(s,t,r)\ \forall e\in\varepsilon$ and $r$ is linear in $s$} \\
-    \{\,(S,T,\tilde{\Phi}_{2r}(r,S,\iota_s,C,\iota_c,C)) \mid S\in V(M), \{S\}\times\sigma\subseteq\Sigma_c(s,\{S\})\\
-    \quad C\in V(M), \{C\}\times\sigma\subseteq\Sigma_c(c,\{C\}), \\
-    \quad T\in\tilde{\Omega}_2(S, \{S\}\times\sigma, C, \{C\}\times\sigma, \varepsilon)\,\} \\
-    \qquad\text{if $e=(s,t,r)\ \forall e\in\varepsilon$ and $r$ is bilinear in $s$ and $c$} 
+    \{\,(S,T,\tilde{\Phi}_{2r}(r,S,C,\sigma,C)) \mid S\in V_M, \{S\}\times\sigma\subseteq\Sigma_1(s,\{S\})\\
+    \quad C\in V_M, \{C\}\times\sigma\subseteq\Sigma_1(c,\{C\}), \\
+    \quad T\in\tilde{\Omega}_2(S, C, \sigma, \varepsilon)\,\} \\
+    \qquad\text{if $e=(s,t,r)\ \forall e\in\varepsilon$ and $r$ is bilinear in $s$ and $c$.}
 \end{cases}$</latex>
+* $$V_M=V(M_1)\times\cdots\times V(M_n)$$.
 * $$\tilde{\Omega}_1$$ and $$\tilde{\Omega}_2$$ generate the destination
 compartment for each transition given the transitions it's constructed from,
 and the source and catalyst compartments, and $$\tilde{\Phi}_r$$ and
 $$\tilde{\Phi}_{2r}$$ provide rewritten rate expressions.
+* The vertex set $$V(M)$$ is the set of compartments occurring as source or
+target vertices in the above set of edges, which may or may not be equal
+to the product set $$V_M$$.
 
 This definition is surely opaque [and not actually correct: we distinguish
 the order of elements in $$\iota_s$$ and $$\iota_c$$, we have strong products with and
