@@ -582,6 +582,81 @@ class BoxModel(SageObject):
 	    ]
 	ltx.write_align( *lines )
 	return ltx._output._str
+    def aggregate_compartments( self, compartment_aggregation ):
+        aggregate = {}
+        for vt in self._graph.vertex_iterator():
+            aggregate.setdefault( tuple( compartment_aggregation( vt.operands() ) ), [] ).append( vt.operands() )
+        ## aggregate is { new vertex: [old vertices], ... }
+        print 'aggregate:', aggregate
+        flow_sums = {}
+        for v in self._graph.vertex_iterator():
+	    av = compartment_aggregation( v )
+	    if av not in flow_sums: flow_sums[av] = {}
+	    for _,w,e in self._graph.outgoing_edge_iterator(v):
+		aw = compartment_aggregation( w )
+	        flow_sums[av].setdefault( aw, SR(0) )
+	        flow_sums[av][aw] += e
+	## flow_sums[av][aw] is sum of all transitions from
+	## (aggregated vertex) av to aw
+	## transitions are in terms of old vertex names
+
+        ## now do substitutions to transform the transition sums
+        agg_eqns, agg_symbols = [], []
+        agg_subs = dynamicalsystems.Bindings()
+        for newt,oldts in aggregate.items():
+            print 'will combine', sum( oldts ), '==', newt
+            agg_symbols.append( oldts[0] )
+            agg_eqns.append( oldts[0] == newt - sum( oldts[1:] ) )
+        agg_graph_dict = {}
+        for av, ve in flow_sums.iteritems():
+            agg_graph_dict[av] = {}
+            for aw, e in ve.iteritems():
+    	        sym = SR.symbol()
+    	        print e,
+    	        solns = solve( [ sym == e ] + agg_eqns, sym, *agg_symbols, solution_dict=True )
+    	        #print 'solve', [ sym == e ] + agg_eqns, ',', [sym] + agg_symbols, '\n  ', solns
+    	        if len(solns) == 1:
+    	            #print '  ', maxima(sym), [str(k) == str(sym) for k in solns[0].keys()]
+    	            el = [ex for k,ex in solns[0].items() if str(k) == str(sym)]
+    	            print '==>', el[0]
+    	            agg_graph_dict[av][aw] = el[0]
+    	        else:
+    	            raise RuntimeError, 'Could not simplify expression ' + str(e) + ':' + str(solns)
+	print 'agg_graph_dict', agg_graph_dict
+        #self._vc_eqns = vc_eqns
+	## make list of transformed variables
+	## they are in those dicts, but we want the order
+        agg_vars = []
+        for v in self._vars:
+	    av = compartment_aggregation( v )
+	    if av not in agg_vars: agg_vars.append(av)
+	print 'agg_vars', agg_vars
+        ## position the aggregates by matching them to a subset of original
+	## compartments
+	apos = {}
+	for t,p in self._graph.get_pos().iteritems():
+	    at = compartment_aggregation( t )
+	    if at not in apos: apos[at] = p
+	print 'apos', apos
+        return boxmodel.BoxModel( DiGraph( agg_graph_dict, pos=apos ), agg_vars )
+    def combine_arrows( self ):
+	return self.aggregate_compartments( lambda x:x )
+    def separate_arrows( self ):
+	def arrow_iterator( e ):
+	    plus = SR('x+1').operator()
+	    e = e.expand()
+	    if e.operator() == plus:
+		for t in e.operands():
+		    for tt in arrow_iterator(t):
+		        yield t
+	    else:
+		yield e
+	return BoxModel( DiGraph(
+		[ (v,w,ee) for v,w,e in self._graph.edge_iterator() for ee in arrow_iterator(e) ],
+		pos = self._graph.get_pos()
+	    ),
+	    self._vars
+	)
 
 # useful parent class: expression converter that doesn't
 # do anything
@@ -949,9 +1024,24 @@ class CompositeBoxModel(boxmodel.BoxModel):
 	    self._param_namer,
 	    self._bindings + dynamicalsystems.Bindings( *args, **vargs )
 	)
-    def aggregate_compartments( self, compartment_aggregation,
+    def combine_arrows( self ):
+	return self.aggregate_compartments( lambda x:tuple(x), self._param_namer, self._vertex_namer )
+    def separate_arrows( self ):
+	def arrow_iterator( e ):
+	    plus = SR(x+1).operator()
+	    if e.operator() == plus:
+		for t in e.operands(): yield t
+	    else:
+		yield e
+	return BoxModel( DiGraph(
+		[ (v,w,ee) for v,w,e in self._flow_graph.edge_iterator() for ee in arrow_iterator(e) ],
+		pos = self._flow_graph._pos
+	    ),
+	    self._vars
+	)
+    def aggregate_compartments( self, compartment_aggregation=default_compartment_aggregation,
 	    param_namer_after=lambda *x:x,
-	    vertex_namer_after=lambda *x:x ):
+	    vertex_namer_after=default_vertex_namer ):
         aggregate = {}
         for vt in self._graph.vertex_iterator():
             aggregate.setdefault( compartment_aggregation( vt.operands() ), [] ).append( vt.operands() )
@@ -975,9 +1065,11 @@ class CompositeBoxModel(boxmodel.BoxModel):
         agg_eqns, agg_symbols = [], []
         agg_subs = dynamicalsystems.Bindings()
         for newt,oldts in aggregate.items():
-            print 'will combine', sum( self._vertex_namer(*oldt) for oldt in oldts ), '==', vertex_namer_after(*newt)
-            agg_symbols.append( self._vertex_namer(*oldts[0]) )
-            agg_eqns.append( self._vertex_namer(*oldts[0]) == vertex_namer_after(*newt) - sum( self._vertex_namer(*oldt) for oldt in oldts[1:] ) )
+            #print 'will combine', sum( self._vertex_namer(*oldt) for oldt in oldts ), '==', vertex_namer_after(*newt)
+	    eqn = self._vertex_namer(*oldts[0]) == vertex_namer_after(*newt) - sum( self._vertex_namer(*oldt) for oldt in oldts[1:] )
+	    if eqn.lhs() != eqn.rhs():
+                agg_symbols.append( self._vertex_namer(*oldts[0]) )
+                agg_eqns.append( eqn )
         agg_graph_dict = {}
         for av, ve in flow_sums.iteritems():
 	    vn = av.substitute_function( bm_state, vertex_namer_after )
@@ -985,9 +1077,9 @@ class CompositeBoxModel(boxmodel.BoxModel):
             for aw, e in ve.iteritems():
 		wn = aw.substitute_function( bm_state, vertex_namer_after )
     	        sym = SR.symbol()
-    	        print e,
+    	        print e
     	        solns = solve( [ sym == e ] + agg_eqns, sym, *agg_symbols, solution_dict=True )
-    	        #print 'solve', [ sym == e ] + agg_eqns, ',', [sym] + agg_symbols, '\n  ', solns
+    	        print 'solve', [ sym == e ] + agg_eqns, ',', [sym] + agg_symbols, '\n  ', solns
     	        if len(solns) == 1:
     	            #print '  ', maxima(sym), [str(k) == str(sym) for k in solns[0].keys()]
     	            el = [ex for k,ex in solns[0].items() if str(k) == str(sym)]

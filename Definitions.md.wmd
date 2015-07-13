@@ -14,6 +14,8 @@ Each compartment has a **name**, which is a mathematical variable such as $$X$$.
 A transition is an ordered triple $$(s,t,r)$$, where $$s$$ and $$t$$ are the
 **source** and **target** compartments of the transition, and $$r$$ is its
 **rate**, which is a function of the compartments' names.
+We will use the notation $$s\xrightarrow{r}t$$ as a synonym for the
+above triple.
 Any variable involved in a transition rate that is not the name of a
 compartment is a **parameter** of the model.  $$V(M)=\{c_1,\ldots,c_n\}$$,
 the vertex set of model $$M$$, is the set of its compartments, and
@@ -150,11 +152,11 @@ is defined as follows:
 
 * $$V(M_1\,\square\,\cdots\,\square\,M_n) = V(M_1)\times\cdots\times V(M_n)$$
 (see Appendix for set product operations).
-* $$E(M_1\,\square\,\cdots\,\square\,M_n) = \cup_{\{\,(v_1,\ldots,v_n)\in V(M_1)\times\cdots\times V(M_n)\,\}} \cup_{i\in\{1,\ldots,n\}} \cup_{\{\,w,r\mid(v_i,w,r)\in E(M_i)\,\}}$$ $$\operatorname{stratify}((v_1,\ldots,v_n),w,r,(M_1,\ldots,M_n),i)$$
+* $$E(M_1\,\square\,\cdots\,\square\,M_n) = \cup_{\{\,(v_1,\ldots,v_n)\in V(M_1)\times\cdots\times V(M_n)\,\}} \cup_{i\in\{1,\ldots,n\}} \cup_{\{\,w,r\mid v_i\xrightarrow{r}w\in E(M_i)\,\}}$$ $$\operatorname{stratify}((v_1,\ldots,v_n),w,r,(M_1,\ldots,M_n),i)$$
 
 where
 
-* $$\operatorname{stratify}((v_1,\ldots,v_n),w,r,(M_1,\ldots,M_n),i) =$$ $$((v_1,\ldots,v_n),(v_1,\ldots,v_{i-1},w,v_{1+i},\ldots,v_n),r_s)$$,
+* $$\operatorname{stratify}((v_1,\ldots,v_n),w,r,(M_1,\ldots,M_n),i) =$$ $$(v_1,\ldots,v_n)\xrightarrow{r_s}(v_1,\ldots,v_{i-1},w,v_{1+i},\ldots,v_n)$$,
 
 where $$r_s$$ is the rate $$r$$ with the name of $$v_i$$ replaced by the
 name of the stratified vertex $$(v_1,\ldots,v_n)$$ and all parameters
@@ -215,22 +217,22 @@ will only become relevant in later examples.
 **Definition.**  A **cross product** $$M_1\,\square\,\cdots\,\square\,M_n$$
 of models $$M_1,\ldots,M_n$$ is a box model $$M$$ such that
 
-* $$E(M) = \cup_{i\in\{1,\ldots,n\}} \cup_{(s,t,r)\in E(M_i)} \Xi((s,t,r),i)$$
+* $$E(M) = \cup_{i\in\{1,\ldots,n\}} \cup_{s\xrightarrow{r}t\in E(M_i)} \Xi(s\xrightarrow{r}t,i)$$
 
 where
 
-* <latex>$\Xi((s,t,r),i) = \Xi_\square((s,t,r),i) = \begin{cases}
-  \{\,(S,T,\Phi_r(r,S,i_s,T)) \mid S\in V_M, i_s\in \Sigma(s,S), \\
+* <latex>$\Xi(s\xrightarrow{r}t,i) = \Xi_\square(s\xrightarrow{r}t,i) = \begin{cases}
+  \{\,S\xrightarrow{\Phi_r(r,S,i_s,T)}T \mid S\in V_M, i_s\in \Sigma(s,S), \\
     \quad T\in\Omega_1( S, i_s, s, t, r, i )\,\} \\
     \quad\quad\text{if $r$ is linear in $s$} \\
-  \{\,(S,T,\Phi_{2r}(r,S,i_s,C,i_c,T)) \mid S\in V_M, i_s\in\Sigma(s,S), \\
+  \{\,S\xrightarrow{\Phi_{2r}(r,S,i_s,C,i_c,T)}T \mid S\in V_M, i_s\in\Sigma(s,S), \\
     \quad C\in V_M, i_c\in\Sigma(c,C), T\in\Omega_2( S, i_s, C, i_c, s, c, t, r, i )\,\} \\
-  \mbox{} \cup \{\,(S,T,\Phi_{1r}( S, i_s, i_c, s, t, r, i )) \mid S\in V_M, i_s\in\Sigma(s,S), \\
+  \mbox{} \cup \{\,S\xrightarrow{\Phi_{1r}( S, i_s, i_c, s, t, r, i )}T \mid S\in V_M, i_s\in\Sigma(s,S), \\
     \quad i_c\in\Sigma(c,S), T\in\Omega_{2i}( S, i_s, i_c, s, c, t, r, i )\,\} \\
     \quad\quad\text{if $r$ is bilinear in $s$ and $c$} \end{cases}
 $\\*</latex>
 generates the set of all product edges derived from the
-edge $$(s,t,r)$$.
+edge $$s\xrightarrow{r}t$$.
 * $$V_M = V(M_1)\times\cdots\times V(M_n)$$.
 * $$\Sigma(v,V)$$ is the set of **inclusions** of compartment $$v$$ in the
 tuple $$V$$, which is a set of indices $$i$$ for which the $$i$$th entry in
@@ -396,6 +398,8 @@ $$Z_0 = X_{SS}$$; $$Z_1 = X_{SI} + X_{IS}$$; $$Z_2 = X_{II}$$.
 transition rates from $$V$$ to $$W$$ in the ordered model,
 and use the sum equations to
 transform the sum into terms of the unordered compartment names.
+* For graphical display, we separate the resulting sum into separate
+arrows, as it was before we summed them together.
 * This step requires us to change the names of the
 parameters as well as the compartments, as some of them need to be
 assumed equal for this to work.  Thus we have the following definition:
@@ -410,8 +414,8 @@ aggregate compartments
 * For each aggregate compartment $$C$$, there is an equality
 $$C = \sum_{\{V\mid A(V)=C\}} A$$, equating the aggregate compartment with
 the sum of its preimage compartments.
-* The set of transitions of $$A(M)$$ is the set of triples
-$$(S,T,\sum_{\{\,(V,W,r) \mid A(V)=S, A(W)=T\,\}}A(r))$$, where
+* The set of transitions of $$A(M)$$ is the set of edges
+$$S\xrightarrow{\sum_{\{\,V\xrightarrow{r}W\in E(M) \mid A(V)=S, A(W)=T\,\}}A(r)} T$$, where
 $$A(r)$$ is the transition rate expression $$r$$ with all 
 parameter names $$P$$ replaced by $$A(P)$$, and with sums of
 unaggregated compartment names replaced by their equivalent aggregated
@@ -424,7 +428,7 @@ particular cases, and the parameters have to be relabeled just right
 so that the sums will come out right.
 
 To construct our unordered-pair model, now, we define an aggregation
-function for compartments $$A(X_{pq})=Z_c$$, where $$c$$ is the number of
+function for compartments: $$A(X_{pq})=Z_c$$, where $$c$$ is the number of
 occurrences of $$I$$ in the labels $$p$$ and $$q$$.  Along with this
 we use a congruent aggregation function for parameters,
 $$A(\beta_{pqirsj})=\beta_{cd}$$, where $$c$$ is the number of $$I$$
@@ -471,7 +475,7 @@ def param_transform( *t ):
     print ss
     return ss
 z_namer = lambda *t: subscriptedsymbol( 'Z', *t )
-uno = SI2.aggregate_compartments( SI_count, param_transform, z_namer )
+uno = SI2.aggregate_compartments( SI_count, param_transform, z_namer ).separate_arrows()
 uno.plot_boxes( 'SI-pair-unordered.boxes.tex', figsize=(7,7) )
 </source-file>
 
@@ -591,13 +595,13 @@ of box models $$M_1,\ldots,M_n$$ is a box model $$M$$ such that
 
 * $$E(M) = \cup_{\sigma\subseteq\{1,\ldots,n\}} \cup_{\varepsilon\in\prod_{i\in\sigma}E(M_i)} \Xi_\boxtimes( \sigma, \varepsilon )$$
 * <latex>$\Xi_\boxtimes( \sigma, \varepsilon ) = \begin{cases}
-    \{\,(S,T,\tilde{\Phi}_r(r,S,\sigma,T)) \mid S\in V_M, \{\,(S,i)\mid i\in\sigma\,\}\subseteq\Sigma_1(s,\{S\}), \\
+    \{\,S\xrightarrow{\tilde{\Phi}_r(r,S,\sigma,T)} T \mid S\in V_M, S\times\sigma\subseteq\Sigma_1(s,\{S\}), \\
     \quad T\in \tilde{\Omega}_1(S, \sigma, \varepsilon)\,\} \\
-    \qquad\text{if $e=(s,t,r)\ \forall e\in\varepsilon$ and $r$ is linear in $s$} \\
-    \{\,(S,T,\tilde{\Phi}_{2r}(r,S,C,\sigma,C)) \mid S\in V_M, \{S\}\times\sigma\subseteq\Sigma_1(s,\{S\})\\
+    \qquad\text{if $e=s\xrightarrow{r}t\ \forall e\in\varepsilon$ and $r$ is linear in $s$} \\
+    \{\,S \xrightarrow{\tilde{\Phi}_{2r}(r,S,C,\sigma,C)} T \mid S\in V_M, \{S\}\times\sigma\subseteq\Sigma_1(s,\{S\})\\
     \quad C\in V_M, \{C\}\times\sigma\subseteq\Sigma_1(c,\{C\}), \\
     \quad T\in\tilde{\Omega}_2(S, C, \sigma, \varepsilon)\,\} \\
-    \qquad\text{if $e=(s,t,r)\ \forall e\in\varepsilon$ and $r$ is bilinear in $s$ and $c$.}
+    \qquad\text{if $e=s\xrightarrow{r}t\ \forall e\in\varepsilon$ and $r$ is bilinear in $s$ and $c$.}
 \end{cases}$</latex>
 * $$V_M=V(M_1)\times\cdots\times V(M_n)$$.
 * $$\tilde{\Omega}_1$$ and $$\tilde{\Omega}_2$$ generate the destination
@@ -608,15 +612,15 @@ $$\tilde{\Phi}_{2r}$$ provide rewritten rate expressions.
 target vertices in the above set of edges, which may or may not be equal
 to the product set $$V_M$$.
 
-This definition is surely opaque [and not actually correct: we distinguish
-the order of elements in $$\iota_s$$ and $$\iota_c$$, we have strong products with and
-without cross interactions, and we may need within-compartment interactions
-for some applications-lw],
+This definition is surely opaque 
 but the upshot is that, in our example,
 for every way of locating one or more $S$ labels in a compartment, and for
 every way of locating one or more $I$ labels in a compartment, it uses the
 $$\tilde{\Omega}_2$$ function to generate a set of transitions resulting
-from the interactions of those pairs.  In this model, we want the $$S$$
+from the interactions of those pairs.  [This is the strong product *without*
+cross interactions: there is also a strong product with cross interactions,
+but it's more complex and we don't need it for these applications.]
+In this model, we want the $$S$$
 and $$I$$ labels to match up in the same positions (no cross interactions),
 so we provide an
 $$\tilde{\Omega}_2$$ function that yields outputs only in those cases.
@@ -810,9 +814,7 @@ $$(0,\ldots,0,1,0,\ldots,0)$$ with 1 in the place corresponding to
 compartment $$X$$.
 
 The transitions are
-
-$$ (p_S,p_{S-{\mathbf{e}_s}/{N}+{\mathbf{e}_t}/{N}},r(S) p_S) $$
-
+$$p_S \xrightarrow{r(S)p_S} p_{S-{\mathbf{e}_s}/{N}+{\mathbf{e}_t}/{N}}$$
 for each transition with source, target, and rate $$s,t,r$$ of the original
 box model, and for every state $$S$$,
 where $$r(S)$$ is the rate $$r$$ evaluated at the state $$S$$.
@@ -854,6 +856,30 @@ $$SI\times SI$$ pair model presented above), binds its transition rate
 parameters to something sane, and constructs its forward equations in
 a way that collapses to something usable.
 
+With an ordered-$$n$$tuple model, where there are $$N_i$$ instances of
+$$I$$ appearing in all the compartments, there are $$N_i$$ infection
+transitions
+from each $$S$$ entry in every composite compartment of the model to
+its infected counterpart compartment.
+
+In the $$n$$th power of a $$k$$-state model, $$N_i$$ is $$1/k$$ of the
+total number of entries in compartments, which is $$k^n/k$$ or $$k^{n-1}$$.
+There are the same number of $$S$$ entries.
+So in all, $$k^{2(n-1)}$$ infection transitions!!
+
+Plus within-group events - in a compartment with $$c$$ $$S$$s and $$d$$
+$$I$$s, there are $$cd$$ of these transitions, to the $$c$$ different
+post-infection compartments.
+
+Maybe I can generate these directly?  I'm sure, if we let $$\pi_i(C)$$
+be the $$i$$th entry of the tuple $$C$$ (the $$i$$th projection function).
+
+* $$E(M^n) = \cup_{i=1,\ldots,k} \cup_{j=1,\ldots,k} \left[\,\{\,(V,I_i(V), \beta V^2) \mid V\in V(M)^n, \pi_i(V)=S, \pi_j(V)=S\,\}\,\right.$$
+$$\quad\left. \cup\;\{\,(V,I_i(V),\beta V W) \mid V\in V(M)^n, \pi_i(V)=S, W\in V(M)^n, \pi_j(W)=I\,\}\,\right]$$
+
+where $$I_i(V)$$ is the compartment equal to $$V$$ with the $$i$$th entry
+changed to $$I$$.
+
 # Appendix: graph products
 
 There are several standard product operations on directed graphs.
@@ -873,8 +899,9 @@ We define a **directed graph** (and we are not concerned with undirected
 graphs) as a set $$\{\,(v,w,e)\,\}\subseteq V\times V\times E$$, where
 $$V$$ is the **vertex set** of the graph and $$E$$ is its set of edge
 labels.  Each of these tuples is visualized as an arrow from $$v$$ to
-$$w$$ with label $$e$$. 
-[In our definition of box models, the elements of $$e$$ are
+$$w$$ with label $$e$$.  For easy reading, we sometimes represent these
+arrows as $$\{\,v\xrightarrow{e} w\,\}$$.
+[In our definition of box models, the edge labels $$e$$ are
 transition rates.] Note
 that this definition allows multiple edges between the same vertices
 $$v,w$$, so we are properly discussing directed multigraphs.
@@ -887,7 +914,9 @@ $$G_1\:\square\:G_2\:\square\:\cdots\:\square\:G_n$$
 $$G_1$$, $$G_2$$, $$\ldots$$, $$G_n$$ is a graph whose vertex
 set is the Cartesian product $$V_1\times V_2\times\ldots\times V_n$$
 of the vertex sets $$V_i$$ of each graph $$G_i$$, and whose edges
-are of the form $$((v_1,v_2,\ldots,v_i,\ldots,v_n), (v_1,v_2,\ldots,w_i,\ldots,v_n), e)$$, where the two tuples are identical in all but the $$i$$'th position,
+are of the form
+$$(v_1,v_2,\ldots,v_i,\ldots,v_n)\xrightarrow{e} (v_1,v_2,\ldots,w_i,\ldots,v_n)$$,
+where the two tuples are identical in all but the $$i$$'th position,
 and where there is an edge connecting $$v_i$$ to $$w_i$$ in $$G_i$$.
 
 Most definitions of this product do not provide labels for the edges
