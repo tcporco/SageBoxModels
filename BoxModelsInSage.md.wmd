@@ -506,6 +506,7 @@ class BoxModel(SageObject):
 	    nbm._flow_graph.add_edges( trs )
 	return nbm
     def ode_flow(self):
+	print self._vars, 'vs', self._flow_graph.vertices()
 	flow = { v:0 for v in self._vars }
 	#print flow
 	for source,target,rate in self._flow_graph.edges():
@@ -526,8 +527,11 @@ class BoxModel(SageObject):
 	    g = self._flow_graph
 	lopts = {
 	    'graphic_size': figsize,
-	    'edge_thickness': 0.02,
-	    'edge_labels': True
+	    'edge_labels': True,
+	    'edge_thickness' : 0.02,
+	    #'edge_fills': True,
+	    #'edge_color': 'white',
+	    #'edge_thickness': 0.05
 	}
 	if inline:
 	    lopts['margins'] = (0.5,0.5,0.5,0.5)
@@ -642,8 +646,8 @@ class BoxModel(SageObject):
     def combine_arrows( self ):
 	return self.aggregate_compartments( lambda x:x )
     def separate_arrows( self ):
+	plus = SR('x+1').operator()
 	def arrow_iterator( e ):
-	    plus = SR('x+1').operator()
 	    e = e.expand()
 	    if e.operator() == plus:
 		for t in e.operands():
@@ -653,7 +657,8 @@ class BoxModel(SageObject):
 		yield e
 	return BoxModel( DiGraph(
 		[ (v,w,ee) for v,w,e in self._graph.edge_iterator() for ee in arrow_iterator(e) ],
-		pos = self._graph.get_pos()
+		pos = self._graph.get_pos(),
+		multiedges=True
 	    ),
 	    self._vars
 	)
@@ -1000,10 +1005,14 @@ class CompositeBoxModel(boxmodel.BoxModel):
 	# now for consumption by humans and math software, we map vertex
 	# tuples to regular variable names with subscripts
 	bm_to_vars = lambda e: e.substitute_function( bm_param, param_namer ).substitute_function( bm_state, vertex_namer )
-	self._flow_graph = DiGraph( [
-	        ( bm_to_vars(v), bm_to_vars(w), bindings(bm_to_vars(e)) )
-	        for v, w, e in self._graph.edge_iterator()
-	    ],
+	def bind_edges( edges, bindings ):
+	    print 'here is bindings:', bindings
+	    for v, w, e in edges:
+	        be = bindings(bm_to_vars(e))
+		print 'bind', e, 'to', bm_to_vars(e), 'to', be
+	        if be != 0: yield ( bm_to_vars(v), bm_to_vars(w), be )
+	self._flow_graph = DiGraph(
+	    list( bind_edges( self._graph.edge_iterator(), bindings ) ),
 	    multiedges=True
 	)
 	self._flow_graph.set_latex_options( edge_labels=True, vertex_shape='rectangle' )
@@ -1019,7 +1028,7 @@ class CompositeBoxModel(boxmodel.BoxModel):
     def bind(self, *args, **vargs):
 	return CompositeBoxModel(
 	    self._graph,
-	    self._tuple_vars,
+	    self._tuples,
 	    self._vertex_namer,
 	    self._param_namer,
 	    self._bindings + dynamicalsystems.Bindings( *args, **vargs )
@@ -1027,15 +1036,17 @@ class CompositeBoxModel(boxmodel.BoxModel):
     def combine_arrows( self ):
 	return self.aggregate_compartments( lambda x:tuple(x), self._param_namer, self._vertex_namer )
     def separate_arrows( self ):
+	plus = SR(x+1).operator()
 	def arrow_iterator( e ):
-	    plus = SR(x+1).operator()
+	    e = e.expand()
 	    if e.operator() == plus:
 		for t in e.operands(): yield t
 	    else:
 		yield e
 	return BoxModel( DiGraph(
 		[ (v,w,ee) for v,w,e in self._flow_graph.edge_iterator() for ee in arrow_iterator(e) ],
-		pos = self._flow_graph._pos
+		pos = self._flow_graph._pos,
+		multiedges=True
 	    ),
 	    self._vars
 	)
@@ -1172,7 +1183,8 @@ class BoxModelProduct(CompositeBoxModel):
 	for vbm in self._graph.vertex_iterator():
 	    vs = vbm.operands()
 	    for v in vs:
-	        self._inclusion_tuples.setdefault(v, []).append( vs )
+		if not v.is_numeric():
+	            self._inclusion_tuples.setdefault(v, []).append( vs )
 
 	#print self._inclusion_tuples
 	self._inclusion_variables = {
@@ -1182,19 +1194,27 @@ class BoxModelProduct(CompositeBoxModel):
 	for k,vl in self._inclusion_variables.iteritems():
 	    self._bindings[k] = sum( vl )
 
-	# make list of variables, in order, by taking product
-        import itertools
-	varset = set()
-	self._vars = []
-	self._tuples = []
-	for vs in itertools.product( *(m._vars for m in models) ):
-	    t = compartment_renaming( *vs )
-	    v = vertex_namer( *t )
-	    if v not in varset:
-		varset.add(v)
-		self._vars.append(v)
-		self._tuples.append( bm_state( *t ) )
-	print 'made tuples:', self._tuples
+	# are vertices from product of graphs?
+	representative_tuple = self._graph.vertex_iterator().next().operands()
+	if len( representative_tuple ) == len( models ) and all( v in m._vars for v,m in zip( representative_tuple, models ) ):
+	    # make list of variables, in order, by taking product
+            import itertools
+	    varset = set()
+	    self._vars = []
+	    self._tuples = []
+	    for vs in itertools.product( *(m._vars for m in models) ):
+	        t = compartment_renaming( *vs )
+	        v = vertex_namer( *t )
+	        if v not in varset:
+		    varset.add(v)
+		    self._vars.append(v)
+		    self._tuples.append( bm_state( *t ) )
+	    print 'made tuples:', self._tuples
+	else:
+	    # no - the edge generator gave us some other set of vertices
+	    self._tuples = [ bm_state(*t) for t in sorted( t.operands() for t in self._graph.vertices()) ]
+	    print 'sorted tuples:', self._tuples
+	    self._vars = [ vertex_namer(*t.operands()) for t in self._tuples ]
 
 	# now generate all the crossed parameters
 	# TODO: do this right
