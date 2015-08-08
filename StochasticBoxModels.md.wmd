@@ -186,26 +186,29 @@ import dynamicalsystems, stochasticdynamics
 class BoxModelDiscreteSimulation( stochasticdynamics.FiniteDimensionalStochasticDynamics ):
     def __init__(self, boxmodel):
 	self._model = boxmodel
+	self._trans_fast = [ (v,w,fast_callable(r,vars=boxmodel._vars,domain=float)) for v,w,r in boxmodel._flow_graph.edge_iterator() ]
+	self._vars_index = { v:i for i,v in enumerate(boxmodel._vars) }
 	super( BoxModelDiscreteSimulation, self ).__init__(
 	    boxmodel._vars,
 	    bindings = boxmodel._bindings # for use by trajectories
 	)
-    def solve( self, initial_state, start_time=0, end_time=30 ):
+    def solve( self, initial_state, start_time=0, end_time=30, grain=1 ):
 	# Note total system size N is implied in initial_state
 	self._N = sum( initial_state )
+	self._grain = grain
 	#print 'sum of', initial_state, 'is', self._N
 	return super( BoxModelDiscreteSimulation, self ).solve( initial_state, start_time, end_time )
     def update_time_and_state( self, t, x ):
-	x_bindings = dynamicalsystems.Bindings( zip(
-	    self._model._vars,
-	    (y/self._N for y in x)
-	) )
+	#x_bindings = dynamicalsystems.Bindings( zip(
+	#    self._model._vars,
+	#    (y/self._N for y in x)
+	#) )
 	#print 'x_bindings:', x_bindings
 	# compute rates of all transitions from this state
 	transrates = []
 	total_r = 0
-	for v,w,e in self._model._flow_graph.edge_iterator():
-	    er = x_bindings( e )
+	for v,w,e in self._trans_fast:
+	    er = e( *x )
 	    #print 'rate', e, '->', er
 	    # should be a number
 	    if er > 0:
@@ -219,14 +222,11 @@ class BoxModelDiscreteSimulation( stochasticdynamics.FiniteDimensionalStochastic
 	v,w,tr = next( ( (v,w,tr) for v,w,tr in transrates if tr > r ) )
 	#print 'r:',r
 	#print 'chose', v, w
-	x_bindings[v] -= 1/self._N
-	x_bindings[w] += 1/self._N
-	#print 'N =', self._N
-	#print x, '->',
-	x = tuple( self._N*x_bindings[vn] for vn in self._model._vars )
+	x[self._vars_index[v]] -= self._grain/self._N
+	x[self._vars_index[w]] += self._grain/self._N
 	#print x
 	import numpy.random
-	return ( t + numpy.random.exponential( 1/total_r ), x )
+	return ( t + numpy.random.exponential( self._grain/total_r ), x )
 
 </source-file>
 
