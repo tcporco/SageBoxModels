@@ -1171,7 +1171,7 @@ class BoxModelProduct(CompositeBoxModel):
 	    inclusions=inclusions,
 	    seed_set=seed_set
 	) )
-	print 'edges for product graph:', edges
+	print 'edges for product graph:', edges; sys.stdout.flush()
 	graph = DiGraph( edges, multiedges=True )
 
 	# graphical positions of graph vertices

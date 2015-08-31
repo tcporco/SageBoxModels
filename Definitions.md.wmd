@@ -6,6 +6,26 @@ wmd_prerequisite_projects:
   BoxModels: Box_Models
 ---
 
+## Introduction
+
+Compartmental models are widely used in mathematical
+ecology and epidemiology.  
+<!-- example Jacquez book, also Matis and Kiffe, Stochastic Population
+Models: a compartmental perspective, also Hethcote, also Anderson and May. -->
+
+In epidemiology, the SIR model for instance represents an epidemic process
+whereby susceptibles become infectious and then become removed.  In its simple
+or classical form, this model assumes an exponential waiting time of
+infectivity. Yet almost from the very beginning (Kermack and McKendrick) this
+limitation was generalized, leading to more complex and realistic models.  Other
+refinements have involved adding additional spatial, genetic, vaccination, 
+age, household, or other forms of structure.  Cite Metz and Diekmann. 
+
+Formalize the process of theory development... enable systematic exploration
+of related models...formal structural sensitivity analysis
+
+pharmacokinetic and biological model structures
+
 ## Box Model
 
 A **box model** is a directed graph whose vertices are **compartments** and
@@ -517,7 +537,8 @@ M1 = make_M(1)
 M2 = make_M(2)
 M1M2 = boxmodelproduct.union( M1, M2 )
 M1M2.plot_boxes( 'M1M2.boxes.tex', figsize=(7,2) )
-save_session( 'M1M2' )
+## save_session seems to be causing a memory-leak freakout here
+#save_session( 'M1M2' )
 </source-file>.
 
 We wish to combine these infection processes into a single model
