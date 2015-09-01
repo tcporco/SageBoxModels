@@ -1,6 +1,7 @@
 ---
 layout: page
-title: Definitions of Box Model operations
+title: Formal Products of Compartmental Models
+author: Lee Worden, Travis C. Porco
 wmd_project: Notes
 wmd_prerequisite_projects:
   BoxModels: Box_Models
@@ -27,9 +28,9 @@ of related models...formal structural sensitivity analysis
 
 pharmacokinetic and biological model structures
 
-## Box Model
+## Compartmental Model
 
-A **box model** is a directed graph whose vertices are **compartments** and
+A **compartmental model** is a directed graph whose vertices are **compartments** and
 edges are **transitions**.
 Each compartment has a **name**, which is a mathematical variable such as $$X$$.
 A transition is an ordered triple $$(s,t,r)$$, where $$s$$ and $$t$$ are the
@@ -46,7 +47,7 @@ and let $$P(M)=\{p_1,\ldots,p_m\}$$ be the set of all its
 transitions' parameters; then each transition rate is a function
 $$r(c_1,\ldots,c_n,p_1,\ldots,p_m)$$ taking values in $$\mathbb{R}$$.
 
-A box model is associated with an **ODE**, whose state variables are the
+A compartmental model is associated with an **ODE**, whose state variables are the
 compartments' names, and whose flow vector field is constructed from the
 transition rates:
 
@@ -54,28 +55,29 @@ $$\frac{dX}{dt} = \sum_{\{e\in E(M)\mid\operatorname{source}(e)=X\}}\text{rate}(
 
 for each compartment $$X$$.
 
-There are also an SDE, a diffusion equation, individual-based models, 
-and possibly other models that can be automatically generated to describe
+There are also Markov processes, stochastic differential equations,
+diffusion equations, individual-based models, 
+and other models that can be automatically generated to represent
 the behavior of this system.
 
 **Example: SI model.**
 
 <project-file filename=SI.boxes.crop.svg/>
 
-This box model has two compartments, S and I.  There is one transition
+This model has two compartments, S and I.  There is one transition
 from S to I, with rate $$\beta S I$$.  Its ODE is
 
 $$\frac{dS}{dt} = -\beta S I$$
 
 $$\frac{dI}{dt} = \beta S I$$.
 
-## Products of box models
+## Products of compartmental models
 
-A **product** of box models, written $$M_1\times \cdots\times M_n$$, where
-each $$M_i$$ is a box model, is a box model whose set of compartments is the
-cross product, or
+A **product** of compartmental models, written $$M_1\times \cdots\times M_n$$,
+where each $$M_i$$ is a compartmental model, is a compartmental model whose 
+set of compartments is the cross product, or
 [Cartesian product](https://en.wikipedia.org/wiki/Cartesian_product#Graph_theory),
-of the component box models' sets of compartments (see Appendix for definitions
+of the component models' sets of compartments (see Appendix for definitions
 of graph product operations).  The transitions include
 the edges of the Cartesian product of the components' graphs, but the product
 may include more transitions as well.
@@ -168,8 +170,8 @@ replicated once for each compartment of the $$x$$-$$y$$ model.
 This simple Cartesian product of models is defined by the following
 formula.
 
-**Definition.**  The **simple cross product** of models $$M_1,\ldots,M_n$$
-is defined as follows:
+**Definition.**  The **simple cross product** of compartmental
+models $$M_1,\ldots,M_n$$ is defined as follows:
 
 * $$V(M_1\,\square\,\cdots\,\square\,M_n) = V(M_1)\times\cdots\times V(M_n)$$
 (see Appendix for set product operations).
@@ -236,7 +238,8 @@ definition of the cross product operation, including some details that
 will only become relevant in later examples.
 
 **Definition.**  A **cross product** $$M_1\,\square\,\cdots\,\square\,M_n$$
-of models $$M_1,\ldots,M_n$$ is a box model $$M$$ such that
+of compartmental models $$M_1,\ldots,M_n$$ is a compartmental model $$M$$
+such that
 
 * $$E(M) = \cup_{i\in\{1,\ldots,n\}} \cup_{s\xrightarrow{r}t\in E(M_i)} \Xi(s\xrightarrow{r}t,i)$$
 
@@ -425,16 +428,18 @@ arrows, as it was before we summed them together.
 parameters as well as the compartments, as some of them need to be
 assumed equal for this to work.  Thus we have the following definition:
 
-**Definition.** An **aggregation of compartments** of a compartment model is a
-model $$A(M)$$, given by a transformation of compartments
+**Definition.** An **aggregation of compartments** of a compartmental 
+model is a compartmental model $$A(M)$$, specified by a transformation
+of compartments
 $$A(V)$$ for $$V$$ in $$V(M)$$ and a transformation of parameters
 $$A(P)$$ for the parameters $$P$$ of $$M$$, in which
 
 * The vertex set of $$A(M)$$ is the set $$\{A(C) \mid C\in V(M)\}$$ of
 aggregate compartments
 * For each aggregate compartment $$C$$, there is an equality
-$$C = \sum_{\{V\mid A(V)=C\}} A$$, equating the aggregate compartment with
-the sum of its preimage compartments.
+$$C = \sum_{\{V\mid A(V)=C\}} A$$, defining an equivalence between
+the aggregate compartment and the sum of its preimage compartments.
+[TODO: the sum of their sizes, rather]
 * The set of transitions of $$A(M)$$ is the set of edges
 $$S\xrightarrow{\sum_{\{\,V\xrightarrow{r}W\in E(M) \mid A(V)=S, A(W)=T\,\}}A(r)} T$$, where
 $$A(r)$$ is the transition rate expression $$r$$ with all 
@@ -442,8 +447,8 @@ parameter names $$P$$ replaced by $$A(P)$$, and with sums of
 unaggregated compartment names replaced by their equivalent aggregated
 compartment names.
 
-This aggregation process doesn't work for general
-box models -- the sum of transition rates doesn't necessarily reduce to
+This aggregation process doesn't work for general compartmental models
+-- the sum of transition rates doesn't necessarily reduce to
 terms of the aggregate quantities -- so this can only be done in
 particular cases, and the parameters have to be relabeled just right
 so that the sums will come out right.
@@ -612,13 +617,14 @@ individual acquires one of the disease strains.  Transitions in which an
 individual acquires both strains in a single event are edges of the
 strong product.
 
-The strong product of box models can be defined using most of the formal
-apparatus of the cross product, but with an edge generation
+The strong product of compartmental models can be defined using most of
+the formal apparatus of the cross product, but with an edge generation
 function that generates derived edges from each combination
-of models' edges, rather than from each edge individually.
+of models' edges, rather than from each single edge.
 
 **Definition.** A **strong product** $$M_1\boxtimes\cdots\boxtimes M_n$$
-of box models $$M_1,\ldots,M_n$$ is a box model $$M$$ such that
+of compartmental models $$M_1,\ldots,M_n$$ is a compartmental model $$M$$
+such that
 
 * $$E(M) = \cup_{\sigma\subseteq\{1,\ldots,n\}} \cup_{\varepsilon\in\prod_{i\in\sigma}E(M_i)} \Xi_\boxtimes( \sigma, \varepsilon )$$
 * <latex>$\Xi_\boxtimes( \sigma, \varepsilon ) = \begin{cases}
@@ -820,19 +826,21 @@ equally, in addition to having one infection weaker than the other:
 
 <project-file filename=SIH-II.boxes.crop.svg/>
 
-## Forward equations for a box model
+## Forward equations for a compartmental model
 
-Given a box model, rather than ODE as defined above, we can generate
+Given a compartmental model, rather than ODE as defined above, we can generate
 Kolmogorov forward and backward equations for the model.  Both are
-ODEs, but the forward equations are the
-ODE of a box model, so we define that system as a box model.
+ODEs, but the forward equations are themselves the ODE of a compartmental
+model, so we define that system as a compartmental model, while the
+backward equations are simply defined as a system of ODEs.
 
 Given an integer
 number $$N$$ of total individuals, the compartments, that is the state
 variables, for the forward
 equations are $$p_{({i_1}/{N},\ldots,{i_n}/{N})}$$ for each
 $$(i_1,\ldots,i_n)\in\{0,1,\ldots,N\}^n$$, where $$n$$ is the number of
-compartments.  If total mass is conserved, as it often is in box models,
+compartments.  If total mass is conserved, as it often is in
+compartmental models,
 we reduce the dimension by eliminating the last of the model's
 compartments, and assume that the sum of all compartments is 1.
 
@@ -843,11 +851,11 @@ compartment $$X$$.
 The transitions are
 $$p_S \xrightarrow{r(S)p_S} p_{S-{\mathbf{e}_s}/{N}+{\mathbf{e}_t}/{N}}$$
 for each transition with source, target, and rate $$s,t,r$$ of the original
-box model, and for every state $$S$$,
+compartmental model, and for every state $$S$$,
 where $$r(S)$$ is the rate $$r$$ evaluated at the state $$S$$.
 
-The forward equations themselves are the ODE of this box model, as defined
-above.
+The forward equations themselves are the ODE of this compartmental model, 
+as defined above.
 
 For example, for a simple SI model with transition $$\beta S I$$, the
 forward equations for $$N=3$$ are
@@ -870,7 +878,7 @@ SIf.plot_boxes( 'SI-forward-3.boxes.tex', figsize=(5,5) )
 
 <project-file filename=SI-forward-3.tex/>
 <!--
-Here is the box model that has the forward equations as its ODE:
+Here is the compartmental model that has the forward equations as its ODE:
 
 <project-file filename=SI-forward-3.boxes.crop.svg/>.
 -->
@@ -1076,13 +1084,14 @@ SIRwo = SIR4_within.ode()
 SIRwo.write_latex( 'SIR-4-equations-within.tex-inline', inline=True )
 </source-file>
 
-That's interesting - this is very similar to the box model representation
+That's interesting - this is very similar to the compartmental model representation
 of the SIR model's master (forward) equations:
 
 <project-file filename=SIR-forward-4.boxes.tex/>
 
 The transition rates are different though.  In the forward equations, one
-box doesn't contribute force of infection to the other boxes (this is why
+compartmental doesn't contribute force of infection to the other
+compartments (this is why
 the power model has transitions that the forward equations don't have).
 The forward equations are similar but not isomorphic to the power model's
 equations restricted to only within-group interactions.
@@ -1101,7 +1110,7 @@ There are several standard product operations on directed graphs.
 All are ways of assigning arrows to the same set of vertices,
 which is the Cartesian product (cross product) of the component
 graphs' vertex sets.  We use several of them in our definitions
-of products of box models.
+of products of compartmental models.
 
 The **Cartesian product of sets** $$S_1$$, $$S_2$$, $$\ldots$$, $$S_n$$
 is the set
@@ -1116,7 +1125,7 @@ $$V$$ is the **vertex set** of the graph and $$E$$ is its set of edge
 labels.  Each of these tuples is visualized as an arrow from $$v$$ to
 $$w$$ with label $$e$$.  For easy reading, we sometimes represent these
 arrows as $$\{\,v\xrightarrow{e} w\,\}$$.
-[In our definition of box models, the edge labels $$e$$ are
+[In our definition of compartmental models, the edge labels $$e$$ are
 transition rates.] Note
 that this definition allows multiple edges between the same vertices
 $$v,w$$, so we are properly discussing directed multigraphs.
