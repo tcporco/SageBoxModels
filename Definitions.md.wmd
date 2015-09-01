@@ -4,22 +4,23 @@ title: Definitions of Box Model operations
 wmd_project: Notes
 wmd_prerequisite_projects:
   BoxModels: Box_Models
+bibliography: box.bib
 ---
 
 ## Introduction
 
 Compartmental models are widely used in mathematical
-ecology and epidemiology.  
+ecology and epidemiology [@jacquez1972compartmental; @matis2012stochastic; @anderson1991infectious] [what Hethcote cite?]
 <!-- example Jacquez book, also Matis and Kiffe, Stochastic Population
 Models: a compartmental perspective, also Hethcote, also Anderson and May. -->
 
 In epidemiology, the SIR model for instance represents an epidemic process
 whereby susceptibles become infectious and then become removed.  In its simple
 or classical form, this model assumes an exponential waiting time of
-infectivity. Yet almost from the very beginning (Kermack and McKendrick) this
+infectivity. Yet almost from the very beginning [@kermack1927contribution] this
 limitation was generalized, leading to more complex and realistic models.  Other
 refinements have involved adding additional spatial, genetic, vaccination, 
-age, household, or other forms of structure.  Cite Metz and Diekmann. 
+age, household, or other forms of structure [@metz2014dynamics].
 
 Formalize the process of theory development... enable systematic exploration
 of related models...formal structural sensitivity analysis
@@ -1185,3 +1186,5 @@ This graph is a subgraph of the transitive closure of
 the Cartesian product graph, but it is not the transitive closure,
 because it's limited to transitive combinations of at most
 one edge from each component graph.
+
+# Bibliography
