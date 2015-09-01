@@ -47,18 +47,23 @@ and let $$P(M)=\{p_1,\ldots,p_m\}$$ be the set of all its
 transitions' parameters; then each transition rate is a function
 $$r(c_1,\ldots,c_n,p_1,\ldots,p_m)$$ taking values in $$\mathbb{R}$$.
 
-A compartmental model is associated with an **ODE**, whose state variables are the
-compartments' names, and whose flow vector field is constructed from the
-transition rates:
+A compartmental model is associated with a **Markov process**, in which
+each compartment is a set of particles, or individuals, and each transition
+$$s\xrightarrow{r}t$$ represents a stochastic flow of individuals from
+compartment $$s$$ to compartment $$t$$ at instantaneous rate $$r$$.
 
-$$\frac{dX}{dt} = \sum_{\{e\in E(M)\mid\operatorname{source}(e)=X\}}\text{rate}(e) - \sum_{\{e\in E(M)\mid\operatorname{target}(e)=X\}}\text{rate}(e)$$
+The large-population limit of that Markov process is the **ordinary
+differential equation system** associated with the compartmental model,
+in which the state variables are the compartments' names, and the flow
+vector field of the system is constructed from the transition rates:
+
+$$\frac{dX}{dt} = \sum_{\{s\xrightarrow{r}X \in E(M)\}}r - \sum_{\{X\xrightarrow{r}t \in E(M)\}}r$$.
 
 for each compartment $$X$$.
 
-There are also Markov processes, stochastic differential equations,
-diffusion equations, individual-based models, 
-and other models that can be automatically generated to represent
-the behavior of this system.
+Stochastic differential equations, diffusion equations, individual-based
+models, and other models can also be automatically generated from a
+compartmental model, to model the dynamics of the system it represents.
 
 **Example: SI model.**
 
