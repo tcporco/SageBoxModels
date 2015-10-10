@@ -80,6 +80,8 @@ _pandoc/Definitions.% : PROJECT=Notes
 _pandoc/Definitions.% : TITLE="Definitions of Box Model objects"
 _pandoc/sde.% : PROJECT=SDE
 _pandoc/sde.% : TITLE=SDE
+_pandoc/LeprosyDiagram.% : PROJECT=Leprosy
+_pandoc/LeprosyDiagram.% : TITLE="Leprosy Diagram"
 
 .PRECIOUS: _pandoc/%.md _pandoc/%.tex
 

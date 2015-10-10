@@ -445,9 +445,12 @@ class BoxModel(SageObject):
 	if vars is None:
 	    vars = graph.vertices()
 	self._vars = vars
+	def getvars(r):
+	    try: return r.variables()
+	    except AttributeError: return []
 	if parameters is None:
 	    # avoid namespace confusion with boxmodelproduct.union
-	    parameters = reduce( lambda x,y: x.union(y), (r.variables() for f,t,r in graph.edges()), set([]) ).difference( self._vars )
+	    parameters = reduce( lambda x,y: x.union(y), (getvars(r) for f,t,r in graph.edges()), set([]) ).difference( self._vars )
 	self._parameters = parameters
 	#print 'parameters:', parameters
 	self._parameter_dependencies = parameter_dependencies
@@ -459,7 +462,9 @@ class BoxModel(SageObject):
 		# TODO: inference including defined quantities like N
 		#print 'infer dependencies for parameter', p
 		for v,w,e in self._graph.edges():
-		    if p in e.variables():
+		    try: vs = getvars(e)
+		    except AttributeError: vs = []
+		    if p in vs:
 			pd = [ v ]
 			#print 'found', p, 'in arrow', e
 			#print 'infer dependency on', v
@@ -880,8 +885,11 @@ def default_single_edge_stratifier(
     print 'old set', old_set, '/ seed set', seed_set
     # produce all product edges made from this component edge
     # list the compartments involved in the transition
-    rate_comps = [ x for x in rate.variables() if x in models[i]._vars ]
-    rate_params = set( rate.variables() ) - set( rate_comps )
+    def getvars(r):
+        try: return r.variables()
+        except AttributeError: return []
+    rate_comps = [ x for x in getvars(rate) if x in models[i]._vars ]
+    rate_params = set( getvars(rate) ) - set( rate_comps )
     # we can handle constant, linear or bilinear transitions
     if rate_comps == [] or rate_comps == [source]:
 	for V in seed_set:
@@ -1223,7 +1231,10 @@ class BoxModelProduct(CompositeBoxModel):
 
 	# now generate all the crossed parameters
 	# TODO: do this right
-	self._parameters = reduce( lambda x,y: set(x).union(y), (r.variables() for f,t,r in self._flow_graph.edges()), set() ).difference( self._vars )
+	def getvars(r):
+	    try: return r.variables()
+	    except AttributeError: return []
+	self._parameters = reduce( lambda x,y: set(x).union(y), (getvars(r) for f,t,r in self._flow_graph.edges()), set() ).difference( self._vars )
 	#print 'parameters:', self._parameters
 
 	self._vertex_namer = vertex_namer
