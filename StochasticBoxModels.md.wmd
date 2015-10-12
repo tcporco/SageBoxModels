@@ -1,7 +1,7 @@
 ---
 layout: page
 title: Stochastic Box Models
-wmd_project: Box_Models
+wmd_project: BoxModels
 ---
 
 <source-file filename=kolmogorov.py.step texdisplay=none>
@@ -178,26 +178,39 @@ def hamiltonian_callback( self, N, km_states, bind_state, state_index, B, p_vars
 	print 'Reducing dimension to', tuple(self._vars[:-1])
 	reduce = True
 	reduce_bindings = dynamicalsystems.Bindings( { self._vars[-1]: 1 - sum( self._vars[:-1] ) } )
-	print reduce_bindings
+	if len(p_vars) == len(self._vars):
+	    reduce_bindings[p_vars[-1]] = 0 
+	#print reduce_bindings
 	p_vars = p_vars[:len(self._vars)-1]
     else:
 	reduce = False
-	reduce_bindings = lambda x:x
-    H = SR(0)
-    for s,t,w in self._flow_graph.edge_iterator():
-	r = B[ state_index[t] ] - B[ state_index[s] ]
-	w = reduce_bindings(w)
-	print 'r,w:', r, w
-	H += w * (exp( sum( p*b for p,b in zip(p_vars,r) ) ) - 1 )
+	reduce_bindings = dynamicalsystems.Bindings()
+    H = sum(
+	reduce_bindings(w) * (
+	    exp( sum(
+		p*b for p,b in zip(
+		    p_vars,
+		    B[ state_index[t] ] - B[ state_index[s] ]
+		)
+	    ) ) - 1
+	)
+	for s,t,w in self._flow_graph.edge_iterator()
+    )
+    #H = SR(0)
+    #for s,t,w in self._flow_graph.edge_iterator():
+	#r = B[ state_index[t] ] - B[ state_index[s] ]
+	#w = reduce_bindings(w)
+	#print 'r,w:', r, w
+	#H += w * (exp( sum( p*b for p,b in zip(p_vars,r) ) ) - 1 )
     if return_vars:
-	return H, p_vars
+	return H, p_vars, reduce_bindings
     else:
 	return H
 
 def hamiltonian_system_callback( self, N, km_states, bind_state, state_index, B, p_vars, reduce=False ):
-    H, p_vars = hamiltonian_callback( self, N, km_states, bind_state, state_index, B, p_vars, reduce=reduce, return_vars=True )
+    H, p_vars, reduce_bindings = hamiltonian_callback( self, N, km_states, bind_state, state_index, B, p_vars, reduce=reduce, return_vars=True )
     x_vars = self._vars[:len(p_vars)]
-    return HamiltonianODE( H, x_vars, p_vars )
+    return HamiltonianODE( H, x_vars, p_vars, bindings=reduce_bindings )
 
 boxmodel.BoxModel.hamiltonian = lambda self, p_vars, reduce=False : boxkolmogorov.bm_kolmogorov_eqns( self, 1, hamiltonian_callback, p_vars, reduce )
 
@@ -336,7 +349,7 @@ to $$(S,I)$$).
 # produces: SIR-forward.sobj
 from sage.all import *
 import os, sys
-sys.path.append( os.environ['SageUtils'] )
+sys.path.append( os.environ['SageDynamics'] )
 import latex_output, boxmodel, boxkolmogorov
 load_session( 'SIR.sobj' )
 
@@ -447,10 +460,10 @@ $$(SIR)^{100}$$ is though...
 ## Microscopic model
 
 <source-file filename=SIR-micro.sage.step display=none>
-# requires: boxmodel.py $(SageUtils)/latex_output.py 
+# requires: boxmodel.py $(SageDynamics)/latex_output.py 
 # produces: SIR-micro.sage.out.tex
 import os, sys
-sys.path.append( os.environ['SageUtils'] )
+sys.path.append( os.environ['SageDynamics'] )
 from boxmodel import *
 from latex_output import *
 

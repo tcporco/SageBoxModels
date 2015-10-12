@@ -1,7 +1,7 @@
 ---
 layout: page
 title: Pair Models
-wmd_project: Box_Models
+wmd_project: BoxModels
 wmd_enable_make: false
 ---
 
@@ -13,11 +13,11 @@ how to transform it to a smaller model of *unordered* pairs.
 
 <source-file filename="ordered-pair.sage.step" texdisplay=none>
 # requires: $(SageDynamics)/dynamicalsystems.py boxmodel.py boxmodelproduct.py
-# requires: $(SageUtils)/latex_output.py
+# requires: $(SageDynamics)/latex_output.py
 # produces: ordered-pair.boxes.tex ordered-pair.boxes.tex-inline
 # produces: ordered-pair-ode.tex
 import os, sys
-sys.path.append( os.environ['SageUtils'] )
+sys.path.append( os.environ['SageDynamics'] )
 import latex_output
 import boxmodel, boxmodelproduct
 import dynamicalsystems
@@ -71,12 +71,12 @@ $$Z_{\cdot\cdot}$$ for the reduced ones:
 
 <source-file filename="unordered-pair.sage.step" texdisplay=none>
 # requires: $(SageDynamics)/dynamicalsystems.py boxmodel.py boxmodelproduct.py
-# requires: $(SageUtils)/latex_output.py
+# requires: $(SageDynamics)/latex_output.py
 # produces: unordered-pair-ode.tex
 # produces: unordered-pair.boxes.tex unordered-pair.boxes.tex-inline
 # produces: vc-eqns.tex
 import os, sys
-sys.path.append( os.environ['SageUtils'] )
+sys.path.append( os.environ['SageDynamics'] )
 import latex_output
 import boxmodel, boxmodelproduct
 import dynamicalsystems
@@ -143,13 +143,13 @@ Unfortunately, this doesn't work for unordered triples:
 
 <source-file filename="unordered-triple.sage.step" texdisplay=none>
 # requires: $(SageDynamics)/dynamicalsystems.py boxmodel.py boxmodelproduct.py
-# requires: $(SageUtils)/latex_output.py
+# requires: $(SageDynamics)/latex_output.py
 # produces: ordered-triple.boxes.tex ordered-triple.boxes.tex-inline
 # produces: unordered-triple-ode.tex
 # produces: unordered-triple.boxes.tex unordered-triple.boxes.tex-inline
 # produces: triple-vc-eqns.tex
 import os, sys
-sys.path.append( os.environ['SageUtils'] )
+sys.path.append( os.environ['SageDynamics'] )
 import latex_output
 import boxmodel, boxmodelproduct
 import dynamicalsystems
@@ -219,14 +219,14 @@ terms, where it only has six.
 
 <source-file filename="SIR2.sage.step" texdisplay=none>
 # requires: $(SageDynamics)/dynamicalsystems.py boxmodel.py boxmodelproduct.py
-# requires: $(SageUtils)/latex_output.py
+# requires: $(SageDynamics)/latex_output.py
 # produces: SIR-ordered-pair.boxes.tex SIR-ordered-pair.boxes.tex-inline
 # produces: SIR-ordered-pair-ode.tex
 # produces: SIR-unordered-pair-ode.tex
 # produces: SIR-unordered-pair.boxes.tex SIR-unordered-pair.boxes.tex-inline
 # produces: SIR-vc-eqns.tex
 import os, sys
-sys.path.append( os.environ['SageUtils'] )
+sys.path.append( os.environ['SageDynamics'] )
 import latex_output
 import boxmodel, boxmodelproduct
 import dynamicalsystems
@@ -341,13 +341,13 @@ Then our transitions should be
 
 <source-file filename="couples.sage.step" texdisplay=none>
 # requires: $(SageDynamics)/dynamicalsystems.py boxmodel.py boxmodelproduct.py
-# requires: $(SageUtils)/latex_output.py
+# requires: $(SageDynamics)/latex_output.py
 # produces: couples-X-ode.tex Ieqn-X.tex
 # produces: couples-X.boxes.tex couples-X.boxes.tex-inline
 # produces: couples-Z-ode.tex Ieqn-Z.tex
 # produces: couples-Z.boxes.tex couples-Z.boxes.tex-inline
 import os, sys
-sys.path.append( os.environ['SageUtils'] )
+sys.path.append( os.environ['SageDynamics'] )
 import boxmodel, boxmodelproduct
 import dynamicalsystems
 import latex_output

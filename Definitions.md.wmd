@@ -4,7 +4,7 @@ title: Formal Products of Compartmental Models
 author: Lee Worden, Travis C. Porco
 wmd_project: Notes
 wmd_prerequisite_projects:
-  BoxModels: Box_Models
+  BoxModels: BoxModels
 bibliography: box.bib
 ---
 
@@ -141,13 +141,12 @@ we would construct a product model
 <source-file filename="XYab.sage.step" display="XYab-square.crop.svg">
 # requires: $(BoxModels)/boxmodel.py $(BoxModels)/boxmodelproduct.py
 # requires: $(SageDynamics)/dynamicalsystems.py
-# requires: $(SageAdaptiveDynamics)/adaptivedynamics.py
 # produces: XYab.sage.out.tex XYab.tex
 # produces: XYab-square.tex
 import os
 import sys
 sys.path.append( os.environ['BoxModels'] )
-sys.path.append( os.environ['SageUtils'] )
+sys.path.append( os.environ['SageDynamics'] )
 from latex_output import *
 from boxmodel import *
 from boxmodelproduct import *
@@ -212,12 +211,11 @@ stratification model, for simplicity):
 <source-file filename="SIab2.sage.step" display="SIab.crop.svg">
 # requires: $(BoxModels)/boxmodel.py $(BoxModels)/boxmodelproduct.py
 # requires: $(SageDynamics)/dynamicalsystems.py
-# requires: $(SageAdaptiveDynamics)/adaptivedynamics.py
 # produces: SIab2.sage.out.tex SIab.tex
 import os
 import sys
 sys.path.append( os.environ['BoxModels'] )
-sys.path.append( os.environ['SageUtils'] )
+sys.path.append( os.environ['SageDynamics'] )
 from latex_output import *
 from boxmodel import *
 from boxmodelproduct import *
@@ -349,12 +347,11 @@ the full set of 18 interactions, we construct this model:
 <source-file filename="defpairs.sage.step" display=none>
 # requires: $(BoxModels)/boxmodel.py $(BoxModels)/boxmodelproduct.py
 # requires: $(SageDynamics)/dynamicalsystems.py
-# requires: $(SageAdaptiveDynamics)/adaptivedynamics.py
 # produces: defpairs.sage.out.tex SI-pair.sobj
 # produces: SI-pair.boxes.tex SI-pair-naive.boxes.tex
 import os, sys
 sys.path.append( os.environ['BoxModels'] )
-sys.path.append( os.environ['SageUtils'] )
+sys.path.append( os.environ['SageDynamics'] )
 from latex_output import *
 import boxmodel, boxmodelproduct
 from dynamicalsystems import subscriptedsymbol
@@ -477,7 +474,7 @@ of four:
 # produces: SI-pair-unordered.boxes.tex
 import os, sys
 sys.path.append( os.environ['BoxModels'] )
-sys.path.append( os.environ['SageUtils'] )
+sys.path.append( os.environ['SageDynamics'] )
 from latex_output import *
 import boxmodel, boxmodelproduct
 from dynamicalsystems import subscriptedsymbol
@@ -531,11 +528,9 @@ I). Let us call these models $$M_1$$ and $$M_2$$:
 <source-file filename="M1M2.sage.step" display="M1M2.boxes.crop.svg">
 # requires: $(BoxModels)/boxmodel.py $(BoxModels)/boxmodelproduct.py
 # requires: $(SageDynamics)/dynamicalsystems.py
-# requires: $(SageAdaptiveDynamics)/adaptivedynamics.py
 # produces: M1M2.boxes.tex M1M2.sobj
 import os, sys
 sys.path.append( os.environ['SageDynamics'] )
-sys.path.append( os.environ['SageUtils'] )
 sys.path.append( os.environ['BoxModels'] )
 import dynamicalsystems, latex_output, boxmodel, boxmodelproduct
 S, I, beta = (dynamicalsystems.indexer(v) for v in ('S','I','beta'))
@@ -567,11 +562,9 @@ product as defined gives us this product model:
 <source-file filename="SII-simple.sage.step" display="SII-simple.boxes.crop.svg">
 # requires: $(BoxModels)/boxmodel.py $(BoxModels)/boxmodelproduct.py 
 # requires: $(SageDynamics)/dynamicalsystems.py
-# requires: $(SageAdaptiveDynamics)/adaptivedynamics.py
 # produces: SII-simple.boxes.tex
 import os, sys
 sys.path.append( os.environ['SageDynamics'] )
-sys.path.append( os.environ['SageUtils'] )
 sys.path.append( os.environ['BoxModels'] )
 import dynamicalsystems, latex_output, boxmodel, boxmodelproduct
 
@@ -668,11 +661,9 @@ Using a strong product allows us to produce this model:
 <source-file filename="binary-ops.sage.step" display=SIH-strong.boxes.crop.svg>
 # requires: $(BoxModels)/boxmodel.py $(BoxModels)/boxmodelproduct.py 
 # requires: $(SageDynamics)/dynamicalsystems.py
-# requires: $(SageAdaptiveDynamics)/adaptivedynamics.py
 # produces: SIH.boxes.tex SIH-strong.boxes.tex
 import os, sys
 sys.path.append( os.environ['SageDynamics'] )
-sys.path.append( os.environ['SageUtils'] )
 sys.path.append( os.environ['BoxModels'] )
 import dynamicalsystems, latex_output, boxmodel, boxmodelproduct
 
@@ -890,7 +881,7 @@ Here is the compartmental model that has the forward equations as its ODE:
 
 ## To do: forward equations of large power of infection model
 
-In this section, we will document the Sage code (yet to be written)
+In this section, we will document the Sage code 
 that implements large powers of a single model efficiently (as in the
 $$SI\times SI$$ pair model presented above), binds its transition rate
 parameters to something sane, and constructs its forward equations in
@@ -977,7 +968,7 @@ So for an $$n$$th power of an SIR model:
 # produces: SIR-forward-equations-4.tex-inline SIR-4-equations-within.tex-inline
 import os, sys
 sys.path.append( os.environ['BoxModels'] )
-sys.path.append( os.environ['SageUtils'] )
+sys.path.append( os.environ['SageDynamics'] )
 from latex_output import *
 import boxmodel, boxmodelproduct
 import dynamicalsystems

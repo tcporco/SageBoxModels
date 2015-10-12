@@ -1,7 +1,7 @@
 ---
 layout: page
 title: "stratify-defs"
-wmd_project: Box_Models
+wmd_project: BoxModels
 ---
 
 Running the boxmodels code directly from ecl, to probe what it takes to

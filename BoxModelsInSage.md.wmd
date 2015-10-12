@@ -1,9 +1,9 @@
 ---
 layout: page
 title: Box Models in Sage
-wmd_project: Box_Models
+wmd_project: BoxModels
 wmd_prerequisite_projects:
-  SageDynamicsRepo: SageDynamicsRepo
+  SageDynamics: SageDynamics
 ---
 
 This is a preliminary stab at automating construction of compartment (box)
@@ -16,11 +16,10 @@ The BoxModel and BoxModelProduct classes are at the end of this page.
 <source-file filename="SIR.sage.step">
 # requires: boxmodel.py graph_latex_patched.py
 # requires: $(SageDynamics)/dynamicalsystems.py
-# requires: $(SageAdaptiveDynamics)/adaptivedynamics.py
 # produces: SIR.sage.out.tex SIR.boxes.tex SIR.trajectory.png SIR.sobj
 import os
 import sys
-sys.path.append( os.environ['SageUtils'] )
+sys.path.append( os.environ['SageDynamics'] )
 from boxmodel import *
 from latex_output import *
 
@@ -63,12 +62,11 @@ sys.exit(0r)
 <source-file filename=cross.sage.step lang=sage>
 # requires: boxmodel.py boxmodelproduct.py graph_latex_patched.py
 # requires: $(SageDynamics)/dynamicalsystems.py
-# requires: $(SageAdaptiveDynamics)/adaptivedynamics.py
 # produces: cross.sage.out.tex classes.boxes.tex SIR2.boxes.tex
 import sys
 #print 'init'; sys.stdout.flush()
 import os
-sys.path.append( os.environ['SageUtils'] )
+sys.path.append( os.environ['SageDynamics'] )
 from boxmodel import *
 from boxmodelproduct import *
 from latex_output import *
@@ -127,7 +125,7 @@ except NotImplementedError:
 import sys
 #print 'init'; sys.stdout.flush()
 import os
-sys.path.append( os.environ['SageUtils'] )
+sys.path.append( os.environ['SageDynamics'] )
 from boxmodel import *
 from boxmodelproduct import *
 from latex_output import *
@@ -210,7 +208,7 @@ So we begin with a basic SI model, as the horizontal structure for our crosses:
 import sys
 #print 'init'; sys.stdout.flush()
 import os
-sys.path.append( os.environ['SageUtils'] )
+sys.path.append( os.environ['SageDynamics'] )
 #from latex_output import *
 import boxmodel
 
@@ -230,8 +228,6 @@ and cross with a given mixing matrix $$\Lambda$$:
 # requires: boxmodel.py $(SageDynamics)/dynamicalsystems.py graph_latex_patched.py
 # produces:
 import sys, os
-#sys.path.append( os.environ['SageUtils'] )
-#from latex_output import *
 sys.path.append( os.environ['SageDynamics'] )
 from sage.all import *
 import dynamicalsystems
@@ -271,8 +267,6 @@ For example:
 import sys
 #print 'init'; sys.stdout.flush()
 import os
-#sys.path.append( os.environ['SageUtils'] )
-#from latex_output import *
 sys.path.append( os.environ['SageDynamics'] )
 import dynamicalsystems
 import boxmodel, boxmodelproduct
@@ -319,14 +313,13 @@ We should be able to study the infection rate more or less directly...
 
 <source-file filename=adler-R0.sage.step display=adler-R0.sage.out.html>
 # requires: boxmodel.py $(SageDynamics)/dynamicalsystems.py
-# requires: $(SageUtils)/latex_output.py graph_latex_patched.py
+# requires: $(SageDynamics)/latex_output.py graph_latex_patched.py
 # requires: adler-example.sobj
 # produces: adler-R0.sage.out.tex adler-R0.sobj
 import sys
 import os
-sys.path.append( os.environ['SageUtils'] )
-from latex_output import *
 sys.path.append( os.environ['SageDynamics'] )
+from latex_output import *
 import dynamicalsystems
 import boxmodel
 #import adler_mixing
@@ -401,13 +394,12 @@ vertices and arrows are symbolic expressions (state variables and flow rates),
 and can draw itself as a directed graph and translate itself to an ODE.
 
 <source-file filename=boxmodel.py.step lang=python>
-# requires: $(SageDynamics)/dynamicalsystems.py $(SageAdaptiveDynamics)/adaptivedynamics.py graph_latex_patched.py
+# requires: $(SageDynamics)/dynamicalsystems.py
 import graph_latex_patched
 from sage.all import *
 import os
 import sys
  
-sys.path.append( os.environ['SageUtils'] )
 sys.path.append( os.environ['SageDynamics'] )
 import dynamicalsystems
 import latex_output
@@ -1041,7 +1033,7 @@ class CompositeBoxModel(boxmodel.BoxModel):
     def bind(self, *args, **vargs):
 	return CompositeBoxModel(
 	    self._graph,
-	    self._tuples,
+	    self._var_tuples,
 	    self._vertex_namer,
 	    self._param_namer,
 	    self._bindings + dynamicalsystems.Bindings( *args, **vargs )
@@ -1446,21 +1438,13 @@ def write_product_formula( M1, M2, M12, tfnm, op=r'\times', size1=(3,1), size2=(
 <source-file filename=upstream.mk>
 # Makefile to connect the Sage code here with the code in SageDynamics
 
-# the three upstream projects are all bundled into one git repo
-export SageUtils            = $(realpath $(SageDynamicsRepo)/SageUtils)
-export SageDynamics         = $(realpath $(SageDynamicsRepo)/SageDynamics)
-export SageAdaptiveDynamics = $(realpath $(SageDynamicsRepo)/SageAdaptiveDynamics)
-
-# When we need something from the upstream projects, make it there
+# When we need something from the upstream project, make it there
 $(SageDynamics)/% : /proc/uptime
 	$(MAKE) --no-print-directory -C $(SageDynamics) $*
 
-$(SageAdaptiveDynamics)/% : /proc/uptime
-	$(MAKE) --no-print-directory -C $(SageAdaptiveDynamics) $*
-
 # The good makefile stuff is upstream, just reuse it
--include $(SageUtils)/sage.mk
--include $(SageUtils)/step.mk
+-include $(SageDynamics)/sage.mk
+-include $(SageDynamics)/step.mk
 </source-file>
 
 <!-- this is sage's src/sage/graph/graph_latex.py with the patch

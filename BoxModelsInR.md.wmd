@@ -1,7 +1,7 @@
 ---
 layout: page
 title: "Box Models in R"
-wmd_project: Box_Models
+wmd_project: BoxModels
 ---
 
 This is testing the 'boxmodels' R library we're developing.

@@ -3,21 +3,20 @@ layout: page
 title: Subcritical Measles Outbreak Size
 wmd_project: Measles
 wmd_prerequisite_projects:
-    "Box_Models" : Box_Models
+    "BoxModels" : BoxModels
 ---
 
 <!-- paper text starts below the first 3 source files -->
 
 <source-file filename=measles-model.sage.step texdisplay=none>
-# requires: $(Box_Models)/boxmodel.py $(Box_Models)/boxmodelproduct.py 
-# requires: $(Box_Models)/boxmarkov.py
-# requires: $(SageDynamics)/dynamicalsystems.py $(SageUtils)/latex_output.py
+# requires: $(BoxModels)/boxmodel.py $(BoxModels)/boxmodelproduct.py 
+# requires: $(BoxModels)/boxmarkov.py
+# requires: $(SageDynamics)/dynamicalsystems.py $(SageDynamics)/latex_output.py
 # produces: measles-model.sobj
 from sage.all import *
 import os, sys
 sys.path.append( os.environ['SageDynamics'] )
-sys.path.append( os.environ['SageUtils'] )
-sys.path.append( os.environ['Box_Models'] )
+sys.path.append( os.environ['BoxModels'] )
 import latex_output, dynamicalsystems, boxmodel, boxmodelproduct, boxmarkov
 
 S, E, I, R, beta, sigma, gamma, u, v = SR.var( 'S E I R beta sigma gamma u v' )
@@ -143,16 +142,15 @@ save_session( 'measles-model' )
 </source-file>
 
 <source-file filename=measles-model-plots.sage.step texdisplay=none>
-# requires: $(Box_Models)/boxmodel.py $(Box_Models)/boxmodelproduct.py
-# requires: $(SageDynamics)/dynamicalsystems.py $(SageUtils)/latex_output.py
+# requires: $(BoxModels)/boxmodel.py $(BoxModels)/boxmodelproduct.py
+# requires: $(SageDynamics)/dynamicalsystems.py $(SageDynamics)/latex_output.py
 # requires: measles-model.sobj
 # produces: measles-hom.tex measles-het.tex R_0_u.svg
 # produces: %.value.tex-inline
 from sage.all import *
 import os, sys
 sys.path.append( os.environ['SageDynamics'] )
-sys.path.append( os.environ['SageUtils'] )
-sys.path.append( os.environ['Box_Models'] )
+sys.path.append( os.environ['BoxModels'] )
 import latex_output, dynamicalsystems, boxmodel, boxmodelproduct
 
 # subscripts that get messed up by pickling
@@ -277,17 +275,16 @@ allow this simulated measles to become critical within that subpopulation.
 This critical value is attained at <project-file filename=alpha-star.value.tex-inline/>.
 
 <source-file filename=measles-simulations.sage.step texdisplay=none>
-# requires: $(Box_Models)/boxmodel.py $(Box_Models)/boxmodelproduct.py
-# requires: $(Box_Models)/boxmarkov.py
-# requires: $(SageDynamics)/dynamicalsystems.py $(SageUtils)/latex_output.py
+# requires: $(BoxModels)/boxmodel.py $(BoxModels)/boxmodelproduct.py
+# requires: $(BoxModels)/boxmarkov.py
+# requires: $(SageDynamics)/dynamicalsystems.py $(SageDynamics)/latex_output.py
 # requires: $(SageDynamics)/stochasticdynamics.py
 # requires: measles-model.sobj
 # produces: measles-simulations.sobj
 from sage.all import *
 import os, sys
 sys.path.append( os.environ['SageDynamics'] )
-sys.path.append( os.environ['SageUtils'] )
-sys.path.append( os.environ['Box_Models'] )
+sys.path.append( os.environ['BoxModels'] )
 import latex_output, boxmodel, boxmodelproduct, boxmarkov
 
 load_session( 'measles-model' )
@@ -360,17 +357,16 @@ save_session( 'measles-simulations' )
 </source-file>
 
 <source-file filename=measles-simulation-plots.sage.step texdisplay=none>
-# requires: $(Box_Models)/boxmodel.py $(Box_Models)/boxmodelproduct.py
-# requires: $(Box_Models)/boxmarkov.py
-# requires: $(SageDynamics)/dynamicalsystems.py $(SageUtils)/latex_output.py
+# requires: $(BoxModels)/boxmodel.py $(BoxModels)/boxmodelproduct.py
+# requires: $(BoxModels)/boxmarkov.py
+# requires: $(SageDynamics)/dynamicalsystems.py $(SageDynamics)/latex_output.py
 # requires: $(SageDynamics)/stochasticdynamics.py
 # requires: measles-simulations.sobj
 # produces: measles-sizes.svg measles-Su.svg measles-Sv.svg measles-S-plane.svg
 from sage.all import *
 import os, sys
 sys.path.append( os.environ['SageDynamics'] )
-sys.path.append( os.environ['SageUtils'] )
-sys.path.append( os.environ['Box_Models'] )
+sys.path.append( os.environ['BoxModels'] )
 import latex_output, boxmodel, boxmodelproduct, boxmarkov
 
 load_session( 'measles-simulations' )
@@ -439,17 +435,16 @@ of unvaccinated vs. vaccinated people.
 <project-file filename=measles-S-plane.svg/>
 
 <source-file filename=measles-batch.sage.step texdisplay=none>
-# requires: $(Box_Models)/boxmodel.py $(Box_Models)/boxmodelproduct.py
-# requires: $(Box_Models)/boxmarkov.py
-# requires: $(SageDynamics)/dynamicalsystems.py $(SageUtils)/latex_output.py
+# requires: $(BoxModels)/boxmodel.py $(BoxModels)/boxmodelproduct.py
+# requires: $(BoxModels)/boxmarkov.py
+# requires: $(SageDynamics)/dynamicalsystems.py $(SageDynamics)/latex_output.py
 # requires: $(SageDynamics)/stochasticdynamics.py
 # requires: measles-model.sobj
 # produces: measles-batch.sobj
 from sage.all import *
 import os, sys
 sys.path.append( os.environ['SageDynamics'] )
-sys.path.append( os.environ['SageUtils'] )
-sys.path.append( os.environ['Box_Models'] )
+sys.path.append( os.environ['BoxModels'] )
 import latex_output, boxmodel, boxmodelproduct, boxmarkov
 
 load_session( 'measles-model' )
@@ -520,17 +515,16 @@ save_session( 'measles-batch' )
 </source-file>
 
 <source-file filename=measles-batch-plot.sage.step texdisplay=none>
-# requires: $(Box_Models)/boxmodel.py $(Box_Models)/boxmodelproduct.py
-# requires: $(Box_Models)/boxmarkov.py
-# requires: $(SageDynamics)/dynamicalsystems.py $(SageUtils)/latex_output.py
+# requires: $(BoxModels)/boxmodel.py $(BoxModels)/boxmodelproduct.py
+# requires: $(BoxModels)/boxmarkov.py
+# requires: $(SageDynamics)/dynamicalsystems.py $(SageDynamics)/latex_output.py
 # requires: $(SageDynamics)/stochasticdynamics.py
 # requires: measles-batch.sobj
 # produces: measles-batch.svg
 from sage.all import *
 import os, sys
 sys.path.append( os.environ['SageDynamics'] )
-sys.path.append( os.environ['SageUtils'] )
-sys.path.append( os.environ['Box_Models'] )
+sys.path.append( os.environ['BoxModels'] )
 import latex_output, boxmodel, boxmodelproduct, boxmarkov
 
 load_session( 'measles-batch' )
@@ -547,15 +541,14 @@ P.save(
 <project-file filename=measles-batch.svg make=no/> <!--- make by hand only --->
 
 <source-file filename=measles-kolmogorov.sage.step texdisplay=none>
-# requires: $(Box_Models)/boxmodel.py $(Box_Models)/boxmarkov.py
-# requires: $(SageDynamics)/dynamicalsystems.py $(SageUtils)/latex_output.py
+# requires: $(BoxModels)/boxmodel.py $(BoxModels)/boxmarkov.py
+# requires: $(SageDynamics)/dynamicalsystems.py $(SageDynamics)/latex_output.py
 # requires: measles-model.sobj
 # produces: measles-run.tex measles-run.sobj
 from sage.all import *
 import os, sys
 sys.path.append( os.environ['SageDynamics'] )
-sys.path.append( os.environ['SageUtils'] )
-sys.path.append( os.environ['Box_Models'] )
+sys.path.append( os.environ['BoxModels'] )
 import latex_output, dynamicalsystems, boxmodel, boxmarkov
 
 ## not currently using this: kolmogorov equations for stochastic
@@ -671,8 +664,8 @@ save_session( 'measles-run' )
 </source-file>
 
 <source-file filename=measles-output.sage.step texdisplay=none>
-# requires: $(Box_Models)/boxmodel.py $(Box_Models)/boxmodelproduct.py
-# requires: $(SageDynamics)/dynamicalsystems.py $(SageUtils)/latex_output.py
+# requires: $(BoxModels)/boxmodel.py $(BoxModels)/boxmodelproduct.py
+# requires: $(SageDynamics)/dynamicalsystems.py $(SageDynamics)/latex_output.py
 # requires: measles-run.sobj
 # produces: measles-output.tex measles-p.svg
 
@@ -685,8 +678,7 @@ save_session( 'measles-run' )
 from sage.all import *
 import os, sys
 sys.path.append( os.environ['SageDynamics'] )
-sys.path.append( os.environ['SageUtils'] )
-sys.path.append( os.environ['Box_Models'] )
+sys.path.append( os.environ['BoxModels'] )
 import latex_output, boxmodel, boxmodelproduct
 
 load_session( 'measles-run' )
@@ -733,8 +725,8 @@ G.save(
 <!-- below this line, boring utility code that makes everything work -->
 
 <source-file filename=glue.mk display=none>
-include $(Box_Models)/upstream.mk
-$(Box_Models)/% : /proc/uptime
-	$(MAKE) -C $(Box_Models) $*
+include $(BoxModels)/upstream.mk
+$(BoxModels)/% : /proc/uptime
+	$(MAKE) -C $(BoxModels) $*
 </source-file>
 

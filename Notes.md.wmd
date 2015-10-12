@@ -3,7 +3,7 @@ layout: page
 title: Notes on Box Models Implementation
 wmd_project: Notes
 wmd_prerequisite_projects:
-  BoxModels: Box_Models
+  BoxModels: BoxModels
 ---
 
 ## How to infer indexing of variables
@@ -42,12 +42,11 @@ For this box model:
 <source-file filename="SI.sage.step" display="SI.boxes.crop.svg">
 # requires: $(BoxModels)/boxmodel.py
 # requires: $(SageDynamics)/dynamicalsystems.py
-# requires: $(SageAdaptiveDynamics)/adaptivedynamics.py
 # produces: SI.sage.out.tex SI.boxes.tex SI.sobj
 import os
 import sys
 sys.path.append( os.environ['BoxModels'] )
-sys.path.append( os.environ['SageUtils'] )
+sys.path.append( os.environ['SageDynamics'] )
 from latex_output import *
 from boxmodel import *
 
@@ -153,12 +152,11 @@ that $$\beta I$$ is implicitly an inner product, but $$\beta S$$ isn't:
 <source-file filename="SI2.sage.step" display="SI2.boxes.crop.svg">
 # requires: $(BoxModels)/boxmodel.py
 # requires: $(SageDynamics)/dynamicalsystems.py
-# requires: $(SageAdaptiveDynamics)/adaptivedynamics.py
 # produces: SI2.sage.out.tex SI2.boxes.tex
 import os
 import sys
 sys.path.append( os.environ['BoxModels'] )
-sys.path.append( os.environ['SageUtils'] )
+sys.path.append( os.environ['SageDynamics'] )
 from latex_output import *
 from boxmodel import *
 
@@ -697,12 +695,11 @@ a disease without coinfection, might look like this instead:
 <source-file filename="SI3.sage.step" display="SI3.boxes.crop.svg">
 # requires: $(BoxModels)/boxmodel.py
 # requires: $(SageDynamics)/dynamicalsystems.py
-# requires: $(SageAdaptiveDynamics)/adaptivedynamics.py
 # produces: SI3.sage.out.tex SI3.boxes.tex
 import os
 import sys
 sys.path.append( os.environ['BoxModels'] )
-sys.path.append( os.environ['SageUtils'] )
+sys.path.append( os.environ['SageDynamics'] )
 from latex_output import *
 from boxmodel import *
 
@@ -740,12 +737,11 @@ Another cross may be
 <source-file filename="SI4.sage.step" display="SI4.boxes.crop.svg">
 # requires: $(BoxModels)/boxmodel.py
 # requires: $(SageDynamics)/dynamicalsystems.py
-# requires: $(SageAdaptiveDynamics)/adaptivedynamics.py
 # produces: SI4.sage.out.tex SI4.boxes.tex
 import os
 import sys
 sys.path.append( os.environ['BoxModels'] )
-sys.path.append( os.environ['SageUtils'] )
+sys.path.append( os.environ['SageDynamics'] )
 from latex_output import *
 from boxmodel import *
 Ss, Is, betas = {}, {}, {}
