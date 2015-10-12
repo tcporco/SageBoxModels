@@ -42,8 +42,11 @@ _site/%.html : /proc/uptime
 # experimental pandoc pipeline
 
 WW = /usr/local/src/workingwiki
-_pandoc/%.md : %.md.wmd wmd_files/.workingwiki/.wmd.data
+_pandoc/%.md : doc/%.md.wmd wmd_files/.workingwiki/.wmd.data _pandoc
 	php $(WW)/wmd/wmd.php --pre --title='$(TITLE)' --default-project-name=$(PROJECT) --cache-dir=wmd_files --data-store=.wmd.data --modification-time=`date +%Y%m%d%H%M%s` --process-inline-math=1 --output-format=tex < $< > $@
+
+_pandoc :
+	mkdir $@
 
 _pandoc/%.intermediate.tex : _pandoc/%.md
 	pandoc -f markdown -t latex -s -S --listings --include-in-header=_assets/latex-header-additions.tex --filter pandoc-citeproc $< -o $@
@@ -51,20 +54,16 @@ _pandoc/%.intermediate.tex : _pandoc/%.md
 _pandoc/%.tex : _pandoc/%.intermediate.tex
 	php $(WW)/wmd/wmd.php --post --title='$(TITLE)' --default-project-name=$(PROJECT) --cache-dir=wmd_files --data-store=.wmd.data --persistent-data-store --modification-time=`date +%Y%m%d%H%M%s` --output-format=tex < $< > $@
 
-_pandoc/Definitions.intermediate.tex : _pandoc/%.intermediate.tex : _pandoc/%.md box.bib
-	cp box.bib _pandoc
-	pandoc -f markdown -t latex -s -S --listings --include-in-header=_assets/latex-header-additions.tex --filter pandoc-citeproc $< -o $@
+_pandoc/Definitions.intermediate.tex : _pandoc/%.intermediate.tex : _pandoc/%.md doc/box.bib
+	cp doc/box.bib _pandoc
+	(cd _pandoc && pandoc -f markdown -t latex -s -S --listings --include-in-header=../_assets/latex-header-additions.tex --filter pandoc-citeproc $(subst _pandoc/,,$<) -o $(subst _pandoc/,,$@))
 	$(RM) _pandoc/box.bib
 
-#Definitions.pdf : %.pdf : _pandoc/%.tex box.bib
-#	cd _pandoc && pdflatex $* && bibtex $* && pdflatex $* && pdflatex $*
-#	mv _pandoc/$*.pdf $@
-
-%.pdf : _pandoc/%.tex
+doc/%.pdf : _pandoc/%.tex
 	cd _pandoc && pdflatex $* && pdflatex $*
 	mv _pandoc/$*.pdf $@
 
-wmd_files/.workingwiki/.wmd.data : *.md.wmd # */*.md.wmd
+wmd_files/.workingwiki/.wmd.data : doc/*.md.wmd # */*.md.wmd
 	$(MAKE) sync
 
 # TODO: need to get the project name and title right from the YAML
@@ -74,6 +73,8 @@ wmd_files/.workingwiki/.wmd.data : *.md.wmd # */*.md.wmd
 # source files from other pages to be freshly synced, because jekyll
 # and pandoc disagree on locations within the page text, with and without
 # the YAML header included).
+_pandoc/BoxModelsInSage.% : PROJECT=BoxModels
+_pandoc/BoxModelsInSage.% : TITLE="Box Models in Sage"
 _pandoc/Measles.% : PROJECT=Measles 
 _pandoc/Measles.% : TITLE="Subcritical Measles Outbreak Size"
 _pandoc/Definitions.% : PROJECT=Notes
