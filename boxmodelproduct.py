@@ -1,4 +1,3 @@
-# requires: boxmodel.py
 from sage.all import *
 import dynamicalsystems, boxmodel
 

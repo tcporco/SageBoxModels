@@ -1,5 +1,3 @@
-# requires: boxmodel.py boxkolmogorov.py
-# requires:$(SageDynamics)/dynamicalsystems.py $(SageDynamics)/stochasticdynamics.py 
 from sage.all import *
 import boxmodel, boxkolmogorov
 

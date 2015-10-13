@@ -1,4 +1,3 @@
-# requires: $(SageDynamics)/dynamicalsystems.py
 import graph_latex_patched
 from sage.all import *
 import os
