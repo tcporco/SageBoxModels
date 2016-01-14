@@ -32,6 +32,9 @@ default_vertex_namer = dynamicalsystems.subscriptedsymbol
 def x_namer( *ss ):
     return dynamicalsystems.subscriptedsymbol( 'X', *ss )
 
+def N_namer( *ss ):
+    return dynamicalsystems.subscriptedsymbol( 'N', *ss )
+
 # We are given an original parameter plus a list of tuples and indices into
 # them.  For example, (beta, (S,I), 0, (I,I), 0, (I,I)),
 # for the beta parameter for the transition in the first S of (S,I) to
@@ -100,8 +103,13 @@ def default_bop( s_tuple, i, c_tuple, i_, s, t, r ):
     # return set of t_tuples
     return Set( [ s_tuple[:i] + (t,) + s_tuple[i+1:] ] )
 
-def tuple_inclusions( c, tup ):
+# inclusive inclusions: interact with the thing whatever position it's in
+def tuple_inclusions( c, tup, i ):
     return [ iota for iota,x in enumerate(tup) if x == c ]
+
+# conservative inclusions: only if it's in the relevant position
+def conservative_inclusions( c, tup, i ):
+    return ([i] if tup[i] == c else [])
 
 class BoxModelProductException(Exception): pass
 
@@ -127,7 +135,7 @@ def default_single_edge_stratifier(
     # we can handle constant, linear or bilinear transitions
     if rate_comps == [] or rate_comps == [source]:
 	for V in seed_set:
-	    s_inclusions = inclusions( source, V )
+	    s_inclusions = inclusions( source, V, i )
 	    for iota in s_inclusions:
 		repl = { source: bm_state( *compartment_renaming( *V ) ) }
 	        for W in unary_operation( V, iota, source, target, rate ):
@@ -142,13 +150,13 @@ def default_single_edge_stratifier(
 	    print 'consider', V, '+', C, 'at', i
 	    # do only the one source inclusion here to avoid duplication
 	    #s_inclusions = [ iota for iota,x in enumerate(V) if x == source and iota == i ]
-	    s_inclusions = Set( inclusions( source, V ) ).intersection( Set( [i] ) )
+	    s_inclusions = Set( inclusions( source, V, i ) ).intersection( Set( [i] ) )
 	    print source, 'in V:', s_inclusions
 	    for iota in s_inclusions:
 		if cross_interactions:
-		    c_inclusions = inclusions( catalyst, C )
+		    c_inclusions = inclusions( catalyst, C, i )
 		else:
-		    c_inclusions = Set( inclusions( catalyst, C ) ).intersection( Set( [i] ) )
+		    c_inclusions = Set( inclusions( catalyst, C, i ) ).intersection( Set( [i] ) )
 		print catalyst, 'in C:', c_inclusions
 		for iota_ in c_inclusions:
 	            print 'do edges for', V, iota, C, iota_
@@ -272,6 +280,9 @@ class CompositeBoxModel(boxmodel.BoxModel):
 	self._vertex_namer = vertex_namer
 	self._param_namer = param_namer
 	self._bindings = bindings
+	## no sources/sinks for now
+	self._sources = set()
+	self._sinks = set()
     def bind(self, *args, **vargs):
 	return CompositeBoxModel(
 	    self._graph,
@@ -497,7 +508,7 @@ def default_strong_edge_bundle_generator(
 	eis, models,
 	seed_set, vertex_namer, param_relabeling, compartment_renaming,
 	old_set=Set(), cross_interactions=True,
-	unary_operation=default_sop_strong, binary_operation=default_bop_strong,
+	unary_operation=default_sop_strong, binary_operation=default_bop,
 	inclusions=tuple_inclusions
     ):
     if len(eis) == 0: return
@@ -505,7 +516,7 @@ def default_strong_edge_bundle_generator(
     # produce all product edges made from these component edges
     # what is the rate of a transition that combines some set of
     # component transitions?
-    # who cares? we assume this will only be used to combine
+    # who cares? assume this will only be used to combine
     # instances of the same transition, in a power of a single
     # model.
     if len( Set( (r for ((w,v,r),i) in eis) ) ) != 1:
@@ -518,7 +529,7 @@ def default_strong_edge_bundle_generator(
     # we can handle linear or bilinear transitions
     if rate_comps == [source]:
 	for V in seed_set:
-	    if all( i in inclusions( v, V ) for (v,w,r),i in eis ):
+	    if all( i in inclusions( v, V, i ) for (v,w,r),i in eis ):
 		repl = { v: bm_state( *compartment_renaming( *V ) ) }
 	        for W in unary_operation( V, [i for e,i in eis], eis ):
 		    print W
@@ -532,7 +543,7 @@ def default_strong_edge_bundle_generator(
 	    #print 'consider', V, '+', C, 'at', eis
 	    # does V have the relevant compartments?
 	    # only consider the one inclusion in V, the one given by eis
-	    if not all( i in inclusions( v, V ) for (v,w,r),i in eis ):
+	    if not all( i in inclusions( v, V, i ) for (v,w,r),i in eis ):
 		#print V, 'does not have the inclusions in', eis
 	        continue
 	    iota = [ i for e,i in eis ]
@@ -540,11 +551,12 @@ def default_strong_edge_bundle_generator(
 	    # rate's catalyst compartment in C
 	    # in simple case, those are the inclusions for C as well
 	    if cross_interactions:
-		c_inclusions = Arrangements( inclusions( catalyst, C ), len(eis) )
+		c_inclusions = Arrangements( inclusions( catalyst, C, i ), len(eis) )
 		#print 'inclusions of', eis, 'in', C, ':', list( c_inclusions )
 	    else:
-	        c_inclusions = Set( tuple( i for e,i in eis ) ) if all( i in inclusions( catalyst, C ) for e,i in eis ) else Set()
+	        c_inclusions = Set( [ tuple( [ i for e,i in eis ] ) ] ) if all( i in inclusions( catalyst, C, i ) for e,i in eis ) else Set()
 	        #print catalyst, 'in C:', list( c_inclusions )
+		print 'inclusions of', eis, 'in', C, ':', list( c_inclusions )
 	    for iota_ in c_inclusions:
                 #print 'do edges for', V, iota, C, iota_
     	        repl = {
@@ -650,6 +662,7 @@ def strong_product( *models, **kwargs ):
     vertex_namer =    kwargs.pop( 'vertex_namer',    default_vertex_namer )
     param_namer =     kwargs.pop( 'param_namer',     default_vertex_namer )
     vertex_positioner = kwargs.pop( 'vertex_positioner', default_vertex_positioner )
+    binary_op =       kwargs.pop( 'binary_op',       default_bop_strong )
     if kwargs: raise TypeError, "Unknown named arguments to BoxModelProduct: %s" % str(kwargs)
     return BoxModelProduct( *models,
 	edge_generator = strong_edge_generator,
@@ -659,10 +672,10 @@ def strong_product( *models, **kwargs ):
 	vertex_positioner = vertex_positioner
     )
 
-def power( model, i, compartment_renaming=lambda *x:x, param_relabeling=default_param_relabeling ):
+def power( model, i, compartment_renaming=lambda *x:x, param_relabeling=default_param_relabeling, vertex_namer=x_namer ):
     return BoxModelProduct(
 	*([model] * i),
-	vertex_namer = x_namer,
+	vertex_namer = vertex_namer,
 	compartment_renaming=compartment_renaming,
 	param_relabeling=param_relabeling
     )

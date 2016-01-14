@@ -23,7 +23,7 @@ def km_state_binding_function( self ):
 
 boxmodel.BoxModel.stochastic_state_binding_function = km_state_binding_function
 
-def bm_kolmogorov_eqns( self, N, callback, *xargs ):
+def bm_kolmogorov_eqns( self, N, callback, *xargs, **nargs ):
     # to convert states' names to integers for indexing
     state_index = { s:i for i,s in enumerate(self._vars) }
     # before beginning, test for conserved total mass
@@ -34,14 +34,11 @@ def bm_kolmogorov_eqns( self, N, callback, *xargs ):
     # standard basis vectors
     B = list(km_states[0].parent().basis())
     # do the forward or backward construction
-    return callback( self, N, km_states, bind_state, state_index, B, *xargs )
+    return callback( self, N, km_states, bind_state, state_index, B, *xargs, **nargs )
 
 def km_var( x, *args ):
     return SR.symbol( x+'_'+ '_'.join( str(a).replace('/','_') for a in args ),
 	latex_name = x+'_{%s}' % (''.join(latex(a) for a in args)) )
-
-def p_var( *args ):
-    return km_var( 'p', *args )
 
 def km_pos( states, x ):
     try:
@@ -49,41 +46,56 @@ def km_pos( states, x ):
     except:
 	return { km_var(x,*s) : (s[0],s[0]) for s in states }
 
-def forward_callback( self, N, km_states, bind_state, state_index, B ):
+def forward_callback( self, N, km_states, bind_state, state_index, B, p_name='p' ):
     # construct the forward equations, as a box model, from the state grid
     # and transitions of the original box model.
     km_graph_dict = {
 	# for every s in the discretized grid, and every transition e from v to w,
 	# a flow of probability mass from s to s - 1/N v + 1/N w
         # at rate e p(s)
-	p_var( *s ) : {
-	    p_var( *(s - B[ state_index[v] ] / N + B[ state_index[w] ] / N) ) :
-		p_var( *s ) * bind_state(s)(e)
+	km_var( p_name, *s ) : {
+	    km_var( p_name, *(s - B[ state_index[v] ] / N + B[ state_index[w] ] / N) ) :
+		km_var( p_name, *s ) * bind_state(s)(e)
 		for v,w,e in self._flow_graph.edge_iterator()
 		if bind_state(s)(e) != 0
 	} for s in km_states
     }
-    return boxmodel.BoxModel( DiGraph( km_graph_dict, pos=km_pos( km_states, 'p' ) ),
-	[ p_var( *s ) for s in km_states ] )
+    return boxmodel.BoxModel( DiGraph( km_graph_dict, pos=km_pos( km_states, p_name ) ),
+	[ km_var( p_name, *s ) for s in km_states ] )
 
-boxmodel.BoxModel.forward_boxmodel = lambda self, N: bm_kolmogorov_eqns( self, N, forward_callback )
+boxmodel.BoxModel.forward_boxmodel = lambda self, N, p_name='p': bm_kolmogorov_eqns( self, N, forward_callback, p_name=p_name )
 
-def q_var( *args ):
-    return km_var( 'q', *args )
-
-def backward_callback( self, N, km_states, bind_state, state_index, B ):
+def backward_callback( self, N, km_states, bind_state, state_index, B, q_name='q' ):
     # construct the forward equations, from the state grid
     # and transitions of the original box model.
-    km_flow = { q_var( *s ) :
+    km_flow = { km_var( q_name, *s ) :
 	sum( bind_state( s )(e) *
-	    ( q_var( *(s - B[state_index[v]]/N + B[state_index[w]]/N) ) - q_var(*s) )
+	    ( km_var( q_name, *(s - B[state_index[v]]/N + B[state_index[w]]/N) ) - q_var(*s) )
 	    for v,w,e in self._flow_graph.edge_iterator()
 	    if bind_state(s)(e) != 0 )
 	for s in km_states
     }
     return dynamicalsystems.ODESystem(
 	km_flow,
-	[ q_var( *s ) for s in km_states ]
+	[ km_var( q_name, *s ) for s in km_states ]
     )
 
-boxmodel.BoxModel.backward_equations = lambda self, N: bm_kolmogorov_eqns( self, N, backward_callback )
+boxmodel.BoxModel.backward_equations = lambda self, N, q_name='q': bm_kolmogorov_eqns( self, N, backward_callback, q_name=q_name )
+
+def generator_matrix_callback( self, N, km_states, bind_state, state_index, B, entry_ring=QQ ):
+    # construct the generator matrix for the stochastic process
+    # associated with the box model.
+    dim = len(km_states)
+    mtx = matrix( entry_ring, dim, dim, 0, sparse=True )
+    s_lookup = { s:i for i,s in enumerate(km_states) }
+    for i,s in enumerate(km_states):
+        for v,w,e in self._flow_graph.edge_iterator():
+	    r = bind_state(s)(e)
+	    if r != 0:
+		t = s - B[state_index[v]]/N + B[state_index[w]]/N
+		t.set_immutable()
+	        mtx[i, s_lookup[t]] += r
+		mtx[i, i] -= r
+    return mtx
+
+boxmodel.BoxModel.generator_matrix = lambda self, N, entry_ring=QQ: bm_kolmogorov_eqns( self, N, generator_matrix_callback, entry_ring=entry_ring )

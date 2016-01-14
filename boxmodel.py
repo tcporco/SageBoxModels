@@ -25,6 +25,8 @@ class BoxModel(SageObject):
 	vars=None,
 	parameters=None,
 	parameter_dependencies={},
+	sources=(),
+	sinks=(),
 	flow_graph=None,
         bindings=dynamicalsystems.Bindings()):
 	# we are given a directed graph whose vertex labels are state
@@ -37,8 +39,10 @@ class BoxModel(SageObject):
 	self._graph = graph
 	self._graph.set_latex_options( edge_labels=True )
 	self._graph.set_latex_options( vertex_shape='rectangle' )
+	self._sources = set( sources )
+	self._sinks = set( sinks )
 	if vars is None:
-	    vars = graph.vertices()
+	    vars = list( set( graph.vertices() ) - set( sources ) - set( sinks ) )
 	self._vars = vars
 	def getvars(r):
 	    try: return r.variables()
@@ -132,6 +136,8 @@ class BoxModel(SageObject):
 	    #'edge_fills': True,
 	    #'edge_color': 'white',
 	    #'edge_thickness': 0.05
+	    'vertex_colors': { x:'white' for x in self._sources | self._sinks },
+	    'vertex_label_colors': { x:'white' for x in self._sources | self._sinks }
 	}
 	graph_latex_patched.setup_latex_preamble()
 	gop = graph_latex_patched.GraphLatex(g)
@@ -140,11 +146,11 @@ class BoxModel(SageObject):
 	lopts.update( options )
 	#g.set_latex_options( **lopts )
 	gop.set_options( **lopts )
+	gl = gop.latex()
 	if inline:
-	    #return '\n\\vspace{24pt}\n' + latex( g ) + '\n\\vspace{24pt}\n'
-	    return gop.latex()
-	#return _latex_file_( g, title='' )
-	return _latex_file_( latex_output.wrap_latex( gop.latex() ), title='' )
+	    #return '\n\\vspace{24pt}\n' + gl + '\n\\vspace{24pt}\n'
+	    return gl
+	return _latex_file_( latex_output.wrap_latex( gl ), title='' )
     def plot_boxes( self, filename=None, raw=False, inline=False, **options ):
 	# new Tikz/SVG code
 	#print 'plot to', filename
