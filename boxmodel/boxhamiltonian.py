@@ -1,5 +1,6 @@
 from sage.all import *
-import boxmodel, dynamicalsystems, hamiltonian, boxkolmogorov
+import boxmodel
+import dynamicalsystems
 
 def hamiltonian_callback( self, N, km_states, bind_state, state_index, B, p_vars, reduce=True, return_vars=False ):
     # construct hamiltonian function

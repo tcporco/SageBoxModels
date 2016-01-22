@@ -25,10 +25,8 @@ def embedded_markov_callback( self, N, km_states, bind_state, state_index, B, R 
 
 boxmodel.BoxModel.embedded_discrete_markov_matrix = lambda self, N, R=QQ: boxkolmogorov.bm_kolmogorov_eqns( self, N, embedded_markov_callback, R )
 
-import os, sys
-sys.path.append( os.environ['SageDynamics'] )
-import dynamicalsystems, stochasticdynamics
-class BoxModelDiscreteSimulation( stochasticdynamics.FiniteDimensionalStochasticDynamics ):
+import dynamicalsystems
+class BoxModelDiscreteSimulation( dynamicalsystems.FiniteDimensionalStochasticDynamics ):
     def __init__(self, boxmodel):
 	self._model = boxmodel
 	self._trans_fast = [ (v,w,fast_callable(r,vars=boxmodel._vars,domain=float)) for v,w,r in boxmodel._flow_graph.edge_iterator() ]

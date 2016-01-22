@@ -1,5 +1,6 @@
 from sage.all import *
-import dynamicalsystems, boxmodel
+import dynamicalsystems
+import boxmodel
 
 # function names used by the edge generator: we can't put tuples into
 # symbolic expressions directly so we represent them by instances like
@@ -680,11 +681,14 @@ def power( model, i, compartment_renaming=lambda *x:x, param_relabeling=default_
 	param_relabeling=param_relabeling
     )
 
+def bmpower( model, i, compartment_renaming=lambda *x:x, param_relabeling=default_param_relabeling, vertex_namer=x_namer ):
+    return power( model, i, compartment_renaming=compartment_renaming, param_relabeling=param_relabeling, vertex_namer=vertex_namer )
+
 def write_product_formula( M1, M2, M12, tfnm, op=r'\times', size1=(3,1), size2=(1,4), size12=(4,4) ):
     # do I need to do this before opening the file, to get preamble right?
     Mtz = M1.tikz_boxes( figsize=size1, inline=True )
-    import latex_output
-    ltx = latex_output.latex_output( tfnm )
+    from dynamicalsystems import latex_output
+    ltx = latex_output( tfnm )
     ltx.write( '$\\raisebox{-0.5\\height}{\\hbox{', Mtz, '}}', op, '\\raisebox{-0.5\\height}{\\hbox{', M2.transpose_graph().tikz_boxes( figsize=size2, inline=True ), '}} = \\raisebox{-0.5\\height}{\\hbox{', M12.tikz_boxes( figsize=size12, inline=True ), '}}$' )
     ltx.close()
 

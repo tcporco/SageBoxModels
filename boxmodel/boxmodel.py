@@ -1,11 +1,6 @@
 import graph_latex_patched
 from sage.all import *
-import os
-import sys
- 
-sys.path.append( os.environ['SageDynamics'] )
 import dynamicalsystems
-import latex_output
 
 from sage.misc.latex import _latex_file_
 #from sage.symbolic.relation import solve
@@ -150,7 +145,7 @@ class BoxModel(SageObject):
 	if inline:
 	    #return '\n\\vspace{24pt}\n' + gl + '\n\\vspace{24pt}\n'
 	    return gl
-	return _latex_file_( latex_output.wrap_latex( gl ), title='' )
+	return _latex_file_( dynamicalsystems.wrap_latex( gl ), title='' )
     def plot_boxes( self, filename=None, raw=False, inline=False, **options ):
 	# new Tikz/SVG code
 	#print 'plot to', filename
@@ -185,7 +180,7 @@ class BoxModel(SageObject):
 	return nm
     def micro_transitions( self ):
 	# This could produce micro transitions but it isn't right so far
-	ltx = latex_output.latex_output_base( latex_output.write_to_string() )
+	ltx = dynamicalsystems.latex_output_base( dynamicalsystems.write_to_string() )
 	lines = []
 	for source, target, rate in self._flow_graph.edge_iterator():
 	    mu = MakeMicro( self, source )
