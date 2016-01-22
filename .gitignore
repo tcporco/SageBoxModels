@@ -1,0 +1,6 @@
+*.pyc
+/dist/
+/*.egg-info
+/_site/
+/wmd_files/
+_wmd_sync.yml

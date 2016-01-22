@@ -6,5 +6,5 @@ It includes [a Sage implementation of compartment models](BoxModelsInSage.html)
 built on [an external Sage package for dynamical systems](https://github.com/worden-lee/SageDynamics).
 
 It also includes tests and development related to
-[the separate R package for compartment models](https://github.com/tcporco/boxmodel)
+[an unfinished R package for compartment models](https://github.com/tcporco/boxmodel)
 (which is written largely in Common Lisp).

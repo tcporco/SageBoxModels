@@ -1,3 +1,9 @@
+## install the python code to the system python packages
+
+install:
+	sage -python setup.py install
+
+## WMD make rules for building documents in doc
 
 # to make a single target, you can use make wmd_files/Project/target
 # or more usefully, make sync wmd_files/Project/target
@@ -8,11 +14,6 @@
 # sync operation.
 %.make.log : /proc/uptime
 	php $(WW_DIR)/wmd/wmd.php --post --cache-dir=wmd_files --default-project-name=$(subst /,,$(subst wmd_files/,,$(dir $*))) --make-single-file=$(notdir $*)
-
-kdjlfj:
-	echo wmd_make_single_file: $(notdir $*) > _make_single_file.yml
-	jekyll build --config=_config.yml,_make_single_file.yml
-	$(RM) _make_single_file.yml
 
 # make working files in their directories.
 # Note a file in a subdirectory of a working directory won't be made right,
