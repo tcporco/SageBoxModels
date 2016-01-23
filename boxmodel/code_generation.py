@@ -19,7 +19,6 @@ def R_ode_fn( self, name='odefn' ):
     code += '  dxdt <- list(c(\n'
     code += ',\n'.join( '    ' + str(v) + ' = ' + str(flow[v]) for v in vars ) + '\n'
     code += '  ))\n'
-    code += '  print(dxdt)\n'
     code += '  return(dxdt)\n'
     code += '}\n'
     return code
