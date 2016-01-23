@@ -4,4 +4,5 @@ from boxmodelproduct import *
 from boxmarkov import *
 from boxkolmogorov import *
 from boxhamiltonian import *
+from code_generation import *
 import graph_latex_patched
