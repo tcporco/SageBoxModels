@@ -41,8 +41,9 @@ def hamiltonian_callback( self, N, km_states, bind_state, state_index, B, p_vars
 def hamiltonian_system_callback( self, N, km_states, bind_state, state_index, B, p_vars, reduce=False ):
     H, p_vars, reduce_bindings = hamiltonian_callback( self, N, km_states, bind_state, state_index, B, p_vars, reduce=reduce, return_vars=True )
     x_vars = self._vars[:len(p_vars)]
-    return hamiltonian.HamiltonianODE( H, x_vars, p_vars, bindings=reduce_bindings )
+    return dynamicalsystems.HamiltonianODE( H, x_vars, p_vars, bindings=reduce_bindings )
 
+from . import boxkolmogorov
 boxmodel.BoxModel.hamiltonian = lambda self, p_vars, reduce=False : boxkolmogorov.bm_kolmogorov_eqns( self, 1, hamiltonian_callback, p_vars, reduce )
 
 boxmodel.BoxModel.hamiltonian_system = lambda self, p_vars, reduce=False: boxkolmogorov.bm_kolmogorov_eqns( self, 1, hamiltonian_system_callback, p_vars, reduce )
