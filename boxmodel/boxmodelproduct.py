@@ -645,11 +645,11 @@ def union_positioner( graph, models, compartment_renaming=None ):
 	for v,(x,y) in pos.iteritems()
     }
 
-## union is not a product, but it's easy to implement as one
+## bmunion is not a product, but it's easy to implement as one
 ## it just combines the graphs "side by side"
 ## (except if they share vertices and possibly edges, they'll be combined)
 ## note if we didn't combine those it would be direct sum rather than union
-def union( *models ):
+def bmunion( *models ):
     """union of the models' vertex and edge sets"""
     return BoxModelProduct( *models,
 	vertex_namer = x_namer,
