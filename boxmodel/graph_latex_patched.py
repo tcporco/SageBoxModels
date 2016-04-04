@@ -260,6 +260,7 @@ choices. ::
     ...   vertex_size=0.3,
     ...   vertex_sizes={0:1.0, 2:0.3, 4:1.0},
     ...   vertex_label_placements = {2:(0.6, 180), 4:(0,45)},
+    ...   vertices_empty = {0:true},
     ...   edge_color='purple',
     ...   edge_colors={(0,2):'g',(3,4):'red'},
     ...   edge_fills=True,
@@ -505,6 +506,7 @@ class GraphLatex(SageObject):
             'vertex_label_colors': {},
             'vertex_label_placement': 'center',
             'vertex_label_placements': {},
+	    'vertices_empty': {},
             'edge_options': (),
             'edge_color': 'black',
             'edge_colors': {},
@@ -681,7 +683,7 @@ class GraphLatex(SageObject):
           to see possible values.  This color is ignored for the
           ``sphere`` vertex shape.
 
-        - ``vertex__fill_colors`` -- a dictionary whose keys are vertices
+        - ``vertex_fill_colors`` -- a dictionary whose keys are vertices
           of the graph and whose values are colors.  These will be used
           to fill the interior of vertices.  See the explanation
           above for the ``vertex_color`` option to see possible values.
@@ -743,6 +745,13 @@ class GraphLatex(SageObject):
           indexed by the vertices.  See the explanation for
           ``vertex_label_placement`` for the possible values.
 
+        - ``vertices_empty`` --  a dictionary whose keys are vertices
+          of the graph and whose values are boolean.  Vertices for
+	  which the value is true will not be displayed, but they will
+	  still have their location and can be used as edge endpoints.
+          These values need only be specified for a proper subset of the
+          vertices.  Specified values will supersede a default value.
+
         - ``edge_color`` -- default: 'black' -- a single color to use as
           the default for an edge. See the explanation above for the
           ``vertex_color`` option to see possible values.
@@ -765,7 +774,7 @@ class GraphLatex(SageObject):
           for theis to have an effect.  See the explanation above
           for the ``vertex_color`` option to see possible values.
 
-        - ``edge__fill_colors`` -- a dictionary whose keys are edges
+        - ``edge_fill_colors`` -- a dictionary whose keys are edges
           of the graph and whose values are colors. See the explanation
           above for the ``vertex_color`` option to see possible values.
           These values need only be specified for a proper subset of the
@@ -931,6 +940,7 @@ class GraphLatex(SageObject):
             sage: opts.set_option('vertex_label_placement', (3, 4.2))
             sage: opts.set_option('vertex_label_placements', {0:'center'})
             sage: opts.set_option('vertex_label_placements', {0:(4.7,1)})
+	    sage: opts.set_option('vertices_empty', {0:True})
             sage: opts.set_option('edge_color', 'black')
             sage: opts.set_option('edge_colors', {(0,1):'w'})
             sage: opts.set_option('edge_fills', False)
@@ -1099,7 +1109,7 @@ class GraphLatex(SageObject):
             boolean_options = ('vertex_labels','vertex_labels_math','edge_fills','edge_labels','edge_labels_math','edge_label_sloped')
             color_options = ('vertex_color', 'vertex_fill_color', 'vertex_label_color','edge_color','edge_fill_color','edge_label_color')
             color_dicts = ('vertex_colors','vertex_fill_colors','vertex_label_colors','edge_colors','edge_fill_colors','edge_label_colors')
-            boolean_dicts = ('edge_label_slopes',)
+            boolean_dicts = ('edge_label_slopes','vertices_empty')
             positive_scalars = ('scale', 'vertex_size', 'edge_thickness')
             positive_scalar_dicts=('vertex_sizes', 'edge_thicknesses')
             positive_tuples=('graphic_size', 'margins')
@@ -1663,6 +1673,7 @@ class GraphLatex(SageObject):
             vertex_fill_colors = self.get_option('vertex_fill_colors')
             vertex_shapes = self.get_option('vertex_shapes')
             vertex_sizes = self.get_option('vertex_sizes')
+            vertices_empty = self.get_option('vertices_empty')
             if vertex_labels:
                 vertex_label_colors = self.get_option('vertex_label_colors')
                 vertex_label_placements = self.get_option('vertex_label_placements')
@@ -1675,6 +1686,7 @@ class GraphLatex(SageObject):
             if vertex_labels:
                 vl_color = {}
                 vl_placement = {}
+	    v_empty = {}
             for u in vertex_list:
                 #
                 c = dvc
@@ -1696,6 +1708,11 @@ class GraphLatex(SageObject):
                 if u in vertex_sizes:
                     vs = vertex_sizes[u]
                 v_size[u] = vs
+		#
+		ve = False
+		if u in vertices_empty:
+		    ve = vertices_empty[u]
+		v_empty[u] = ve
                 #
                 if vertex_labels:
                     #
@@ -1942,6 +1959,8 @@ class GraphLatex(SageObject):
             scaled_pos = translate(pos[u])
             s+=['x=', str(round(scale*scaled_pos[0],4)), units, ',']
             s+=['y=', str(round(scale*scaled_pos[1],4)), units]
+	    if v_empty[u]:
+		s+=[',empty=true']
             s+=[']']
             s+=['{', prefix, str(index_of_vertex[u]), '}\n']
         s+=['%\n']

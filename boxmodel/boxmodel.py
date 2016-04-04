@@ -110,8 +110,10 @@ class BoxModel(SageObject):
 	#print flow
 	for source,target,rate in self._flow_graph.edges():
 	    #print source, '-$%s$->'%latex(rate), target
-	    flow[source] -= rate
-	    flow[target] += rate
+	    try: flow[source] -= rate
+	    except KeyError: pass
+	    try: flow[target] += rate
+	    except KeyError: pass
 	return flow
     def ode(self, time_variable=SR.symbol('t'), bindings=dynamicalsystems.Bindings()):
 	return dynamicalsystems.ODESystem(
@@ -131,8 +133,9 @@ class BoxModel(SageObject):
 	    #'edge_fills': True,
 	    #'edge_color': 'white',
 	    #'edge_thickness': 0.05
-	    'vertex_colors': { x:'white' for x in self._sources | self._sinks },
-	    'vertex_label_colors': { x:'white' for x in self._sources | self._sinks }
+	    'vertices_empty': { x:True for x in self._sources | self._sinks },
+	    #'vertex_colors': { x:'white' for x in self._sources | self._sinks },
+	    #'vertex_label_colors': { x:'white' for x in self._sources | self._sinks }
 	}
 	graph_latex_patched.setup_latex_preamble()
 	gop = graph_latex_patched.GraphLatex(g)
