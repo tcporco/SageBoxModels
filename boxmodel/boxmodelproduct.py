@@ -30,8 +30,9 @@ default_vertex_namer = dynamicalsystems.subscriptedsymbol
 
 # sometimes we want to use this instead.  Rather than
 # (S,a) -> 'S_a', gives (S,a) -> 'X_{Sa}'.
-def x_namer( *ss ):
+def X_namer( *ss ):
     return dynamicalsystems.subscriptedsymbol( 'X', *ss )
+x_namer = X_namer
 
 def N_namer( *ss ):
     return dynamicalsystems.subscriptedsymbol( 'N', *ss )
@@ -106,10 +107,12 @@ def default_bop( s_tuple, i, c_tuple, i_, s, t, r ):
 
 # inclusive inclusions: interact with the thing whatever position it's in
 def tuple_inclusions( c, tup, i ):
+    print 'tuple inclusions'
     return [ iota for iota,x in enumerate(tup) if x == c ]
 
 # conservative inclusions: only if it's in the relevant position
 def conservative_inclusions( c, tup, i ):
+    print 'conservative inclusions'
     return ([i] if tup[i] == c else [])
 
 class BoxModelProductException(Exception): pass
@@ -125,6 +128,8 @@ def default_single_edge_stratifier(
 	unary_operation=default_sop, binary_operation=default_bop,
 	inclusions=tuple_inclusions
     ):
+    print 'stratify edge ', (source, target, rate), ' in position ', i
+    print 'inclusions', ('tuple' if inclusions == tuple_inclusions else 'not tuples')
     print 'old set', old_set, '/ seed set', seed_set
     # produce all product edges made from this component edge
     # list the compartments involved in the transition
@@ -137,10 +142,12 @@ def default_single_edge_stratifier(
     if rate_comps == [] or rate_comps == [source]:
 	for V in seed_set:
 	    s_inclusions = inclusions( source, V, i )
+	    print 'inclusions(', source, ',', V, ',', i, ') => ', s_inclusions
 	    for iota in s_inclusions:
 		repl = { source: bm_state( *compartment_renaming( *V ) ) }
-	        for W in unary_operation( V, iota, source, target, rate ):
-		    print W
+	        ws = unary_operation( V, iota, source, target, rate )
+		print 'unary op( ', V, ', ', iota, ',', source, ', ', target, ', ', rate, ') => ', ws
+	        for W in ws:
 		    # TODO: param_namer
 		    repl.update( { p: param_relabeling( p, V, iota, W ) for p in rate_params } )
 		    yield ( V, W, rate.subs( repl ) )
@@ -195,6 +202,7 @@ def default_edge_generator(
 	unary_operation=default_sop, binary_operation=default_bop,
 	inclusions=tuple_inclusions
     ):
+    print 'edge_generator, inclusions', ('tuple' if inclusions == tuple_inclusions else 'not tuples')
     if single_edge_generator is None:
 	single_edge_generator = default_single_edge_stratifier
     # TODO: hacky, fix
@@ -236,6 +244,10 @@ def default_edge_generator(
 	if len(old_vertices) + len(seed_set) > 100:
 	    raise RuntimeError, 'Recursion produces too many compartments'
     return [ ( bm_state( *compartment_renaming( *V ) ), bm_state( *compartment_renaming( *W ) ), r ) for V,W,r in edges ]
+
+def simple_edge_generator( *args, **kwargs ):
+    kwargs['cross_interactions'] = False
+    return default_edge_generator( *args, **kwargs )
 
 class CompositeBoxModel(boxmodel.BoxModel):
     """CompositeBoxModel is a boxmodel structure in which compartment names,

@@ -121,11 +121,12 @@ class BoxModel(SageObject):
             self._vars,
 	    time_variable,
             bindings = bindings+self._bindings )
-    def tikz_boxes( self, raw=False, inline=False, figsize=(6,6), **options ):
+    def tikz_boxes( self, raw=False, inline=False, figsize=(6,6), transform_graph=lambda x:x, **options ):
 	if raw:
 	    g = self._graph
 	else:
 	    g = self._flow_graph
+	g = transform_graph(g)
 	lopts = {
 	    'graphic_size': figsize,
 	    'edge_labels': True,
