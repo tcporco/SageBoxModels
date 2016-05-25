@@ -76,6 +76,8 @@ wmd_files/.workingwiki/.wmd.data : doc/*.md.wmd # */*.md.wmd
 # the YAML header included).
 _pandoc/BoxModelsInSage.% : PROJECT=BoxModels
 _pandoc/BoxModelsInSage.% : TITLE="Box Models in Sage"
+_pandoc/StochasticBoxModels.% : PROJECT=BoxModels
+_pandoc/StochasticBoxModels.% : TITLE="Stochastic Box Models"
 _pandoc/Measles.% : PROJECT=Measles 
 _pandoc/Measles.% : TITLE="Subcritical Measles Outbreak Size"
 _pandoc/Definitions.% : PROJECT=Notes
