@@ -40,10 +40,12 @@ class BoxModelDiscreteSimulation( dynamicalsystems.FiniteDimensionalStochasticDy
         try: initial_state = [ initial_state(x) for x in self._vars ]
         except TypeError: pass
 	self._N = sum( initial_state )
+	#if grain is None: grain = RDF(1/self._N)
 	self._grain = grain
 	#print 'sum of', initial_state, 'is', self._N
 	return super( BoxModelDiscreteSimulation, self ).solve( initial_state, start_time, end_time )
     def update_time_and_state( self, t, x ):
+	print 'x:', x
 	#x_bindings = dynamicalsystems.Bindings( zip(
 	#    self._model._vars,
 	#    (y/self._N for y in x)
@@ -67,9 +69,10 @@ class BoxModelDiscreteSimulation( dynamicalsystems.FiniteDimensionalStochasticDy
 	v,w,tr = next( ( (v,w,tr) for v,w,tr in transrates if tr > r ) )
 	#print 'r:',r
 	#print 'chose', v, w
-	x[self._vars_index[v]] -= self._grain/self._N
-	x[self._vars_index[w]] += self._grain/self._N
-	#print x
+	xnext = list(x)
+	xnext[self._vars_index[v]] -= self._grain
+	xnext[self._vars_index[w]] += self._grain
+	#print xnext
 	import numpy.random
-	return ( t + numpy.random.exponential( self._grain/total_r ), x )
+	return ( t + numpy.random.exponential( self._grain/total_r ), xnext )
 
