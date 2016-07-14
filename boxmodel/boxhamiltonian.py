@@ -44,9 +44,12 @@ def hamiltonian_system_callback( self, N, km_states, bind_state, state_index, B,
     return dynamicalsystems.HamiltonianODE( H, x_vars, p_vars, bindings=reduce_bindings )
 
 from . import boxkolmogorov
-boxmodel.BoxModel.hamiltonian = lambda self, p_vars, reduce=False : boxkolmogorov.bm_kolmogorov_eqns( self, 1, hamiltonian_callback, p_vars, reduce )
+## these are now implemented by JumpProcess
+#boxmodel.BoxModel.hamiltonian = lambda self, p_vars, reduce=False : boxkolmogorov.bm_kolmogorov_eqns( self, 1, hamiltonian_callback, p_vars, reduce )
 
-boxmodel.BoxModel.hamiltonian_system = lambda self, p_vars, reduce=False: boxkolmogorov.bm_kolmogorov_eqns( self, 1, hamiltonian_system_callback, p_vars, reduce )
+#boxmodel.BoxModel.hamiltonian_system = lambda self, p_vars, reduce=False: boxkolmogorov.bm_kolmogorov_eqns( self, 1, hamiltonian_system_callback, p_vars, reduce )
+
+## add Lagrangian code to JumpProcess sometime if needed
 
 def lagrangian_callback( self, N, km_states, bind_state, state_index, B, p_vars, reduce=True, return_vars=False ):
     # construct lagrangian function

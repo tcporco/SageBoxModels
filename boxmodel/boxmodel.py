@@ -104,23 +104,7 @@ class BoxModel(SageObject):
 	nbm._graph.add_edges( trs )
 	if self._flow_graph is not self._graph:
 	    nbm._flow_graph.add_edges( trs )
-	return nbm
-    def ode_flow(self):
-	flow = { v:0 for v in self._vars }
-	#print flow
-	for source,target,rate in self._flow_graph.edges():
-	    #print source, '-$%s$->'%latex(rate), target
-	    try: flow[source] -= rate
-	    except KeyError: pass
-	    try: flow[target] += rate
-	    except KeyError: pass
-	return flow
-    def ode(self, time_variable=SR.symbol('t'), bindings=dynamicalsystems.Bindings()):
-	return dynamicalsystems.ODESystem(
-	    self.ode_flow(),
-            self._vars,
-	    time_variable,
-            bindings = bindings+self._bindings )
+	return nbm 
     def tikz_boxes( self, raw=False, inline=False, figsize=(6,6), transform_graph=lambda x:x, **options ):
 	if raw:
 	    g = self._graph
@@ -182,20 +166,6 @@ class BoxModel(SageObject):
 	nm = deepcopy( self )
         nm.transpose_graph_in_place()
 	return nm
-    def micro_transitions( self ):
-	# This could produce micro transitions but it isn't right so far
-	ltx = dynamicalsystems.latex_output_base( dynamicalsystems.write_to_string() )
-	lines = []
-	for source, target, rate in self._flow_graph.edge_iterator():
-	    mu = MakeMicro( self, source )
-	    ut = mu( rate )
-	    print str(ut); sys.stdout.flush()
-	    lines += [ r'  & ' + latex(mu.sigma_fn(SR('x'))) + r'\to' + latex(target)
-		+ r' \quad\text{ at rate } '
-		+ latex( ut )
-	    ]
-	ltx.write_align( *lines )
-	return ltx._output._str
     def aggregate_compartments( self, compartment_aggregation ):
         aggregate = {}
         for vt in self._graph.vertex_iterator():
@@ -272,6 +242,52 @@ class BoxModel(SageObject):
 	    ),
 	    self._vars
 	)
+    def jump_process(self):
+	try:
+		self._jump_process
+	except AttributeError:
+		vars = list( set( self._graph.vertices() ) - set( self._sources ) - set( self._sinks ) )
+		var_index = { v:i for i,v in enumerate(vars) }
+		for x in self._sources.union( self._sinks ):
+			var_index[x] = None
+		def to_r( s, t ):
+			r = [ 0 for v in vars ]
+			if var_index[s] is not None:
+				r[var_index[s]] = -1
+			if var_index[t] is not None:
+				r[var_index[t]] = 1
+			return r
+		self._jump_process = dynamicalsystems.JumpProcess(
+			vars,
+			[ (to_r(s,t),rate) for s,t,rate in self._flow_graph.edges() ],
+			bindings=self._bindings
+		)
+	return self._jump_process
+    ## for forward_equations see boxkolmogorov.py
+    def backward_equations(self, N, q_name='q'):
+	return self.jump_process().backward_equations(N,q_name)
+    def generator_matrix( self, N, rate_ring=QQ ):
+	return self.jump_process().generator_matrix(N, rate_ring)
+    def ode_flow(self):
+	return self.jump_process().deterministic_flow()
+    def ode(self, time_variable=SR.symbol('t'), bindings=dynamicalsystems.Bindings()):
+	return self.jump_process().deterministic_ode(time_variable, bindings)
+    def micro_transitions( self ):
+	# This could produce micro transitions but it isn't right so far
+	# TODO: move this to JumpProcess
+	# (in addition to making it work)
+	ltx = dynamicalsystems.latex_output_base( dynamicalsystems.write_to_string() )
+	lines = []
+	for source, target, rate in self._flow_graph.edge_iterator():
+	    mu = MakeMicro( self, source )
+	    ut = mu( rate )
+	    print str(ut); sys.stdout.flush()
+	    lines += [ r'  & ' + latex(mu.sigma_fn(SR('x'))) + r'\to' + latex(target)
+		+ r' \quad\text{ at rate } '
+		+ latex( ut )
+	    ]
+	ltx.write_align( *lines )
+	return ltx._output._str
 
 # useful parent class: expression converter that doesn't
 # do anything
