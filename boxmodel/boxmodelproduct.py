@@ -701,6 +701,6 @@ def write_product_formula( M1, M2, M12, tfnm, op=r'\times', size1=(3,1), size2=(
     Mtz = M1.tikz_boxes( figsize=size1, inline=True )
     from dynamicalsystems import latex_output
     ltx = latex_output( tfnm )
-    ltx.write( '$\\raisebox{-0.5\\height}{\\hbox{', Mtz, '}}', op, '\\raisebox{-0.5\\height}{\\hbox{', M2.transpose_graph().tikz_boxes( figsize=size2, inline=True ), '}} = \\raisebox{-0.5\\height}{\\hbox{', M12.tikz_boxes( figsize=size12, inline=True ), '}}$' )
+    ltx.write( '$\\raisebox{-0.5\\height}{\\hbox{', Mtz, '}}\ ', op, '\ \\raisebox{-0.5\\height}{\\hbox{', M2.transpose_graph().tikz_boxes( figsize=size2, inline=True ), '}}\ =\ \\raisebox{-0.5\\height}{\\hbox{', M12.tikz_boxes( figsize=size12, inline=True ), '}}$' )
     ltx.close()
 

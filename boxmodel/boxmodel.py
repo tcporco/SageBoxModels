@@ -110,7 +110,14 @@ class BoxModel(SageObject):
 	    g = self._graph
 	else:
 	    g = self._flow_graph
+	## apply the user-supplied transform if any
 	g = transform_graph(g)
+	## tweak the latex representation of the rates
+	g = DiGraph(
+	    [ (v,w,dynamicalsystems.greek_first_latex_ex(e)) for v,w,e in g.edge_iterator() ],
+	    pos = g.get_pos(),
+	    multiedges=True
+	)
 	lopts = {
 	    'graphic_size': figsize,
 	    'edge_labels': True,
@@ -246,7 +253,7 @@ class BoxModel(SageObject):
 	try:
 		self._jump_process
 	except AttributeError:
-		vars = list( set( self._graph.vertices() ) - set( self._sources ) - set( self._sinks ) )
+		vars = list( set( self._vars ) - set( self._sources ) - set( self._sinks ) )
 		var_index = { v:i for i,v in enumerate(vars) }
 		for x in self._sources.union( self._sinks ):
 			var_index[x] = None
