@@ -100,11 +100,40 @@ class BoxModel(SageObject):
 	# We take BoxModel to be an immutable object, so this operation
 	# returns a new BoxModel.  trs is a list of (source,target,rate)
 	# tuples suitable for adding to self._graph (rather than _flow_graph).
+	print 'add_transitions', trs
+	print 'parameters before', self._parameters
 	nbm = deepcopy(self)
 	nbm._graph.add_edges( trs )
 	if self._flow_graph is not self._graph:
 	    nbm._flow_graph.add_edges( trs )
+	print self._vars
+	for f,t,r in trs:
+	    try:
+		print r
+		print r.variables()
+		print set( r.variables() ).difference( self._vars )
+		nbm._parameters.update( set( r.variables() ).difference( self._vars ) )
+	    except AttributeError: pass
+	print 'parameters after', nbm._parameters
 	return nbm 
+    def reorder_latex_variables( self, ex ):
+	# Sage likes to write "I S \beta" in unicode or whatever order -
+	# we want "\beta S I", and more generally, first parameters and
+	# then compartment names, in a sort of order given by the flow
+	# of the transitions.  Here we use left-to-right, top-to-bottom
+	# order based on the positions given for compartments.
+	try: self._sorter
+	except AttributeError:
+	    from collections import defaultdict
+	    sort_order_map = dict(
+	        [ (latex(vv),(pp[0],-pp[1])) for vv,pp in self._flow_graph.get_pos().items() ] + [ (latex(v),(-1e+10,-1e+10)) for v in self._parameters ]
+	    )
+	    # this converter is defined later in this file
+	    self._sorter = sort_latex_variables( sort_order_map, order_numbers_as=(-1e+11,-1e+11), order_unknown_as=(1e+10,1e+10) )
+	print 'use', self._sorter._map, 'on', latex(ex)
+	try: return self._sorter( ex )
+	except AttributeError: # ex is not an expression
+	    return ex
     def tikz_boxes( self, raw=False, inline=False, figsize=(6,6), transform_graph=lambda x:x, **options ):
 	if raw:
 	    g = self._graph
@@ -114,7 +143,7 @@ class BoxModel(SageObject):
 	g = transform_graph(g)
 	## tweak the latex representation of the rates
 	g = DiGraph(
-	    [ (v,w,dynamicalsystems.greek_first_latex_ex(e)) for v,w,e in g.edge_iterator() ],
+	    [ (v,w,self.reorder_latex_variables(e)) for v,w,e in g.edge_iterator() ],
 	    pos = g.get_pos(),
 	    multiedges=True
 	)
@@ -383,3 +412,24 @@ class MakeMicro(IdentityConverter):
 	expr = reduce( self._mul, margs )
 	print 'becomes', expr
 	return expr
+
+class sort_latex_variables(dynamicalsystems.IdentityConverter):
+    def __init__(self, sort_order_map, order_numbers_as=-oo, order_unknown_as=oo):
+	self._map = sort_order_map
+	self._number_order = order_numbers_as
+	self._unknown_order = order_unknown_as
+	return super(sort_latex_variables,self).__init__()
+    def arithmetic(self, ex, operator):
+        if operator == (2*SR.symbol('x')).operator():
+	    def keyfn(x):
+	        try:
+		    zo = self._map[latex(x)]
+		    return zo
+	        except KeyError:
+		    if x.is_numeric(): return self._number_order
+		    else: return self._unknown_order
+	    ll = sorted( ex.operands(), key=keyfn )
+	    print ll
+	    Msym = SR.symbol( 'M_{}'.format( ZZ.random_element(1e+10) ), latex_name=' '.join(latex(v) for v in ll) )
+            print latex(ex), ' ==> ', latex(Msym)
+            return Msym
