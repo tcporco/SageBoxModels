@@ -467,7 +467,7 @@ class BoxModelProduct(CompositeBoxModel):
 
 	# are vertices from product of graphs?
 	representative_tuple = self._graph.vertex_iterator().next().operands()
-	if len( representative_tuple ) == len( models ) and all( v in m._vars for v,m in zip( representative_tuple, models ) ):
+	if len( representative_tuple ) == len( models ) and all( v in m._vars for tup in self._graph.vertex_iterator() for v,m in zip( tup.operands(), models ) ):
 	    # make list of variables, in order, by taking product
             import itertools
 	    varset = set()
@@ -481,11 +481,18 @@ class BoxModelProduct(CompositeBoxModel):
 		    self._vars.append(v)
 		    self._tuples.append( bm_state( *t ) )
 	    print 'made tuples:', self._tuples
+	    print 'vars is:', self._vars
 	else:
 	    # no - the edge generator gave us some other set of vertices
-	    self._tuples = [ bm_state(*t) for t in sorted( t.operands() for t in self._graph.vertices()) ]
+	    def bmize(ex):
+		# extract operands # from what?
+		ooo = ex.operands()
+		if ooo: return bm_state(*ooo)
+		else: return ex
+	    self._tuples = [ bmize(t) for t in self._graph.vertices() ]
 	    print 'sorted tuples:', self._tuples
-	    self._vars = [ vertex_namer(*t.operands()) for t in self._tuples ]
+	    self._vars = [ t.substitute_function(bm_state,vertex_namer) for t in self._tuples ]
+	    print 'gives vars:', self._vars
 
 	# now generate all the crossed parameters
 	# TODO: do this right
@@ -493,7 +500,7 @@ class BoxModelProduct(CompositeBoxModel):
 	    try: return r.variables()
 	    except AttributeError: return []
 	self._parameters = reduce( lambda x,y: set(x).union(y), (getvars(r) for f,t,r in self._flow_graph.edges()), set() ).difference( self._vars )
-	#print 'parameters:', self._parameters
+	print 'parameters:', self._parameters
 
 	self._vertex_namer = vertex_namer
 	self._param_relabeling = param_relabeling
@@ -701,6 +708,6 @@ def write_product_formula( M1, M2, M12, tfnm, op=r'\times', size1=(3,1), size2=(
     Mtz = M1.tikz_boxes( figsize=size1, inline=True )
     from dynamicalsystems import latex_output
     ltx = latex_output( tfnm )
-    ltx.write( '$\\raisebox{-0.5\\height}{\\hbox{', Mtz, '}}', op, '\\raisebox{-0.5\\height}{\\hbox{', M2.transpose_graph().tikz_boxes( figsize=size2, inline=True ), '}} = \\raisebox{-0.5\\height}{\\hbox{', M12.tikz_boxes( figsize=size12, inline=True ), '}}$' )
+    ltx.write( '$\\raisebox{-0.5\\height}{\\hbox{', Mtz, '}}\ ', op, '\ \\raisebox{-0.5\\height}{\\hbox{', M2.transpose_graph().tikz_boxes( figsize=size2, inline=True ), '}}\ =\ \\raisebox{-0.5\\height}{\\hbox{', M12.tikz_boxes( figsize=size12, inline=True ), '}}$' )
     ltx.close()
 
