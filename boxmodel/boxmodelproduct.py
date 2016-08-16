@@ -463,7 +463,7 @@ class BoxModelProduct(CompositeBoxModel):
 	    for k,vl in self._inclusion_tuples.iteritems()
 	}
 	for k,vl in self._inclusion_variables.iteritems():
-	    self._bindings[k] = sum( vl )
+	    self._bindings.merge_in_place( k = sum( vl ) )
 
 	# are vertices from product of graphs?
 	representative_tuple = self._graph.vertex_iterator().next().operands()
