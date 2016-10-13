@@ -280,24 +280,27 @@ class BoxModel(SageObject):
 	)
     def jump_process(self):
 	try:
-		self._jump_process
+            self._jump_process
 	except AttributeError:
-		vars = list( set( self._vars ) - set( self._sources ) - set( self._sinks ) )
-		var_index = { v:i for i,v in enumerate(vars) }
-		for x in self._sources.union( self._sinks ):
-			var_index[x] = None
-		def to_r( s, t ):
-			r = [ 0 for v in vars ]
-			if var_index[s] is not None:
-				r[var_index[s]] = -1
-			if var_index[t] is not None:
-				r[var_index[t]] = 1
-			return r
-		self._jump_process = dynamicalsystems.JumpProcess(
-			vars,
-			[ (to_r(s,t),rate) for s,t,rate in self._flow_graph.edges() ],
-			bindings=self._bindings
-		)
+            print 'making BoxModel JumpProcess'
+            nvars = set( self._sources ) | set( self._sinks )
+            vars = [ v for v in self._vars if v not in nvars ]
+            print 'vars:',vars
+            var_index = { v:i for i,v in enumerate(vars) }
+            for x in self._sources.union( self._sinks ):
+                var_index[x] = None
+            def to_r( s, t ):
+                r = [ 0 for v in vars ]
+                if var_index[s] is not None:
+                    r[var_index[s]] = -1
+                if var_index[t] is not None:
+                    r[var_index[t]] = 1
+                return r
+            self._jump_process = dynamicalsystems.JumpProcess(
+                vars,
+                [ (to_r(s,t),rate) for s,t,rate in self._flow_graph.edges() ],
+                bindings=self._bindings
+            )
 	return self._jump_process
     ## for forward_equations see boxkolmogorov.py
     def backward_equations(self, N, q_name='q'):
