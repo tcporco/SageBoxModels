@@ -523,6 +523,8 @@ class GraphLatex(SageObject):
             'edge_label_slopes': {},
             'edge_label_placement': 0.50,
             'edge_label_placements': {},
+            'edge_style': None,
+            'edge_styles': {},
             'loop_placement': (3.0, 'NO'),
             'loop_placements': {},
             'color_by_label' : False,
@@ -840,6 +842,12 @@ class GraphLatex(SageObject):
           indexed by the edges.  See the ``edge_label_placement`` option
           for a description of the allowable values.
 
+        - ``edge_style`` -- default styling for edges
+          more documentation to come
+
+        - ``edge_styles`` -- styling for particular edges
+          more documentation to come
+
         - ``loop_placement`` -- default: (3.0, 'NO') -- a pair,
           that determines how loops are rendered.  the first
           element of the pair is a distance, which determines
@@ -1102,6 +1110,7 @@ class GraphLatex(SageObject):
             shape_names = ('circle', 'sphere','rectangle', 'diamond')
             label_places = ('above', 'below', 'right', 'left')
             compass_points = ('NO', 'SO', 'EA', 'WE')
+            edge_style_names = ('dotted','dashed')
             number_types = (int, Integer, float, RealLiteral)
             #
             # Options with structurally similar tests
@@ -1143,6 +1152,10 @@ class GraphLatex(SageObject):
                 raise ValueError( '%s option must be a number between 0.0 and 1.0 or a place (like "above"), not %s' % (name, value))
             elif name == 'loop_placement' and not( (isinstance(value, tuple)) and (len(value) == 2) and (value[0] >=0) and (value[1] in compass_points) ):
                 raise ValueError( '%s option must be a pair that is a positive number followed by a compass point abbreviation, not %s' % (name, value))
+            elif name == 'edge_style' and not ( value in edge_style_names ):
+                raise ValueError( '%s option must be one of %s, not %s' % (name, ', '.join( edge_style_names ), value) )
+            elif name == 'edge_styles' and not ( all( v in edge_style_names for v in value.itervalues() ) ):
+                raise ValueError( '%s option must be a dictionary with all values in %s, not %s' % (name, ', '.join( edge_style_names ), value) )
             #
             #  Checks/test on dictionaries of values (ie per-vertex or per-edge defaults)
             #
@@ -1749,6 +1762,7 @@ class GraphLatex(SageObject):
             if edge_fills:
                 defc = cc.to_rgb(self.get_option('edge_fill_color'))
             det = self.get_option('edge_thickness')
+            des = self.get_option('edge_style')
             #
             if edge_labels:
                 edge_labels_math = self.get_option('edge_labels_math')
@@ -1761,6 +1775,7 @@ class GraphLatex(SageObject):
             if edge_fills:
                 edge_fill_colors = self.get_option('edge_fill_colors')
             edge_thicknesses = self.get_option('edge_thicknesses')
+            edge_styles = self.get_option('edge_styles')
             if edge_labels:
                 edge_label_colors = self.get_option('edge_label_colors')
                 edge_label_slopes = self.get_option('edge_label_slopes')
@@ -1778,6 +1793,7 @@ class GraphLatex(SageObject):
             if edge_fills:
                 ef_color = {}
             e_thick = {}
+            e_style = {}
             if edge_labels:
                 el_color = {}
                 el_slope={}
@@ -1810,6 +1826,13 @@ class GraphLatex(SageObject):
                     else:
                         et = edge_thicknesses[reverse]
                 e_thick[edge] = et
+                #
+                es = des
+                if edge in edge_styles:
+                    es = edge_styles[edge]
+                elif not self._graph.is_directed() and reverse in edge_styles:
+                    es = edge_styles[reverse]
+                e_style[edge] = es
                 #
                 if edge_labels:
                     c = delc
@@ -1925,10 +1948,10 @@ class GraphLatex(SageObject):
 
         # Create each vertex
         for u in vertex_list:
-            s+=['\\Vertex[']
             # colors, shapes, sizes, labels/placement for 'Custom' style
             if customized:
-                s+=['style={'] # begin style list
+                s+=['\\tikzset{VertexStyle/.style={']
+                #s+=['style={'] # begin style list
                 s+=['minimum size=', str(round(scale*v_size[u],4)), units, ',']
                 s+=['draw=', vertex_color_names[u], ',']
                 s+=['fill=', vertex_fill_color_names[u], ',']
@@ -1938,7 +1961,9 @@ class GraphLatex(SageObject):
                     s+=['shape=circle,shading=ball,line width=0pt,ball color=', vertex_color_names[u], ',']
                 else:
                     s+=['shape=', v_shape[u]]
-                s+=['},']  # end style list
+                s+=['}}\n']  # end style list
+            s+=['\\Vertex[']
+            if customized:
                 if vertex_labels:
                     if vl_placement[u] == 'center':
                         s+=['LabelOut=false,']
@@ -1990,12 +2015,16 @@ class GraphLatex(SageObject):
                     if  self._graph.allows_multiple_edges() and isinstance(edge_thickness, list):
                         reverse_index = len(edge_thickness) - (multiedge_index+1)
                         edge_thickness = edge_thickness[reverse_index]
+                        ## could support this for style but don't want to
                     s+=['lw=', str(round(scale*edge_thickness,4)), units, ',']
                 s+=['style={']  # begin style list
                 if self._graph.is_directed():
                     s+=['->,']
                 if (self._graph.is_directed() or self._graph.allows_multiple_edges()) and not loop:
                     s+=['bend right=', str(10+20*multiedge_index), ',']
+                edge_style = e_style[edge]
+                if edge_style is not None:
+                    s+=[edge_style,',']
                 s+=['color=', edge_color_names[edge], ',']
                 if edge_fills:
                     s+=['double=', edge_fill_color_names[edge]]
