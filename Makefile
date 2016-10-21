@@ -52,6 +52,9 @@ _pandoc :
 _pandoc/%.intermediate.tex : _pandoc/%.md
 	pandoc -f markdown -t latex -s -S --listings --include-in-header=_assets/latex-header-additions.tex --filter pandoc-citeproc $< -o $@
 
+_pandoc/%.intermediate.tex : doc/%.tex.wmd wmd_files/.workingwiki/.wmd.data _pandoc
+	php $(WW)/wmd/wmd.php --pre --title='$(TITLE)' --default-project-name=$(PROJECT) --cache-dir=wmd_files --data-store=.wmd.data --modification-time=`date +%Y%m%d%H%M%s` --process-inline-math=1 --output-format=tex < $< > $@
+
 _pandoc/%.tex : _pandoc/%.intermediate.tex
 	php $(WW)/wmd/wmd.php --post --title='$(TITLE)' --default-project-name=$(PROJECT) --cache-dir=wmd_files --data-store=.wmd.data --persistent-data-store --modification-time=`date +%Y%m%d%H%M%s` --output-format=tex < $< > $@
 
@@ -62,6 +65,11 @@ _pandoc/FirstDefinitions.intermediate.tex _pandoc/SecondDefinitions.intermediate
 
 doc/%.pdf : _pandoc/%.tex
 	cd _pandoc && pdflatex $* && pdflatex $*
+	mv _pandoc/$*.pdf $@
+
+doc/FirstDefinitions.test.pdf : doc/%.pdf : _pandoc/%.tex doc/box.bib
+	cp doc/box.bib _pandoc
+	cd _pandoc && pdflatex $* && pdflatex $* && bibtex $* && pdflatex $*
 	mv _pandoc/$*.pdf $@
 
 wmd_files/.workingwiki/.wmd.data : doc/*.md.wmd # */*.md.wmd
@@ -81,9 +89,11 @@ _pandoc/StochasticBoxModels.% : TITLE="Stochastic Box Models"
 _pandoc/Measles.% : PROJECT=Measles 
 _pandoc/Measles.% : TITLE="Subcritical Measles Outbreak Size"
 _pandoc/FirstDefinitions.% : PROJECT=Notes
-_pandoc/FirstDefinitions.% : TITLE="Definitions of Box Model objects"
+_pandoc/FirstDefinitions.% : TITLE="Formal Products of Box Model objects"
+_pandoc/FirstDefinitions.test.% : PROJECT=Notes
+_pandoc/FirstDefinitions.test.% : TITLE="Formal Products of Box Model objects"
 _pandoc/SecondDefinitions.% : PROJECT=Notes
-_pandoc/SecondDefinitions.% : TITLE="More definitions of Box Model objects"
+_pandoc/SecondDefinitions.% : TITLE="Formal Products of Box Model Objects II"
 _pandoc/sde.% : PROJECT=SDE
 _pandoc/sde.% : TITLE=SDE
 _pandoc/LeprosyDiagram.% : PROJECT=Leprosy
