@@ -55,7 +55,7 @@ _pandoc/%.intermediate.tex : _pandoc/%.md
 _pandoc/%.tex : _pandoc/%.intermediate.tex
 	php $(WW)/wmd/wmd.php --post --title='$(TITLE)' --default-project-name=$(PROJECT) --cache-dir=wmd_files --data-store=.wmd.data --persistent-data-store --modification-time=`date +%Y%m%d%H%M%s` --output-format=tex < $< > $@
 
-_pandoc/Definitions.intermediate.tex : _pandoc/%.intermediate.tex : _pandoc/%.md doc/box.bib
+_pandoc/FirstDefinitions.intermediate.tex _pandoc/SecondDefinitions.intermediate.tex : _pandoc/%.intermediate.tex : _pandoc/%.md doc/box.bib
 	cp doc/box.bib _pandoc
 	(cd _pandoc && pandoc -f markdown -t latex -s -S --listings --include-in-header=../_assets/latex-header-additions.tex --filter pandoc-citeproc $(subst _pandoc/,,$<) -o $(subst _pandoc/,,$@))
 	$(RM) _pandoc/box.bib
@@ -80,8 +80,10 @@ _pandoc/StochasticBoxModels.% : PROJECT=BoxModels
 _pandoc/StochasticBoxModels.% : TITLE="Stochastic Box Models"
 _pandoc/Measles.% : PROJECT=Measles 
 _pandoc/Measles.% : TITLE="Subcritical Measles Outbreak Size"
-_pandoc/Definitions.% : PROJECT=Notes
-_pandoc/Definitions.% : TITLE="Definitions of Box Model objects"
+_pandoc/FirstDefinitions.% : PROJECT=Notes
+_pandoc/FirstDefinitions.% : TITLE="Definitions of Box Model objects"
+_pandoc/SecondDefinitions.% : PROJECT=Notes
+_pandoc/SecondDefinitions.% : TITLE="More definitions of Box Model objects"
 _pandoc/sde.% : PROJECT=SDE
 _pandoc/sde.% : TITLE=SDE
 _pandoc/LeprosyDiagram.% : PROJECT=Leprosy
