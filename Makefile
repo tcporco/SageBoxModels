@@ -58,7 +58,7 @@ _pandoc/%.intermediate.tex : doc/%.tex.wmd wmd_files/.workingwiki/.wmd.data _pan
 _pandoc/%.tex : _pandoc/%.intermediate.tex
 	php $(WW)/wmd/wmd.php --post --title='$(TITLE)' --default-project-name=$(PROJECT) --cache-dir=wmd_files --data-store=.wmd.data --persistent-data-store --modification-time=`date +%Y%m%d%H%M%s` --output-format=tex < $< > $@
 
-_pandoc/FirstDefinitions.intermediate.tex _pandoc/SecondDefinitions.intermediate.tex : _pandoc/%.intermediate.tex : _pandoc/%.md doc/box.bib
+_pandoc/SecondDefinitions.intermediate.tex : _pandoc/%.intermediate.tex : _pandoc/%.md doc/box.bib
 	cp doc/box.bib _pandoc
 	(cd _pandoc && pandoc -f markdown -t latex -s -S --listings --include-in-header=../_assets/latex-header-additions.tex --filter pandoc-citeproc $(subst _pandoc/,,$<) -o $(subst _pandoc/,,$@))
 	$(RM) _pandoc/box.bib
@@ -67,9 +67,9 @@ doc/%.pdf : _pandoc/%.tex
 	cd _pandoc && pdflatex $* && pdflatex $*
 	mv _pandoc/$*.pdf $@
 
-doc/FirstDefinitions.test.pdf : doc/%.pdf : _pandoc/%.tex doc/box.bib
+doc/FirstDefinitions.pdf : doc/%.pdf : _pandoc/%.tex doc/box.bib
 	cp doc/box.bib _pandoc
-	cd _pandoc && pdflatex $* && pdflatex $* && bibtex $* && pdflatex $*
+	cd _pandoc && pdflatex $* && bibtex $* && pdflatex $* && pdflatex $*
 	mv _pandoc/$*.pdf $@
 
 wmd_files/.workingwiki/.wmd.data : doc/*.md.wmd # */*.md.wmd
@@ -90,8 +90,6 @@ _pandoc/Measles.% : PROJECT=Measles
 _pandoc/Measles.% : TITLE="Subcritical Measles Outbreak Size"
 _pandoc/FirstDefinitions.% : PROJECT=Notes
 _pandoc/FirstDefinitions.% : TITLE="Formal Products of Box Model objects"
-_pandoc/FirstDefinitions.test.% : PROJECT=Notes
-_pandoc/FirstDefinitions.test.% : TITLE="Formal Products of Box Model objects"
 _pandoc/SecondDefinitions.% : PROJECT=Notes
 _pandoc/SecondDefinitions.% : TITLE="Formal Products of Box Model Objects II"
 _pandoc/sde.% : PROJECT=SDE
