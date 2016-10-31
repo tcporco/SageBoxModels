@@ -58,7 +58,7 @@ _pandoc/%.intermediate.tex : doc/%.tex.wmd wmd_files/.workingwiki/.wmd.data _pan
 _pandoc/%.tex : _pandoc/%.intermediate.tex
 	php $(WW)/wmd/wmd.php --post --title='$(TITLE)' --default-project-name=$(PROJECT) --cache-dir=wmd_files --data-store=.wmd.data --persistent-data-store --modification-time=`date +%Y%m%d%H%M%s` --output-format=tex < $< > $@
 
-_pandoc/SecondDefinitions.intermediate.tex : _pandoc/%.intermediate.tex : _pandoc/%.md doc/box.bib
+_pandoc/XX.intermediate.tex : _pandoc/%.intermediate.tex : _pandoc/%.md doc/box.bib
 	cp doc/box.bib _pandoc
 	(cd _pandoc && pandoc -f markdown -t latex -s -S --listings --include-in-header=../_assets/latex-header-additions.tex --filter pandoc-citeproc $(subst _pandoc/,,$<) -o $(subst _pandoc/,,$@))
 	$(RM) _pandoc/box.bib
@@ -67,7 +67,7 @@ doc/%.pdf : _pandoc/%.tex
 	cd _pandoc && pdflatex $* && pdflatex $*
 	mv _pandoc/$*.pdf $@
 
-doc/FirstDefinitions.pdf : doc/%.pdf : _pandoc/%.tex doc/box.bib
+doc/FirstDefinitions.pdf doc/SecondDefinitions.pdf : doc/%.pdf : _pandoc/%.tex doc/box.bib
 	cp doc/box.bib _pandoc
 	cd _pandoc && pdflatex $* && bibtex $* && pdflatex $* && pdflatex $*
 	mv _pandoc/$*.pdf $@
