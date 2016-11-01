@@ -705,9 +705,15 @@ def bmpower( model, i, compartment_renaming=lambda *x:x, param_relabeling=defaul
 
 def write_product_formula( M1, M2, M12, tfnm, op=r'\times', size1=(3,1), size2=(1,4), size12=(4,4) ):
     # do I need to do this before opening the file, to get preamble right?
-    Mtz = M1.tikz_boxes( figsize=size1, inline=True )
+    Mtz = M1.plot_boxes( filename=None, figsize=size1, inline=True )
     from dynamicalsystems import latex_output
     ltx = latex_output( tfnm )
-    ltx.write( '$\\raisebox{-0.5\\height}{\\hbox{', Mtz, '}}\ ', op, '\ \\raisebox{-0.5\\height}{\\hbox{', M2.transpose_graph().tikz_boxes( figsize=size2, inline=True ), '}}\ =\ \\raisebox{-0.5\\height}{\\hbox{', M12.tikz_boxes( figsize=size12, inline=True ), '}}$' )
+    ltx.write(
+        '$\\raisebox{-0.5\\height}{\\hbox{', Mtz, '}}\ ', op,
+        '\ \\raisebox{-0.5\\height}{\\hbox{',
+        M2.transpose_graph().plot_boxes( filename=None, figsize=size2, inline=True ),
+        '}}\ =\ \\raisebox{-0.5\\height}{\\hbox{',
+        M12.plot_boxes( filename=None, figsize=size12, inline=True ), '}}$'
+    )
     ltx.close()
 
