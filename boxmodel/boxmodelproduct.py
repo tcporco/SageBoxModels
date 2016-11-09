@@ -107,12 +107,12 @@ def default_bop( s_tuple, i, c_tuple, i_, s, t, r ):
 
 # inclusive inclusions: interact with the thing whatever position it's in
 def tuple_inclusions( c, tup, i ):
-    print 'tuple inclusions'
+    #print 'tuple inclusions'
     return [ iota for iota,x in enumerate(tup) if x == c ]
 
 # conservative inclusions: only if it's in the relevant position
 def conservative_inclusions( c, tup, i ):
-    print 'conservative inclusions'
+    #print 'conservative inclusions'
     return ([i] if tup[i] == c else [])
 
 class BoxModelProductException(Exception): pass
@@ -129,7 +129,7 @@ def default_single_edge_stratifier(
 	inclusions=tuple_inclusions
     ):
     print 'stratify edge ', (source, target, rate), ' in position ', i
-    print 'inclusions', ('tuple' if inclusions == tuple_inclusions else 'not tuples')
+    #print 'inclusions', ('tuple' if inclusions == tuple_inclusions else 'not tuples')
     print 'old set', old_set, '/ seed set', seed_set
     # produce all product edges made from this component edge
     # list the compartments involved in the transition
@@ -142,7 +142,7 @@ def default_single_edge_stratifier(
     if rate_comps == [] or rate_comps == [source]:
 	for V in seed_set:
 	    s_inclusions = inclusions( source, V, i )
-	    print 'inclusions(', source, ',', V, ',', i, ') => ', s_inclusions
+	    #print 'inclusions(', source, ',', V, ',', i, ') => ', s_inclusions
 	    for iota in s_inclusions:
 		repl = { source: bm_state( *compartment_renaming( *V ) ) }
 	        ws = unary_operation( V, iota, source, target, rate )
@@ -155,17 +155,17 @@ def default_single_edge_stratifier(
 	catalyst, = set(rate_comps) - set([source])
         import itertools
 	for V,C in itertools.chain( itertools.product(seed_set, old_set), itertools.product(old_set + seed_set, seed_set) ):
-	    print 'consider', V, '+', C, 'at', i
+	    #print 'consider', V, '+', C, 'at', i
 	    # do only the one source inclusion here to avoid duplication
 	    #s_inclusions = [ iota for iota,x in enumerate(V) if x == source and iota == i ]
 	    s_inclusions = Set( inclusions( source, V, i ) ).intersection( Set( [i] ) )
-	    print source, 'in V:', s_inclusions
+	    #print source, 'in V:', s_inclusions
 	    for iota in s_inclusions:
 		if cross_interactions:
 		    c_inclusions = inclusions( catalyst, C, i )
 		else:
 		    c_inclusions = Set( inclusions( catalyst, C, i ) ).intersection( Set( [i] ) )
-		print catalyst, 'in C:', c_inclusions
+		#print catalyst, 'in C:', c_inclusions
 		for iota_ in c_inclusions:
 	            print 'do edges for', V, iota, C, iota_
 		    repl = {
@@ -274,13 +274,18 @@ class CompositeBoxModel(boxmodel.BoxModel):
 	# tuples to regular variable names with subscripts
 	bm_to_vars = lambda e: e.substitute_function( bm_param, param_namer ).substitute_function( bm_state, vertex_namer )
 	def bind_edges( edges, bindings ):
+            #return [ ( bm_to_vars(v), bm_to_vars(w), be ) for v,w,e in edges for be in [ bindings(bm_to_vars(e)) ] if be != 0 ]
 	    print 'here is bindings:', bindings
 	    for v, w, e in edges:
+                print v,w,e
 	        be = bindings(bm_to_vars(e))
-		print 'bind', e, 'to', bm_to_vars(e), 'to', be
+	        print 'bind', e, 'to', bm_to_vars(e), 'to', be
 	        if be != 0: yield ( bm_to_vars(v), bm_to_vars(w), be )
+        print 'graph edges:', self._graph.edges()
+	flow_edges = list( bind_edges( self._graph.edges(), bindings ) )
+        print 'flow edges:', flow_edges
 	self._flow_graph = DiGraph(
-	    list( bind_edges( self._graph.edge_iterator(), bindings ) ),
+            flow_edges,
 	    multiedges=True
 	)
 	self._flow_graph.set_latex_options( edge_labels=True, vertex_shape='rectangle' )
@@ -322,7 +327,7 @@ class CompositeBoxModel(boxmodel.BoxModel):
 	    self._vars
 	)
     def aggregate_compartments( self, compartment_aggregation=default_compartment_aggregation,
-	    param_namer_after=lambda *x:x,
+	    param_namer_after=lambda *x:dynamicalsystems.subscriptedsymbol(*x),
 	    vertex_namer_after=default_vertex_namer ):
         aggregate = {}
         for vt in self._graph.vertex_iterator():
@@ -336,6 +341,7 @@ class CompositeBoxModel(boxmodel.BoxModel):
 	    for _,w,e in self._graph.outgoing_edge_iterator(v):
 		aw = bm_state( *compartment_aggregation( w.operands() ) )
 	        flow_sums[av].setdefault( aw, SR(0) )
+		print 'substitute:', e
 		es = e.substitute_function( bm_param, param_namer_after ).substitute_function( bm_state, self._vertex_namer )
 		print 'substitute:', e, '|||', es
 	        flow_sums[av][aw] += es
@@ -417,8 +423,8 @@ class BoxModelProduct(CompositeBoxModel):
 	param_relabeling =      kwargs.pop( 'param_relabeling', default_param_relabeling )
 	edge_generator =        kwargs.pop( 'edge_generator', default_edge_generator )
 	single_edge_generator = kwargs.pop( 'single_edge_generator', None )
-	compartment_aggregation = kwargs.pop( 'compartment_aggregation',
-	    lambda x:x )
+	#compartment_aggregation = kwargs.pop( 'compartment_aggregation',
+	#    lambda x:x )
 	vertex_positioner =     kwargs.pop( 'vertex_positioner', default_vertex_positioner )
 	unary_operation =       kwargs.pop( 'unary_operation', default_sop )
 	binary_operation =      kwargs.pop( 'binary_operation', default_bop )
@@ -449,6 +455,7 @@ class BoxModelProduct(CompositeBoxModel):
 	super(BoxModelProduct,self).__init__(
 	    graph, vars_d.keys(), vertex_namer
 	)
+	print 'edges of flow graph:', self._flow_graph.edges(); sys.stdout.flush()
 
 	self._inclusion_tuples = {}
 	for vbm in self._graph.vertex_iterator():

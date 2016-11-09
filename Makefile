@@ -96,6 +96,8 @@ _pandoc/sde.% : PROJECT=SDE
 _pandoc/sde.% : TITLE=SDE
 _pandoc/LeprosyDiagram.% : PROJECT=Leprosy
 _pandoc/LeprosyDiagram.% : TITLE="Leprosy Diagram"
+_pandoc/HIVModel.% : PROJECT=HIV
+_pandoc/HIVModel.% : TITLE="HIV Model"
 
 .PRECIOUS: _pandoc/%.md _pandoc/%.tex
 

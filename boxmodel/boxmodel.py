@@ -162,7 +162,7 @@ class BoxModel(SageObject):
 	    )
 	    # this converter is defined later in this file
 	    self._sorter = sort_latex_variables( sort_order_map, order_numbers_as=(-1e+11,-1e+11), order_unknown_as=(1e+10,1e+10) )
-	print 'use', self._sorter._map, 'on', latex(ex)
+	#print 'use', self._sorter._map, 'on', latex(ex)
 	try: return self._sorter( ex )
 	except AttributeError: # ex is not an expression
 	    return ex
@@ -192,11 +192,11 @@ class BoxModel(SageObject):
 	    'edge_labels' : True,
 	    'talk' : True
 	}
-	print 'flow_graph pos:', self._flow_graph.get_pos()
+	#print 'flow_graph pos:', self._flow_graph.get_pos()
 	if 'pos' not in aargs and self._flow_graph.get_pos() is not None:
 	    vargs['pos'] = { lx(v) : p for v,p in self._flow_graph.get_pos().items() }
 	vargs.update( aargs )
-	print 'plot vargs:', vargs
+	#print 'plot vargs:', vargs
 	return lfg.plot( *args, **vargs )
     def transpose_graph_in_place( self ):
 	self._graph.set_pos( { v:(-y,-x) for v,(x,y) in self._graph.get_pos().iteritems() } )
@@ -436,7 +436,7 @@ class sort_latex_variables(dynamicalsystems.IdentityConverter):
 		    if x.is_numeric(): return self._number_order
 		    else: return self._unknown_order
 	    ll = sorted( ex.operands(), key=keyfn )
-	    print ll
+	    #print ll
 	    Msym = SR.symbol( 'M_{}'.format( ZZ.random_element(1e+10) ), latex_name=' '.join(latex(v) for v in ll) )
-            print latex(ex), ' ==> ', latex(Msym)
+            #print latex(ex), ' ==> ', latex(Msym)
             return Msym
