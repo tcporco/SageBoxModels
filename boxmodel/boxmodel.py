@@ -10,6 +10,39 @@ from sage.symbolic.function_factory import function
 class deps:
     index, sumover = range(0,2)
 
+def plot_boxmodel_graph( g, filename=None, inline=False, figsize=(6,6), empty_vertices=(), **options ):
+    lopts = {
+        'graphic_size': figsize,
+        'edge_labels': True,
+        'edge_thickness' : 0.02,
+        #'edge_fills': True,
+        #'edge_color': 'white',
+        #'edge_thickness': 0.05
+        'vertex_shape': 'rectangle',
+        'vertices_empty': { x:True for x in empty_vertices },
+        #'vertex_colors': { x:'white' for x in self._sources | self._sinks },
+        #'vertex_label_colors': { x:'white' for x in self._sources | self._sinks }
+    }
+    graph_latex_patched.setup_latex_preamble()
+    gop = graph_latex_patched.GraphLatex(g)
+    if inline:
+        lopts['margins'] = (0.5,0.5,0.5,0.5)
+    lopts.update( options )
+    #g.set_latex_options( **lopts )
+    gop.set_options( **lopts )
+    gl = gop.latex()
+    if inline:
+        #LT = '\n\\vspace{24pt}\n' + gl + '\n\\vspace{24pt}\n'
+        LT = gl
+    else:
+        LT = _latex_file_( dynamicalsystems.wrap_latex( gl ), title='' )
+    if filename is not None:
+        #print 'plot to', filename
+        LF = open( filename, 'w' )
+        LF.write( LT )
+        LF.close()
+    return LT
+
 class BoxModel(SageObject):
     """Parent class for all kinds of box models.
     Note that since this gets its variables from a graph's vertices,
@@ -33,7 +66,6 @@ class BoxModel(SageObject):
 	    graph = DiGraph(graph)
 	self._graph = graph
 	self._graph.set_latex_options( edge_labels=True )
-	self._graph.set_latex_options( vertex_shape='rectangle' )
 	self._sources = set( sources )
 	self._sinks = set( sinks )
 	if vars is None:
@@ -130,54 +162,26 @@ class BoxModel(SageObject):
 	    )
 	    # this converter is defined later in this file
 	    self._sorter = sort_latex_variables( sort_order_map, order_numbers_as=(-1e+11,-1e+11), order_unknown_as=(1e+10,1e+10) )
-	print 'use', self._sorter._map, 'on', latex(ex)
+	#print 'use', self._sorter._map, 'on', latex(ex)
 	try: return self._sorter( ex )
 	except AttributeError: # ex is not an expression
 	    return ex
-    def tikz_boxes( self, raw=False, inline=False, figsize=(6,6), transform_graph=lambda x:x, **options ):
+    def plot_boxes( self, filename=None, raw=False, inline=False, figsize=(6,6), transform_graph=None, **options ):
 	if raw:
 	    g = self._graph
 	else:
 	    g = self._flow_graph
 	## apply the user-supplied transform if any
-	g = transform_graph(g)
+        if transform_graph is not None:
+            g = transform_graph(g)
 	## tweak the latex representation of the rates
 	g = DiGraph(
-	    [ (v,w,self.reorder_latex_variables(e)) for v,w,e in g.edge_iterator() ],
+	    [ self._vars, [ (v,w,self.reorder_latex_variables(e)) for v,w,e in g.edge_iterator() ] ],
+            format='vertices_and_edges',
 	    pos = g.get_pos(),
 	    multiedges=True
 	)
-	lopts = {
-	    'graphic_size': figsize,
-	    'edge_labels': True,
-	    'edge_thickness' : 0.02,
-	    #'edge_fills': True,
-	    #'edge_color': 'white',
-	    #'edge_thickness': 0.05
-	    'vertices_empty': { x:True for x in self._sources | self._sinks },
-	    #'vertex_colors': { x:'white' for x in self._sources | self._sinks },
-	    #'vertex_label_colors': { x:'white' for x in self._sources | self._sinks }
-	}
-	graph_latex_patched.setup_latex_preamble()
-	gop = graph_latex_patched.GraphLatex(g)
-	if inline:
-	    lopts['margins'] = (0.5,0.5,0.5,0.5)
-	lopts.update( options )
-	#g.set_latex_options( **lopts )
-	gop.set_options( **lopts )
-	gl = gop.latex()
-	if inline:
-	    #return '\n\\vspace{24pt}\n' + gl + '\n\\vspace{24pt}\n'
-	    return gl
-	return _latex_file_( dynamicalsystems.wrap_latex( gl ), title='' )
-    def plot_boxes( self, filename=None, raw=False, inline=False, **options ):
-	# new Tikz/SVG code
-	#print 'plot to', filename
-        LF = open( filename, 'w' )
-	LT = self.tikz_boxes( raw, inline, **options )
-	LF.write( LT )
-        LF.close()
-	return LT
+	return plot_boxmodel_graph( g, filename=filename, inline=inline, figsize=figsize, empty_vertices=self._sources | self._sinks, **options )
     def plot( self, *args, **aargs ):
 	def lx(s): return '$%s$'%latex(s)
 	lfg = DiGraph(
@@ -188,11 +192,11 @@ class BoxModel(SageObject):
 	    'edge_labels' : True,
 	    'talk' : True
 	}
-	print 'flow_graph pos:', self._flow_graph.get_pos()
+	#print 'flow_graph pos:', self._flow_graph.get_pos()
 	if 'pos' not in aargs and self._flow_graph.get_pos() is not None:
 	    vargs['pos'] = { lx(v) : p for v,p in self._flow_graph.get_pos().items() }
 	vargs.update( aargs )
-	print 'plot vargs:', vargs
+	#print 'plot vargs:', vargs
 	return lfg.plot( *args, **vargs )
     def transpose_graph_in_place( self ):
 	self._graph.set_pos( { v:(-y,-x) for v,(x,y) in self._graph.get_pos().iteritems() } )
@@ -432,7 +436,7 @@ class sort_latex_variables(dynamicalsystems.IdentityConverter):
 		    if x.is_numeric(): return self._number_order
 		    else: return self._unknown_order
 	    ll = sorted( ex.operands(), key=keyfn )
-	    print ll
+	    #print ll
 	    Msym = SR.symbol( 'M_{}'.format( ZZ.random_element(1e+10) ), latex_name=' '.join(latex(v) for v in ll) )
-            print latex(ex), ' ==> ', latex(Msym)
+            #print latex(ex), ' ==> ', latex(Msym)
             return Msym
