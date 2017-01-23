@@ -191,8 +191,8 @@ class BoxModel(SageObject):
 	g = DiGraph(
 	    [ self._vars, [ (v,w,self.reorder_latex_variables(e)) for v,w,e in g.edge_iterator() ] ],
             format='vertices_and_edges',
-	    pos = g.get_pos(),
-	    multiedges=True
+	    multiedges=True,
+	    pos = g.get_pos()
 	)
 	return plot_boxmodel_graph( g, filename=filename, inline=inline, figsize=figsize, empty_vertices=self._sources | self._sinks, **options )
     def plot( self, *args, **aargs ):
@@ -222,6 +222,7 @@ class BoxModel(SageObject):
     def aggregate_compartments( self, compartment_aggregation ):
         aggregate = {}
         for vt in self._graph.vertex_iterator():
+            ## what if vt is simple and doesn't have operands
             aggregate.setdefault( tuple( compartment_aggregation( vt.operands() ) ), [] ).append( vt.operands() )
         ## aggregate is { new vertex: [old vertices], ... }
         print 'aggregate:', aggregate
@@ -277,7 +278,13 @@ class BoxModel(SageObject):
 	print 'apos', apos
         return boxmodel.BoxModel( DiGraph( agg_graph_dict, pos=apos ), agg_vars )
     def combine_arrows( self ):
-	return self.aggregate_compartments( lambda x:x )
+	#return self.aggregate_compartments( lambda x:x )
+        d = {}
+        for v,w,r in self._graph.edge_iterator():
+            d[(v,w)] = d.get( (v,w), 0 ) + r
+        ee = [ (v,w,r) for (v,w),r in d.iteritems() ]
+        b = BoxModel( DiGraph( ee, pos=self._graph.get_pos() ), self._vars )
+        return b
     def separate_arrows( self ):
 	plus = SR('x+1').operator()
 	def terms_iterator( e ):
@@ -474,3 +481,4 @@ class sort_latex_variables(sage.symbolic.expression_conversions.ExpressionTreeWa
             #print latex(ex), ' ==> ', lname
 	    Msym = SR.symbol( 'M_{}'.format( ZZ.random_element(1e+10) ), latex_name=lname )
             return Msym
+        return super(sort_latex_variables,self).arithmetic(ex,operator)

@@ -50,7 +50,9 @@ def N_namer( *ss ):
 # between for instance the S class from the first model and the I class
 # from the second model, we need more detailed subscripting, see below.
 def default_param_relabeling( *vtuple ):
-    #print 'simple param relabeling', vtuple
+    pairwise = iter(vtuple[1:-1])
+    lp = list( zip( pairwise, pairwise ) )
+    print 'simple param relabeling', vtuple, lp
     pairwise = iter(vtuple[1:-1])
     return bm_param( *( (vtuple[0],) + reduce( lambda l,m:l+m, (t[:i] + t[i+1:] for t,i in zip(pairwise,pairwise) ) ) ) )
 
@@ -146,6 +148,7 @@ def default_single_edge_stratifier(
 	    s_inclusions = inclusions( source, V, i )
 	    #print 'inclusions(', source, ',', V, ',', i, ') => ', s_inclusions
 	    for iota in s_inclusions:
+                print V, ' => bm_state( *', compartment_renaming( *V ), ')'
 		repl = { source: bm_state( *compartment_renaming( *V ) ) }
 	        ws = unary_operation( V, iota, source, target, rate )
 		#print 'unary op( ', V, ', ', iota, ',', source, ', ', target, ', ', rate, ') => ', ws
@@ -298,7 +301,7 @@ class CompositeBoxModel(boxmodel.BoxModel):
             flow_graph=None,
             vars=None,
 	    vertex_namer=x_namer,
-	    param_relabeling=dynamicalsystems.subscriptedsymbol,
+	    param_namer=dynamicalsystems.subscriptedsymbol,
 	    bindings=dynamicalsystems.Bindings()
 	):
 
@@ -310,7 +313,7 @@ class CompositeBoxModel(boxmodel.BoxModel):
 
         if vars is None or flow_graph is None:
             v_subs = SubstituteFunctionByName( 'bm_state', vertex_namer )
-            p_subs = SubstituteFunctionByName( 'bm_param', param_relabeling )
+            p_subs = SubstituteFunctionByName( 'bm_param', param_namer )
             vertex_labels = { v: v_subs(v) for v in self._graph.vertex_iterator() }
 
         if flow_graph is not None:
@@ -341,7 +344,7 @@ class CompositeBoxModel(boxmodel.BoxModel):
             self._vars = vertex_labels.values()
 	self._var_tuples = var_tuples
 	self._vertex_namer = vertex_namer
-	self._param_relabeling = param_relabeling
+	self._param_namer = param_namer
         print 'extract parameters from rates'
         self.assign_parameters()
 	self._bindings = bindings
@@ -373,11 +376,11 @@ class CompositeBoxModel(boxmodel.BoxModel):
         #    flow_graph=DiGraph( [ (v,w,b(e)) for v,w,e in self._flow_graph.edge_iterator() ], multiedges=True ),
         #    vars=self._vars,
 	#    vertex_namer=self._vertex_namer,
-	#    param_relabeling=self._param_relabeling,
+	#    param_namer=self._param_namer,
 	#    bindings=self._bindings + b
 	#)
     def combine_arrows( self ):
-	return self.aggregate_compartments( lambda x:tuple(x), self._param_relabeling, self._vertex_namer )
+	return self.aggregate_compartments( lambda x:tuple(x), self._param_namer, self._vertex_namer )
     def separate_arrows( self ):
 	plus = SR(x+1).operator()
 	def arrow_iterator( e ):
@@ -409,7 +412,7 @@ class CompositeBoxModel(boxmodel.BoxModel):
 		aw = bm_state( *compartment_aggregation( w.operands() ) )
 	        flow_sums[av].setdefault( aw, SR(0) )
 		#print 'substitute:', e
-		es = e.substitute_function( bm_param, param_relabeling_after ).substitute_function( bm_state, self._vertex_namer )
+		es = e.substitute_function( bm_param, param_relabeling_after ).substitute_function( bm_state, self._vertex_namer ).substitute_function( bm_param, self._param_namer )
 		#print 'substitute:', e, '|||', es
 	        flow_sums[av][aw] += es
 	## flow_sums[av][aw] is sum of all transitions from
@@ -471,7 +474,7 @@ class CompositeBoxModel(boxmodel.BoxModel):
 	# returns a new BoxModel.  trs is a list of (source,target,rate)
 	# tuples suitable for adding to self._graph (rather than _flow_graph).
 	fg = deepcopy(self._flow_graph)
-	bm_to_vars = lambda e: e.substitute_function( bm_state, self._vertex_namer).substitute_function( bm_param, self._param_relabeling )
+	bm_to_vars = lambda e: e.substitute_function( bm_state, self._vertex_namer).substitute_function( bm_param, self._param_namer )
 	fg.add_edges( [ (bm_to_vars(v), bm_to_vars(w), bm_to_vars(e)) for v,w,e in trs ] )
 	return boxmodel.BoxModel(
 	    fg,
@@ -490,6 +493,7 @@ class BoxModelProduct(CompositeBoxModel):
 	compartment_renaming =  kwargs.pop( 'compartment_renaming', default_compartment_renaming )
 	vertex_namer =          kwargs.pop( 'vertex_namer', default_vertex_namer )
 	param_relabeling =      kwargs.pop( 'param_relabeling', default_param_relabeling )
+        param_namer =           kwargs.pop( 'param_namer', dynamicalsystems.subscriptedsymbol )
 	edge_generator =        kwargs.pop( 'edge_generator', default_edge_generator )
 	single_edge_generator = kwargs.pop( 'single_edge_generator', None )
 	#compartment_aggregation = kwargs.pop( 'compartment_aggregation',
@@ -528,9 +532,10 @@ class BoxModelProduct(CompositeBoxModel):
 	    graph=graph,
             var_tuples=vars_d.keys(),
             vertex_namer=vertex_namer,
-            param_relabeling=param_relabeling
+            param_namer=param_namer
 	)
 	#print 'edges of flow graph:', self._flow_graph.edges(); sys.stdout.flush()
+        self._param_relabeling = param_relabeling
 
         print 'inclusion bindings'
 	self._inclusion_tuples = {}
