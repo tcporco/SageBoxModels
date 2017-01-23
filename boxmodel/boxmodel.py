@@ -149,19 +149,32 @@ class BoxModel(SageObject):
 	print 'parameters after', nbm._parameters
 	return nbm 
     def reorder_latex_variables( self, ex ):
+        #return ex
 	# Sage likes to write "I S \beta" in unicode or whatever order -
 	# we want "\beta S I", and more generally, first parameters and
 	# then compartment names, in a sort of order given by the flow
 	# of the transitions.  Here we use left-to-right, top-to-bottom
 	# order based on the positions given for compartments.
+        # this function returns a sort of pseudo-expression that's only
+        # suitable for printing, not for doing math with
 	try: self._sorter
 	except AttributeError:
 	    from collections import defaultdict
 	    sort_order_map = dict(
-	        [ (latex(vv),(pp[0],-pp[1])) for vv,pp in self._flow_graph.get_pos().items() ] + [ (latex(v),(-1e+10,-1e+10)) for v in self._parameters ]
+                ## parameters first, Greek letters before Roman
+                [ (latex(v),(T,T)) for v in self._parameters for T in [-1e+10 if latex(v)[0] == '\\' else -0.9e+10] ] +
+                ## then compartment names, in order of the graph layout
+	        [ (latex(vv),(pp[0],-pp[1])) for vv,pp in self._flow_graph.get_pos().items() ]
 	    )
 	    # this converter is defined later in this file
-	    self._sorter = sort_latex_variables( sort_order_map, order_numbers_as=(-1e+11,-1e+11), order_unknown_as=(1e+10,1e+10) )
+	    self._sorter = sort_latex_variables(
+                ## parameters then compartments
+                sort_order_map,
+                ## numbers before anything
+                order_numbers_as=(-1e+12,-1e+12),
+                ## other expressions just after numbers
+                order_unknown_as=(-1e+11,-1e+11)
+            )
 	#print 'use', self._sorter._map, 'on', latex(ex)
 	try: return self._sorter( ex )
 	except AttributeError: # ex is not an expression
@@ -267,16 +280,16 @@ class BoxModel(SageObject):
 	return self.aggregate_compartments( lambda x:x )
     def separate_arrows( self ):
 	plus = SR('x+1').operator()
-	def arrow_iterator( e ):
+	def terms_iterator( e ):
 	    e = e.expand()
 	    if e.operator() == plus:
 		for t in e.operands():
-		    for tt in arrow_iterator(t):
+		    for tt in terms_iterator(t):
 		        yield t
 	    else:
 		yield e
 	return BoxModel( DiGraph(
-		[ (v,w,ee) for v,w,e in self._graph.edge_iterator() for ee in arrow_iterator(e) ],
+		[ (v,w,ee) for v,w,e in self._graph.edge_iterator() for ee in terms_iterator(e) ],
 		pos = self._graph.get_pos(),
 		multiedges=True
 	    ),
@@ -286,10 +299,10 @@ class BoxModel(SageObject):
 	try:
             self._jump_process
 	except AttributeError:
-            print 'making BoxModel JumpProcess'
+            #print 'making BoxModel JumpProcess'
             nvars = set( self._sources ) | set( self._sinks )
             vars = [ v for v in self._vars if v not in nvars ]
-            print 'vars:',vars
+            #print 'vars:',vars
             var_index = { v:i for i,v in enumerate(vars) }
             for x in self._sources.union( self._sinks ):
                 var_index[x] = None
@@ -420,23 +433,44 @@ class MakeMicro(IdentityConverter):
 	print 'becomes', expr
 	return expr
 
-class sort_latex_variables(dynamicalsystems.IdentityConverter):
+class sort_latex_variables(sage.symbolic.expression_conversions.ExpressionTreeWalker):
     def __init__(self, sort_order_map, order_numbers_as=-oo, order_unknown_as=oo):
 	self._map = sort_order_map
 	self._number_order = order_numbers_as
 	self._unknown_order = order_unknown_as
-	return super(sort_latex_variables,self).__init__()
+	return super(sort_latex_variables,self).__init__(SR(0))
     def arithmetic(self, ex, operator):
         if operator == (2*SR.symbol('x')).operator():
+            ## sort the factors in a multiplication
 	    def keyfn(x):
 	        try:
-		    zo = self._map[latex(x)]
-		    return zo
+		    return self._map[latex(x)]
 	        except KeyError:
 		    if x.is_numeric(): return self._number_order
 		    else: return self._unknown_order
 	    ll = sorted( ex.operands(), key=keyfn )
-	    #print ll
-	    Msym = SR.symbol( 'M_{}'.format( ZZ.random_element(1e+10) ), latex_name=' '.join(latex(v) for v in ll) )
-            #print latex(ex), ' ==> ', latex(Msym)
+            minusop = (SR.symbol('x')-1).operator() # it's actually +
+            rev = [ e for e in ll if e.operator() == minusop ] if -1 in ll else []
+            if len( rev ) > 0:
+                ll = [ e for e in ll if e != -1 ]
+            denom = [ d for d in ll if
+                d.operator()==(1/SR.symbol('x')).operator()
+                and d.operands()[1] == SR(-1)
+            ]
+            def to_lx( ex ):
+                if ex in denom: return ''
+                if ex.operator() == minusop:
+                    if ex in rev:
+                        return r'\left({}-{}\right)'.format(latex(-ex.operands()[1]),latex(ex.operands()[0]))
+                    else:
+                        return ''.join(r'\left(',latex(ex),r'\right)')
+                if ex.operator() == (SR.symbol('x')+1).operator():
+                    return r'\left({}\right)'.format('+'.join(ex.operands()))
+                return latex(ex)
+            lname = ' '.join(to_lx(v) for v in ll)
+            if len(denom) > 0:
+                lden = ' '.join(to_lx(v.operands()[0]) for v in denom)
+                lname = r'\frac{'+lname+'}{'+lden+'}'
+            #print latex(ex), ' ==> ', lname
+	    Msym = SR.symbol( 'M_{}'.format( ZZ.random_element(1e+10) ), latex_name=lname )
             return Msym
