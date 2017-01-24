@@ -11,6 +11,7 @@ class deps:
     index, sumover = range(0,2)
 
 def plot_boxmodel_graph( g, filename=None, inline=False, figsize=(6,6), empty_vertices=(), **options ):
+    print 'empty vertices:', empty_vertices
     lopts = {
         'graphic_size': figsize,
         'edge_labels': True,
@@ -194,7 +195,8 @@ class BoxModel(SageObject):
 	    multiedges=True,
 	    pos = g.get_pos()
 	)
-	return plot_boxmodel_graph( g, filename=filename, inline=inline, figsize=figsize, empty_vertices=self._sources | self._sinks, **options )
+        print 'plot_boxes, sources', self._sources, ', sinks', self._sinks
+	return plot_boxmodel_graph( g, filename=filename, inline=inline, figsize=figsize, empty_vertices=set(self._sources) | set(self._sinks), **options )
     def plot( self, *args, **aargs ):
 	def lx(s): return '$%s$'%latex(s)
 	lfg = DiGraph(
@@ -437,7 +439,7 @@ class MakeMicro(IdentityConverter):
 			str( reduce( self._mul, args ) )
 		    )
 	expr = reduce( self._mul, margs )
-	print 'becomes', expr
+	#print 'becomes', expr
 	return expr
 
 class sort_latex_variables(sage.symbolic.expression_conversions.ExpressionTreeWalker):

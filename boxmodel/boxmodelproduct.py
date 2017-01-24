@@ -164,6 +164,8 @@ def default_single_edge_stratifier(
         import itertools
 	for V,C in itertools.chain( itertools.product(seed_set, old_set), itertools.product(old_set + seed_set, seed_set) ):
 	    #print 'consider', V, '+', C, 'at', i
+            ## don't interact with source/sink compartments
+            if not all( c in m._vars for c,m in zip(C,models) ): continue
 	    # do only the one source inclusion here to avoid duplication
 	    #s_inclusions = [ iota for iota,x in enumerate(V) if x == source and iota == i ]
 	    s_inclusions = Set( inclusions( source, V, i ) ).intersection( Set( [i] ) )
@@ -227,9 +229,10 @@ def default_edge_generator(
 	param_relabeling = full_param_relabeling
     import itertools
     if seed_set is None:
-	seed_set = Set( itertools.product( *(m._vars for m in models) ) )
+	seed_set = Set( itertools.product( *((m._vars + list(m._sources)) for m in models) ) )
     edges = []
     old_vertices = Set()
+    sourcesinks = reduce( lambda x,y:x | y, (Set(m._sources) | Set(m._sinks) for m in models), Set() )
     while not seed_set.is_empty():
         # for each edge of each model, we generate a set of derived edges
         # in the product model
@@ -253,6 +256,7 @@ def default_edge_generator(
 	# transitions involving the new vertices
         old_vertices += seed_set
         seed_set = Set( v for v,w,r in new_edges ).union( Set( w for v,w,r in new_edges ) ) - old_vertices
+        seed_set = Set( t for t in seed_set if ( Set(t) & sourcesinks == Set() ) )
 	if len(old_vertices) + len(seed_set) > 100 * reduce( lambda a,b:a*b, ( len(m._vars) for m in models ) ):
             #print len(old_vertices) + len(seed_set), ', more than ', 100 * reduce( lambda a,b:a*b, ( len(m._vars) for m in models ) ), ' compartments'; sys.stdout.flush()
 	    raise RuntimeError, 'Recursion produces too many compartments'
@@ -298,8 +302,12 @@ class CompositeBoxModel(boxmodel.BoxModel):
 	    self,
 	    graph,
 	    var_tuples,
+            source_tuples=[],
+            sink_tuples=[],
             flow_graph=None,
             vars=None,
+            sources=None,
+            sinks=None,
 	    vertex_namer=x_namer,
 	    param_namer=dynamicalsystems.subscriptedsymbol,
 	    bindings=dynamicalsystems.Bindings()
@@ -325,7 +333,7 @@ class CompositeBoxModel(boxmodel.BoxModel):
                 for v, w, e in edges:
                     #print e
                     be = bindings(p_subs(v_subs(e)))
-                    print be
+                    #print be
                     if be != 0: yield ( vertex_labels[v], vertex_labels[w], be )
             flow_edges = list( bind_edges( self._graph.edge_iterator(), bindings ) )
             #print 'flow edges:', flow_edges
@@ -338,19 +346,27 @@ class CompositeBoxModel(boxmodel.BoxModel):
             if positions is not None:
                 self._flow_graph.set_pos( { vertex_labels[v]:pos for v,pos in positions.items() } )
 
+	self._var_tuples = var_tuples
         if vars is not None:
             self._vars = vars
         else:
-            self._vars = vertex_labels.values()
-	self._var_tuples = var_tuples
+            self._vars = [ vertex_labels[v] for v in var_tuples ] #vertex_labels.values()
+        self._source_tuples = source_tuples
+        if sources is not None:
+            self._sources = sources
+        else:
+            self._sources = [ vertex_labels[v] for v in source_tuples ]
+        self._sink_tuples = sink_tuples
+        if sinks is not None:
+            self._sinks = sinks
+        else:
+            self._sinks = [ vertex_labels[v] for v in sink_tuples ]
+        print 'vars', self._vars, ' sources', self._sources, 'sinks', self._sinks
 	self._vertex_namer = vertex_namer
 	self._param_namer = param_namer
         print 'extract parameters from rates'
         self.assign_parameters()
 	self._bindings = bindings
-	## no sources/sinks for now
-	self._sources = set()
-	self._sinks = set()
     def assign_parameters(self):
 	# now infer the composite parameters
 	# TODO: do this right
@@ -517,6 +533,61 @@ class BoxModelProduct(CompositeBoxModel):
 	    inclusions=inclusions,
 	    seed_set=seed_set
 	) )
+
+        print 'separate vars, sources, sinks'
+	from collections import OrderedDict
+	all_vars_d = OrderedDict( (v,None) for v,w,e in edges )
+	all_vars_d.update( (w,None) for v,w,e in edges )
+        print all_vars_d.keys()
+        vars_d, sources_s, sinks_s = OrderedDict(), set(), set()
+        sources = reduce( lambda x,y: x | y, (set(m._sources) for m in models), set() )
+        sinks = reduce( lambda x,y: x | y, (set(m._sinks) for m in models), set() )
+        for t in all_vars_d.keys():
+            if any( v in sources for v in t.operands() ):
+                sources_s.add( t )
+            elif any( v in sinks for v in t.operands() ):
+                sinks_s.add( t )
+            else:
+                vars_d[t] = None
+        print vars_d.keys()
+        print sources_s
+        print sinks_s
+
+        print 'make vars from tuples'
+	# are vertices from product of graphs?
+	#representative_tuple = self._graph.vertex_iterator().next().operands()
+        if False:
+            ## don't do this, for now
+            if all( len( tup.operands() ) == len( models ) and all( v in m._vars for v,m in zip( tup.operands(), models ) ) for tup in graph.vertex_iterator() ):
+                # make list of variables, in order, by taking product
+                import itertools
+                varset = set()
+                self._vars = []
+                self._tuples = []
+                for vs in itertools.product( *(m._vars for m in models) ):
+                    t = compartment_renaming( *vs )
+                    v = vertex_namer( *t )
+                    if v not in varset:
+                        varset.add(v)
+                        self._vars.append(v)
+                        self._tuples.append( bm_state( *t ) )
+                #print 'made tuples:', self._tuples
+                print 'vars is:', self._vars
+            else:
+                # no - the edge generator gave us some other set of vertices
+                def bmize(ex):
+                    # extract operands # from what?
+                    ooo = ex.operands()
+                    if ooo: return bm_state(*ooo)
+                    else: return ex
+                self._tuples = [ bmize(t) for t in graph.vertices() ]
+                #print 'sorted tuples:', self._tuples
+                self._vars = [ t.substitute_function(bm_state,vertex_namer) for t in self._tuples ]
+                print 'gives vars:', self._vars
+
+        ## suppress edges between source/sink compartments
+        edges = [ (v,w,e) for v,w,e in edges if v in vars_d or w in vars_d ]
+
 	#print 'edges for product graph:', edges; sys.stdout.flush()
 	graph = DiGraph( edges, multiedges=True )
 
@@ -525,12 +596,11 @@ class BoxModelProduct(CompositeBoxModel):
 	graph.set_pos( vertex_positioner( graph, models ) )
 
         print 'super'
-	from collections import OrderedDict
-	vars_d = OrderedDict( (v,None) for v,w,e in edges )
-	vars_d.update( (w,None) for v,w,e in edges )
 	super(BoxModelProduct,self).__init__(
 	    graph=graph,
             var_tuples=vars_d.keys(),
+            source_tuples=sources_s,
+            sink_tuples=sinks_s,
             vertex_namer=vertex_namer,
             param_namer=param_namer
 	)
@@ -552,36 +622,6 @@ class BoxModelProduct(CompositeBoxModel):
 	}
 	for k,vl in self._inclusion_variables.iteritems():
 	    self._bindings.merge_in_place( k = sum( vl ) )
-
-        print 'make vars from tuples'
-	# are vertices from product of graphs?
-	#representative_tuple = self._graph.vertex_iterator().next().operands()
-	if all( len( tup ) == len( models ) and all( v in m._vars for v,m in zip( tup.operands(), models ) ) for tup in self._graph.vertex_iterator() ):
-	    # make list of variables, in order, by taking product
-            import itertools
-	    varset = set()
-	    self._vars = []
-	    self._tuples = []
-	    for vs in itertools.product( *(m._vars for m in models) ):
-	        t = compartment_renaming( *vs )
-	        v = vertex_namer( *t )
-	        if v not in varset:
-		    varset.add(v)
-		    self._vars.append(v)
-		    self._tuples.append( bm_state( *t ) )
-	    #print 'made tuples:', self._tuples
-	    #print 'vars is:', self._vars
-	else:
-	    # no - the edge generator gave us some other set of vertices
-	    def bmize(ex):
-		# extract operands # from what?
-		ooo = ex.operands()
-		if ooo: return bm_state(*ooo)
-		else: return ex
-	    self._tuples = [ bmize(t) for t in self._graph.vertices() ]
-	    #print 'sorted tuples:', self._tuples
-	    self._vars = [ t.substitute_function(bm_state,vertex_namer) for t in self._tuples ]
-	    #print 'gives vars:', self._vars
 
 def default_sop_strong( s_tuple, iset, eis ):
     # return set of t_tuples
@@ -695,9 +735,11 @@ def strong_edge_generator(
 	param_relabeling = full_param_relabeling
     import itertools
     if seed_set is None:
-	seed_set = Set( itertools.product( *(m._vars for m in models) ) )
+	seed_set = Set( itertools.product( *((m._vars + list(m._sources)) for m in models) ) )
+    print 'seed set', seed_set
     edges = []
     old_vertices = Set()
+    sourcesinks = Set( sum( list(m._sources | m._sinks) for m in models ) )
     while not seed_set.is_empty():
         # for each edge of each model, we generate a set of derived edges
         # in the product model
@@ -718,12 +760,17 @@ def strong_edge_generator(
 	    for eis in itertools.product( *([(e,i) for e in models[i]._graph.edge_iterator()] for i in iset) )
         ] ) )
 	edges += new_edges
+        print 'new edges', new_edges
 	# the edges returned may involve vertices we didn't anticipate
 	# so we expand our set of vertices dynamically
 	# in which case, we have to do the generation again to include
 	# transitions involving the new vertices
         old_vertices += seed_set
         seed_set = Set( v for v,w,r in new_edges ).union( Set( w for v,w,r in new_edges ) ) - old_vertices
+        print 'seed set becomes', seed_set
+        # but not vertices made from source and sink compartments
+        seed_set = Set( [ t for t in seed_set if Set(t) & sourcesinks == Set() ] )
+        print 'or actually', seed_set
 	if len(old_vertices) + len(seed_set) > 100 * product( len(m._vars) for m in models ):
             #print len(old_vertices) + len(seed_set), ', more than ', 100 * product( len(m._vars) for m in models ), ' compartments'; sys.stdout.flush()
 	    raise RuntimeError, 'Recursion produces too many compartments'
