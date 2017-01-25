@@ -472,7 +472,7 @@ class sort_latex_variables(sage.symbolic.expression_conversions.ExpressionTreeWa
                     if ex in rev:
                         return r'\left({}-{}\right)'.format(latex(-ex.operands()[1]),latex(ex.operands()[0]))
                     else:
-                        return ''.join(r'\left(',latex(ex),r'\right)')
+                        return ''.join( (r'\left(',latex(ex),r'\right)') )
                 if ex.operator() == (SR.symbol('x')+1).operator():
                     return r'\left({}\right)'.format('+'.join(ex.operands()))
                 return latex(ex)

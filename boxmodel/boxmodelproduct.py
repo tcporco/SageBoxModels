@@ -318,11 +318,13 @@ class CompositeBoxModel(boxmodel.BoxModel):
 
 	# for consumption by humans and math software, we map vertex
 	# tuples to regular variable names with subscripts
-
-        if vars is None or flow_graph is None:
-            v_subs = SubstituteFunctionByName( 'bm_state', vertex_namer )
-            p_subs = SubstituteFunctionByName( 'bm_param', param_namer )
-            vertex_labels = { v: v_subs(v) for v in self._graph.vertex_iterator() }
+        v_subs = SubstituteFunctionByName( 'bm_state', vertex_namer )
+        p_subs = SubstituteFunctionByName( 'bm_param', param_namer )
+        ## because of suppression of source-sink edges there may be
+        ## variables in these three collections that aren't in the
+        ## graph
+        vertex_labels = { v: v_subs(v) for v in Set( var_tuples ) | Set( source_tuples ) | Set( sink_tuples ) }
+        print 'vertex labels has', vertex_labels.keys()
 
         if flow_graph is not None:
             self._flow_graph = flow_graph
@@ -396,7 +398,13 @@ class CompositeBoxModel(boxmodel.BoxModel):
 	#    bindings=self._bindings + b
 	#)
     def combine_arrows( self ):
-	return self.aggregate_compartments( lambda x:tuple(x), self._param_namer, self._vertex_namer )
+        d = {}
+        for v,w,r in self._flow_graph.edge_iterator():
+            d[(v,w)] = d.get( (v,w), 0 ) + r
+        ee = [ (v,w,r) for (v,w),r in d.iteritems() ]
+        b = boxmodel.BoxModel( DiGraph( ee, pos=self._flow_graph.get_pos() ), self._vars, sources=self._sources, sinks=self._sinks )
+        return b
+	#return self.aggregate_compartments( lambda x:tuple(x), self._param_namer, self._vertex_namer )
     def separate_arrows( self ):
 	plus = SR(x+1).operator()
 	def arrow_iterator( e ):
@@ -553,7 +561,7 @@ class BoxModelProduct(CompositeBoxModel):
         print sources_s
         print sinks_s
 
-        print 'make vars from tuples'
+        #print 'make vars from tuples'
 	# are vertices from product of graphs?
 	#representative_tuple = self._graph.vertex_iterator().next().operands()
         if False:
@@ -657,7 +665,7 @@ def default_strong_edge_bundle_generator(
     # who cares? assume this will only be used to combine
     # instances of the same transition, in a power of a single
     # model.
-    if len( Set( (r for ((w,v,r),i) in eis) ) ) != 1:
+    if len( Set( (r for (w,v,r),i in eis) ) ) != 1:
         raise RuntimeError, 'overwhelming rate construction problem involving transitions '+str(eis)
     # else: do the replacement in the one rate
     (source,target,rate),i = eis[0]
@@ -668,7 +676,7 @@ def default_strong_edge_bundle_generator(
     if rate_comps == [source]:
 	for V in seed_set:
 	    if all( i in inclusions( v, V, i ) for (v,w,r),i in eis ):
-		repl = { v: bm_state( *compartment_renaming( *V ) ) }
+		repl = { V: bm_state( *compartment_renaming( *V ) ) }
 	        for W in unary_operation( V, [i for e,i in eis], eis ):
 		    #print W
 		    # TODO: param_namer
@@ -739,7 +747,7 @@ def strong_edge_generator(
     print 'seed set', seed_set
     edges = []
     old_vertices = Set()
-    sourcesinks = Set( sum( list(m._sources | m._sinks) for m in models ) )
+    sourcesinks = reduce( lambda x,y:x|y, (Set(m._sources) | Set(m._sinks) for m in models), Set() )
     while not seed_set.is_empty():
         # for each edge of each model, we generate a set of derived edges
         # in the product model
@@ -771,7 +779,7 @@ def strong_edge_generator(
         # but not vertices made from source and sink compartments
         seed_set = Set( [ t for t in seed_set if Set(t) & sourcesinks == Set() ] )
         print 'or actually', seed_set
-	if len(old_vertices) + len(seed_set) > 100 * product( len(m._vars) for m in models ):
+	if len(old_vertices) + len(seed_set) > 100 * reduce( lambda a,b:a*b, ( len(m._vars) for m in models ) ):
             #print len(old_vertices) + len(seed_set), ', more than ', 100 * product( len(m._vars) for m in models ), ' compartments'; sys.stdout.flush()
 	    raise RuntimeError, 'Recursion produces too many compartments'
     return [ ( bm_state( *compartment_renaming( *V ) ), bm_state( *compartment_renaming( *W ) ), r ) for V,W,r in edges ]
