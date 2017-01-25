@@ -165,7 +165,7 @@ class BoxModel(SageObject):
                 ## parameters first, Greek letters before Roman
                 [ (latex(v),(T,T)) for v in self._parameters for T in [-1e+10 if latex(v)[0] == '\\' else -0.9e+10] ] +
                 ## then compartment names, in order of the graph layout
-	        [ (latex(vv),(pp[0],-pp[1])) for vv,pp in self._flow_graph.get_pos().items() ]
+	        [ (latex(vv),(-pp[1],pp[0])) for vv,pp in self._flow_graph.get_pos().items() ]
 	    )
 	    # this converter is defined later in this file
 	    self._sorter = sort_latex_variables(
