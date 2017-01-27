@@ -71,17 +71,19 @@ def default_vertex_positioner( graph, models ):
     models' graphs, in order."""
     directions = [ 0, pi/2, pi/6, pi/3 ] # will add more as needed, I guess
     rotations = [ matrix( [[cos(th),sin(th)],[-sin(th),cos(th)]] ) for th in directions ]
-    seq = { v:i for m in models for i,v in enumerate(m._vars) }
     original_positions = [
-	m._flow_graph.get_pos() if m._flow_graph.get_pos() is not None else { v:(i,0) for i,v in enumerate(m._vars) }
+	m._flow_graph.get_pos() if m._flow_graph.get_pos() is not None else { v:(i,0) for i,v in enumerate(list(m._sources) + list(m._vars) + list(m._sinks)) }
 	for m in models
     ]
     print 'default_vertex_positioner'
-    #print 'original_positions:',original_positions
+    for m in models:
+        print m._flow_graph.get_pos() if m._flow_graph.get_pos() is not None else 'None'
+    print 'original_positions:',original_positions
     positions = {
 	t : sum( r*vector(p[v]) for r,p,v in zip(rotations, original_positions, t.operands()) )
 	for t in graph.vertex_iterator()
     }
+    #seq = { v:i for m in models for i,v in enumerate(m._vars) }
     #positions = {
 	#t: [
 	#    sum(seq[v]*cos(d) for v,d in zip(t.operands(), directions)),
