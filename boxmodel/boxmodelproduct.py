@@ -658,7 +658,7 @@ def default_strong_edge_bundle_generator(
 	inclusions=tuple_inclusions
     ):
     if len(eis) == 0: return
-    #print 'old set', old_set, '/ seed set', seed_set
+    print 'old set', old_set, '/ seed set', seed_set
     # produce all product edges made from these component edges
     # what is the rate of a transition that combines some set of
     # component transitions?
@@ -666,6 +666,7 @@ def default_strong_edge_bundle_generator(
     # instances of the same transition, in a power of a single
     # model.
     if len( Set( (r for (w,v,r),i in eis) ) ) != 1:
+        print 'too many rates in', eis
         raise RuntimeError, 'overwhelming rate construction problem involving transitions '+str(eis)
     # else: do the replacement in the one rate
     (source,target,rate),i = eis[0]
@@ -676,12 +677,12 @@ def default_strong_edge_bundle_generator(
     if rate_comps == [source]:
 	for V in seed_set:
 	    if all( i in inclusions( v, V, i ) for (v,w,r),i in eis ):
-		repl = { V: bm_state( *compartment_renaming( *V ) ) }
+		repl = { source: bm_state( *compartment_renaming( *V ) ) }
 	        for W in unary_operation( V, [i for e,i in eis], eis ):
-		    #print W
 		    # TODO: param_namer
-		    repl.update( { p: param_relabeling( p, V, iota, W ) for p in rate_params } )
-		    yield ( V, W, r.subs( repl ) )
+		    repl.update( { p: param_relabeling( p, V, [i for e,i in eis], W ) for p in rate_params } )
+		    #print V, eis, '=>', W, repl, r.subs(repl)
+		    yield ( V, W, rate.subs( repl ) )
     elif len(rate_comps) == 2 and source in rate_comps:
 	catalyst, = set(rate_comps) - set([source])
         import itertools
@@ -729,7 +730,7 @@ def strong_edge_generator(
 	vertex_namer, param_relabeling, compartment_renaming,
 	single_edge_generator=None,
 	seed_set=None, cross_interactions=True,
-	unary_operation=default_sop, binary_operation=default_bop,
+	unary_operation=default_sop_strong, binary_operation=default_bop,
 	inclusions=tuple_inclusions
     ):
     if single_edge_generator is None:
