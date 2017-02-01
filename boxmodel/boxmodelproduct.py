@@ -142,7 +142,7 @@ def default_single_edge_stratifier(
         try: return r.variables()
         except AttributeError: return []
     rate_comps = [ x for x in getvars(rate) if x in models[i]._vars ]
-    rate_params = set( getvars(rate) ) - set( rate_comps )
+    rate_params = Set( getvars(rate) ) - Set( rate_comps )
     #print 'rate_comps ', rate_comps, ', rate_params ', rate_params; sys.stdout.flush()
     # we can handle constant, linear or bilinear transitions
     if rate_comps == [] or rate_comps == [source]:
@@ -162,7 +162,7 @@ def default_single_edge_stratifier(
 		    yield ( V, W, r )
     elif ( (len(rate_comps) == 2 and source in rate_comps) or
             (len(rate_comps) == 1 and source not in rate_comps) ):
-	catalyst, = set(rate_comps) - set([source])
+	catalyst, = Set(rate_comps) - Set([source])
         import itertools
 	for V,C in itertools.chain( itertools.product(seed_set, old_set), itertools.product(old_set + seed_set, seed_set) ):
 	    #print 'consider', V, '+', C, 'at', i
@@ -234,7 +234,7 @@ def default_edge_generator(
 	seed_set = Set( itertools.product( *((m._vars + list(m._sources)) for m in models) ) )
     edges = []
     old_vertices = Set()
-    sourcesinks = reduce( lambda x,y:x | y, (Set(m._sources) | Set(m._sinks) for m in models), Set() )
+    sourcesinks = reduce( lambda x,y:x | y, (m._sources | m._sinks for m in models), Set() )
     while not seed_set.is_empty():
         # for each edge of each model, we generate a set of derived edges
         # in the product model
@@ -325,7 +325,7 @@ class CompositeBoxModel(boxmodel.BoxModel):
         ## because of suppression of source-sink edges there may be
         ## variables in these three collections that aren't in the
         ## graph
-        vertex_labels = { v: v_subs(v) for v in Set( var_tuples ) | Set( source_tuples ) | Set( sink_tuples ) }
+        vertex_labels = { v: v_subs(v) for v in Set( var_tuples ) | Set( source_tuples ) | Set( sink_tuples ) | Set( self._graph.vertex_iterator() ) }
         print 'vertex labels has', vertex_labels.keys()
 
         if flow_graph is not None:
@@ -348,7 +348,7 @@ class CompositeBoxModel(boxmodel.BoxModel):
             self._flow_graph.set_latex_options( edge_labels=True, vertex_shape='rectangle' )
             positions = self._graph.get_pos()
             if positions is not None:
-                self._flow_graph.set_pos( { vertex_labels[v]:pos for v,pos in positions.items() } )
+                self._flow_graph.set_pos( { vertex_labels[v]:positions[v] for v in vertex_labels.iterkeys() } )
 
 	self._var_tuples = var_tuples
         if vars is not None:
@@ -357,14 +357,14 @@ class CompositeBoxModel(boxmodel.BoxModel):
             self._vars = [ vertex_labels[v] for v in var_tuples ] #vertex_labels.values()
         self._source_tuples = source_tuples
         if sources is not None:
-            self._sources = sources
+            self._sources = Set( sources )
         else:
-            self._sources = [ vertex_labels[v] for v in source_tuples ]
+            self._sources = Set( vertex_labels[v] for v in source_tuples )
         self._sink_tuples = sink_tuples
         if sinks is not None:
-            self._sinks = sinks
+            self._sinks = Set( sinks )
         else:
-            self._sinks = [ vertex_labels[v] for v in sink_tuples ]
+            self._sinks = Set( vertex_labels[v] for v in sink_tuples )
         print 'vars', self._vars, ' sources', self._sources, 'sinks', self._sinks
 	self._vertex_namer = vertex_namer
 	self._param_namer = param_namer
@@ -377,7 +377,7 @@ class CompositeBoxModel(boxmodel.BoxModel):
 	def getvars(r):
 	    try: return r.variables()
 	    except AttributeError: return []
-	self._parameters = reduce( lambda x,y: set(x).union(y), (getvars(r) for f,t,r in self._flow_graph.edges()), set() ).difference( self._vars )
+	self._parameters = reduce( lambda x,y: Set(x).union(y), (Set(getvars(r)) for f,t,r in self._flow_graph.edges()), Set() ).difference( Set( self._vars ) )
 	#print 'parameters:', self._parameters
     def bind(self, *args, **vargs):
         b = dynamicalsystems.Bindings( *args, **vargs )
@@ -390,15 +390,6 @@ class CompositeBoxModel(boxmodel.BoxModel):
         d._bindings = d._bindings + b
         d.assign_parameters()
         return d
-	#return CompositeBoxModel(
-	#    graph=self._graph,
-	#    var_tuples=self._var_tuples,
-        #    flow_graph=DiGraph( [ (v,w,b(e)) for v,w,e in self._flow_graph.edge_iterator() ], multiedges=True ),
-        #    vars=self._vars,
-	#    vertex_namer=self._vertex_namer,
-	#    param_namer=self._param_namer,
-	#    bindings=self._bindings + b
-	#)
     def combine_arrows( self ):
         d = {}
         for v,w,r in self._flow_graph.edge_iterator():
@@ -549,9 +540,9 @@ class BoxModelProduct(CompositeBoxModel):
 	all_vars_d = OrderedDict( (v,None) for v,w,e in edges )
 	all_vars_d.update( (w,None) for v,w,e in edges )
         print all_vars_d.keys()
-        vars_d, sources_s, sinks_s = OrderedDict(), set(), set()
-        sources = reduce( lambda x,y: x | y, (set(m._sources) for m in models), set() )
-        sinks = reduce( lambda x,y: x | y, (set(m._sinks) for m in models), set() )
+        vars_d, sources_s, sinks_s = OrderedDict(), Set(), Set()
+        sources = reduce( lambda x,y: x | y, (m._sources for m in models), Set() )
+        sinks = reduce( lambda x,y: x | y, (m._sinks for m in models), Set() )
         for t in all_vars_d.keys():
             if any( v in sources for v in t.operands() ):
                 sources_s.add( t )
@@ -571,7 +562,7 @@ class BoxModelProduct(CompositeBoxModel):
             if all( len( tup.operands() ) == len( models ) and all( v in m._vars for v,m in zip( tup.operands(), models ) ) for tup in graph.vertex_iterator() ):
                 # make list of variables, in order, by taking product
                 import itertools
-                varset = set()
+                varset = Set()
                 self._vars = []
                 self._tuples = []
                 for vs in itertools.product( *(m._vars for m in models) ):
@@ -674,7 +665,7 @@ def default_strong_edge_bundle_generator(
     (source,target,rate),i = eis[0]
     # list the compartments involved in the transition
     rate_comps = [ x for x in rate.variables() if x in models[i]._vars ]
-    rate_params = set( rate.variables() ) - set( rate_comps )
+    rate_params = Set( rate.variables() ) - Set( rate_comps )
     # we can handle linear or bilinear transitions
     if rate_comps == [source]:
 	for V in seed_set:
@@ -686,7 +677,7 @@ def default_strong_edge_bundle_generator(
 		    #print V, eis, '=>', W, repl, r.subs(repl)
 		    yield ( V, W, rate.subs( repl ) )
     elif len(rate_comps) == 2 and source in rate_comps:
-	catalyst, = set(rate_comps) - set([source])
+	catalyst, = Set(rate_comps) - Set([source])
         import itertools
 	for V,C in itertools.chain( itertools.product(seed_set, old_set), itertools.product(old_set + seed_set, seed_set) ):
 	    #print 'consider', V, '+', C, 'at', eis
@@ -750,7 +741,7 @@ def strong_edge_generator(
     print 'seed set', seed_set
     edges = []
     old_vertices = Set()
-    sourcesinks = reduce( lambda x,y:x|y, (Set(m._sources) | Set(m._sinks) for m in models), Set() )
+    sourcesinks = reduce( lambda x,y:x|y, (m._sources | m._sinks for m in models), Set() )
     while not seed_set.is_empty():
         # for each edge of each model, we generate a set of derived edges
         # in the product model

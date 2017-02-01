@@ -67,17 +67,17 @@ class BoxModel(SageObject):
 	    graph = DiGraph(graph)
 	self._graph = graph
 	self._graph.set_latex_options( edge_labels=True )
-	self._sources = set( sources )
-	self._sinks = set( sinks )
+	self._sources = Set( sources )
+	self._sinks = Set( sinks )
 	if vars is None:
-	    vars = list( set( graph.vertices() ) - set( sources ) - set( sinks ) )
+	    vars = list( Set( graph.vertices() ) - self._sources - self._sinks )
 	self._vars = vars
 	def getvars(r):
 	    try: return r.variables()
 	    except AttributeError: return []
 	if parameters is None:
 	    # avoid namespace confusion with boxmodelproduct.union
-	    parameters = reduce( lambda x,y: x.union(y), (getvars(r) for f,t,r in graph.edges()), set([]) ).difference( self._vars )
+	    parameters = reduce( lambda x,y: x.union(y), (Set(getvars(r)) for f,t,r in graph.edges()), Set() ).difference( Set( self._vars ) )
 	self._parameters = parameters
 	#print 'parameters:', parameters
 	self._parameter_dependencies = parameter_dependencies
@@ -112,7 +112,6 @@ class BoxModel(SageObject):
 	self._flow_graph = flow_graph
     def bind(self, *args, **vargs):
 	bindings = dynamicalsystems.Bindings( *args, **vargs )
-	# TODO: this will not bind cross product correctly
 	bound_flow_graph = DiGraph( [
 	        (bindings(v),bindings(w),bindings(e)) for v,w,e in self._flow_graph.edge_iterator()
 	    ],
@@ -122,6 +121,8 @@ class BoxModel(SageObject):
 	return BoxModel(
 	    bound_flow_graph,
 	    vars = [ bindings(v) for v in self._vars ],
+            sources = Set( bindings(v) for v in self._sources ),
+            sinks = Set( bindings(v) for v in self._sinks ),
 	    parameters = [ bindings(p) for p in self._parameters ],
 	    parameter_dependencies = {
 		bindings(p):[(bindings(d),t) for d,t in pd] for p,pd in self._parameter_dependencies.items()
@@ -144,8 +145,8 @@ class BoxModel(SageObject):
 	    try:
 		print r
 		print r.variables()
-		print set( r.variables() ).difference( self._vars )
-		nbm._parameters.update( set( r.variables() ).difference( self._vars ) )
+		print Set( r.variables() ).difference( Set( self._vars ) )
+		nbm._parameters.update( Set( r.variables() ).difference( Set( self._vars ) ) )
 	    except AttributeError: pass
 	print 'parameters after', nbm._parameters
 	return nbm 
@@ -196,7 +197,7 @@ class BoxModel(SageObject):
 	    pos = g.get_pos()
 	)
         print 'plot_boxes, sources', self._sources, ', sinks', self._sinks
-	return plot_boxmodel_graph( g, filename=filename, inline=inline, figsize=figsize, empty_vertices=set(self._sources) | set(self._sinks), **options )
+	return plot_boxmodel_graph( g, filename=filename, inline=inline, figsize=figsize, empty_vertices=self._sources | self._sinks, **options )
     def plot( self, *args, **aargs ):
 	def lx(s): return '$%s$'%latex(s)
 	lfg = DiGraph(
@@ -309,7 +310,7 @@ class BoxModel(SageObject):
             self._jump_process
 	except AttributeError:
             #print 'making BoxModel JumpProcess'
-            nvars = set( self._sources ) | set( self._sinks )
+            nvars = self._sources | self._sinks
             vars = [ v for v in self._vars if v not in nvars ]
             #print 'vars:',vars
             var_index = { v:i for i,v in enumerate(vars) }
