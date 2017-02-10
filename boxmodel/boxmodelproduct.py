@@ -150,7 +150,7 @@ def default_single_edge_stratifier(
 	    s_inclusions = inclusions( source, V, i )
 	    #print 'inclusions(', source, ',', V, ',', i, ') => ', s_inclusions
 	    for iota in s_inclusions:
-                print V, ' => bm_state( *', compartment_renaming( *V ), ')'
+                #print V, ' => bm_state( *', compartment_renaming( *V ), ')'
 		repl = { source: bm_state( *compartment_renaming( *V ) ) }
 	        ws = unary_operation( V, iota, source, target, rate )
 		#print 'unary op( ', V, ', ', iota, ',', source, ', ', target, ', ', rate, ') => ', ws
@@ -158,7 +158,7 @@ def default_single_edge_stratifier(
 		    # TODO: param_namer
 		    repl.update( { p: param_relabeling( p, V, iota, W ) for p in rate_params } )
                     r = rate.subs( repl )
-                    print r
+                    #print r
 		    yield ( V, W, r )
     elif ( (len(rate_comps) == 2 and source in rate_comps) or
             (len(rate_comps) == 1 and source not in rate_comps) ):
@@ -167,7 +167,7 @@ def default_single_edge_stratifier(
 	for V,C in itertools.chain( itertools.product(seed_set, old_set), itertools.product(old_set + seed_set, seed_set) ):
 	    #print 'consider', V, '+', C, 'at', i
             ## don't interact with source/sink compartments
-            if not all( c in m._vars for c,m in zip(C,models) ): continue
+            if any( c in m._sources or c in m._sinks for c,m in zip(C,models) ): continue
 	    # do only the one source inclusion here to avoid duplication
 	    #s_inclusions = [ iota for iota,x in enumerate(V) if x == source and iota == i ]
 	    s_inclusions = Set( inclusions( source, V, i ) ).intersection( Set( [i] ) )
@@ -188,7 +188,7 @@ def default_single_edge_stratifier(
 		        repl.update( { p: param_relabeling( p, V, iota, C, iota_, W ) for p in rate_params } )
 		        #print V, iota, C, iota_, ':', compartment_renaming( *W ), rate.subs( repl )
                         r = rate.subs( repl )
-                        print r
+                        #print r
 		        yield ( V, W, r )
 		        if V == C:
 			    # TODO: is this within-class case right in general?
@@ -196,7 +196,7 @@ def default_single_edge_stratifier(
 		            repl.update( { p: param_relabeling( p, V, iota, iota_, W ) for p in rate_params } )
                             r = rate.subs( repl ) / bm_state(*compartment_renaming(*C))
 		            #print V, iota, iota_, ':', W, r / bm_state(*C)
-                            print r
+                            #print r
 		            yield( V, W, r )
     else: # wrong variables in rate
 	raise BoxModelProductException, "Don't understand rate {0}".format(rate)
@@ -236,6 +236,7 @@ def default_edge_generator(
     old_vertices = Set()
     sourcesinks = reduce( lambda x,y:x | y, (m._sources | m._sinks for m in models), Set() )
     while not seed_set.is_empty():
+        print 'old vertices', old_vertices, 'seed set', seed_set
         # for each edge of each model, we generate a set of derived edges
         # in the product model
         new_edges = list( itertools.chain( *(
@@ -545,9 +546,9 @@ class BoxModelProduct(CompositeBoxModel):
         sinks = reduce( lambda x,y: x | y, (m._sinks for m in models), Set() )
         for t in all_vars_d.keys():
             if any( v in sources for v in t.operands() ):
-                sources_s.add( t )
+                sources_s = sources_s | Set( [ t ] )
             elif any( v in sinks for v in t.operands() ):
-                sinks_s.add( t )
+                sinks_s = sinks_s | Set( [ t ] )
             else:
                 vars_d[t] = None
         print vars_d.keys()
