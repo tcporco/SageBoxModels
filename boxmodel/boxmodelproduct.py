@@ -76,9 +76,10 @@ def default_vertex_positioner( graph, models ):
 	for m in models
     ]
     print 'default_vertex_positioner'
-    for m in models:
-        print m._flow_graph.get_pos() if m._flow_graph.get_pos() is not None else 'None'
+    #for m in models:
+    #    print m._flow_graph.get_pos() if m._flow_graph.get_pos() is not None else 'None'
     print 'original_positions:',original_positions
+    print 'vertices:', graph.vertices()
     positions = {
 	t : sum( r*vector(p[v]) for r,p,v in zip(rotations, original_positions, t.operands()) )
 	for t in graph.vertex_iterator()
@@ -334,11 +335,11 @@ class CompositeBoxModel(boxmodel.BoxModel):
         else:
             print 'create substituted graph'
             def bind_edges( edges, bindings ):
-                #print 'here is bindings:', bindings
+                print 'here is bindings:', bindings
                 for v, w, e in edges:
-                    #print e
+                    print e
                     be = bindings(p_subs(v_subs(e)))
-                    #print be
+                    print be
                     if be != 0: yield ( vertex_labels[v], vertex_labels[w], be )
             flow_edges = list( bind_edges( self._graph.edge_iterator(), bindings ) )
             #print 'flow edges:', flow_edges
@@ -622,8 +623,12 @@ class BoxModelProduct(CompositeBoxModel):
 	    k:[vertex_namer(*v) for v in vl]
 	    for k,vl in self._inclusion_tuples.iteritems()
 	}
-	for k,vl in self._inclusion_variables.iteritems():
-	    self._bindings.merge_in_place( k = sum( vl ) )
+        ## don't put them into the bindings by default because of
+        ## case where one level of product graph reuses the
+        ## compartment names from component graph
+	#for k,vl in self._inclusion_variables.iteritems():
+        #    print k, 'is sum of', vl
+	#    self._bindings.merge_in_place( { k : sum( vl ) } )
 
 def default_sop_strong( s_tuple, iset, eis ):
     # return set of t_tuples
