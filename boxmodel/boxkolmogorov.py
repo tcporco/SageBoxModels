@@ -58,7 +58,7 @@ def forward_callback( self, N, km_states, bind_state, state_index, B, p_name='p'
 	km_var( p_name, *s ) : {
 	    km_var( p_name, *(s - B[ state_index[v] ] / N + B[ state_index[w] ] / N) ) :
 		km_var( p_name, *s ) * bind_state(s)(e)
-		for v,w,e in self._flow_graph.edge_iterator()
+		for v,w,e in self._graph.edge_iterator()
 		if bind_state(s)(e) != 0
 	} for s in km_states
     }

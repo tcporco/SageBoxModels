@@ -72,12 +72,12 @@ def default_vertex_positioner( graph, models ):
     directions = [ 0, pi/2, pi/6, pi/3 ] # will add more as needed, I guess
     rotations = [ matrix( [[cos(th),sin(th)],[-sin(th),cos(th)]] ) for th in directions ]
     original_positions = [
-	m._flow_graph.get_pos() if m._flow_graph.get_pos() is not None else { v:(i,0) for i,v in enumerate(list(m._sources) + list(m._vars) + list(m._sinks)) }
+	m._graph.get_pos() if m._graph.get_pos() is not None else { v:(i,0) for i,v in enumerate(list(m._sources) + list(m._vars) + list(m._sinks)) }
 	for m in models
     ]
     print 'default_vertex_positioner'
     #for m in models:
-    #    print m._flow_graph.get_pos() if m._flow_graph.get_pos() is not None else 'None'
+    #    print m._graph.get_pos() if m._graph.get_pos() is not None else 'None'
     print 'original_positions:',original_positions
     print 'vertices:', graph.vertices()
     positions = {
@@ -147,6 +147,7 @@ def default_single_edge_stratifier(
     #print 'rate_comps ', rate_comps, ', rate_params ', rate_params; sys.stdout.flush()
     # we can handle constant, linear or bilinear transitions
     if rate_comps == [] or rate_comps == [source]:
+        #print 'transition', rate, 'is unary in', rate_comps
 	for V in seed_set:
 	    s_inclusions = inclusions( source, V, i )
 	    #print 'inclusions(', source, ',', V, ',', i, ') => ', s_inclusions
@@ -164,6 +165,7 @@ def default_single_edge_stratifier(
     elif ( (len(rate_comps) == 2 and source in rate_comps) or
             (len(rate_comps) == 1 and source not in rate_comps) ):
 	catalyst, = Set(rate_comps) - Set([source])
+        #print 'transition', rate, 'from', source, 'has catalyst', catalyst
         import itertools
 	for V,C in itertools.chain( itertools.product(seed_set, old_set), itertools.product(old_set + seed_set, seed_set) ):
 	    #print 'consider', V, '+', C, 'at', i
@@ -187,7 +189,8 @@ def default_single_edge_stratifier(
 		    }
 		    for W in binary_operation( V, iota, C, iota_, source, target, rate ):
 		        repl.update( { p: param_relabeling( p, V, iota, C, iota_, W ) for p in rate_params } )
-		        #print V, iota, C, iota_, ':', compartment_renaming( *W ), rate.subs( repl )
+		        #print V, iota, C, iota_, ':', compartment_renaming( *W ), rate
+                        #print repl
                         r = rate.subs( repl )
                         #print r
 		        yield ( V, W, r )
@@ -233,6 +236,8 @@ def default_edge_generator(
     import itertools
     if seed_set is None:
 	seed_set = Set( itertools.product( *((m._vars + list(m._sources)) for m in models) ) )
+    else:
+        seed_set = Set( seed_set )
     edges = []
     old_vertices = Set()
     sourcesinks = reduce( lambda x,y:x | y, (m._sources | m._sinks for m in models), Set() )
@@ -295,16 +300,16 @@ class CompositeBoxModel(boxmodel.BoxModel):
     """CompositeBoxModel is a boxmodel structure in which compartment names,
     and maybe some parameters, have structure.  Unlike the base BoxModel,
     here we maintain two representations of the graph: one with structure --
-    self._graph, in which each compartment is represented by a 'bm_state'
+    self._tuple_graph, in which each compartment is represented by a 'bm_state'
     function of multiple arguments, and all or some parameters are
     represented by a 'bm_param' function of multiple arguments, and a second
-    one, self._flow_graph, in which those functional forms are collapsed to
+    one, self._graph, the "flow graph", in which those functional forms are collapsed to
     regular variable names.  Calls to bm_state and bm_param are transformed
     to simple SR variable names by the vertex_namer and param_namer functions.
     """
     def __init__(
 	    self,
-	    graph,
+	    tuple_graph,
 	    var_tuples,
             source_tuples=[],
             sink_tuples=[],
@@ -317,8 +322,8 @@ class CompositeBoxModel(boxmodel.BoxModel):
 	    bindings=dynamicalsystems.Bindings()
 	):
 
-	self._graph = graph
-	self._graph.set_latex_options( edge_labels=True, vertex_shape='rectangle' )
+	self._tuple_graph = tuple_graph
+	self._tuple_graph.set_latex_options( edge_labels=True, vertex_shape='rectangle' )
 
 	# for consumption by humans and math software, we map vertex
 	# tuples to regular variable names with subscripts
@@ -327,11 +332,11 @@ class CompositeBoxModel(boxmodel.BoxModel):
         ## because of suppression of source-sink edges there may be
         ## variables in these three collections that aren't in the
         ## graph
-        vertex_labels = { v: v_subs(v) for v in Set( var_tuples ) | Set( source_tuples ) | Set( sink_tuples ) | Set( self._graph.vertex_iterator() ) }
+        vertex_labels = { v: v_subs(v) for v in Set( var_tuples ) | Set( source_tuples ) | Set( sink_tuples ) | Set( self._tuple_graph.vertex_iterator() ) }
         print 'vertex labels has', vertex_labels.keys()
 
         if flow_graph is not None:
-            self._flow_graph = flow_graph
+            self._graph = flow_graph
         else:
             print 'create substituted graph'
             def bind_edges( edges, bindings ):
@@ -341,16 +346,16 @@ class CompositeBoxModel(boxmodel.BoxModel):
                     be = bindings(p_subs(v_subs(e)))
                     print be
                     if be != 0: yield ( vertex_labels[v], vertex_labels[w], be )
-            flow_edges = list( bind_edges( self._graph.edge_iterator(), bindings ) )
+            flow_edges = list( bind_edges( self._tuple_graph.edge_iterator(), bindings ) )
             #print 'flow edges:', flow_edges
-            self._flow_graph = DiGraph(
+            self._graph = DiGraph(
                 flow_edges,
                 multiedges=True
             )
-            self._flow_graph.set_latex_options( edge_labels=True, vertex_shape='rectangle' )
-            positions = self._graph.get_pos()
+            self._graph.set_latex_options( edge_labels=True, vertex_shape='rectangle' )
+            positions = self._tuple_graph.get_pos()
             if positions is not None:
-                self._flow_graph.set_pos( { vertex_labels[v]:positions[v] for v in vertex_labels.iterkeys() } )
+                self._graph.set_pos( { vertex_labels[v]:positions[v] for v in vertex_labels.iterkeys() } )
 
 	self._var_tuples = var_tuples
         if vars is not None:
@@ -379,14 +384,14 @@ class CompositeBoxModel(boxmodel.BoxModel):
 	def getvars(r):
 	    try: return r.variables()
 	    except AttributeError: return []
-	self._parameters = reduce( lambda x,y: Set(x).union(y), (Set(getvars(r)) for f,t,r in self._flow_graph.edges()), Set() ).difference( Set( self._vars ) )
+	self._parameters = reduce( lambda x,y: Set(x).union(y), (Set(getvars(r)) for f,t,r in self._graph.edges()), Set() ).difference( Set( self._vars ) )
 	#print 'parameters:', self._parameters
     def bind(self, *args, **vargs):
         b = dynamicalsystems.Bindings( *args, **vargs )
         d = deepcopy( self )
-        d._flow_graph = DiGraph(
-            [ (v,w,b(e)) for v,w,e in d._flow_graph.edge_iterator() ],
-            pos = d._flow_graph.get_pos(),
+        d._graph = DiGraph(
+            [ (v,w,b(e)) for v,w,e in d._graph.edge_iterator() ],
+            pos = d._graph.get_pos(),
             multiedges=True
         )
         d._bindings = d._bindings + b
@@ -394,10 +399,10 @@ class CompositeBoxModel(boxmodel.BoxModel):
         return d
     def combine_arrows( self ):
         d = {}
-        for v,w,r in self._flow_graph.edge_iterator():
+        for v,w,r in self._graph.edge_iterator():
             d[(v,w)] = d.get( (v,w), 0 ) + r
         ee = [ (v,w,r) for (v,w),r in d.iteritems() ]
-        b = boxmodel.BoxModel( DiGraph( ee, pos=self._flow_graph.get_pos() ), self._vars, sources=self._sources, sinks=self._sinks )
+        b = boxmodel.BoxModel( DiGraph( ee, pos=self._graph.get_pos() ), self._vars, sources=self._sources, sinks=self._sinks )
         return b
 	#return self.aggregate_compartments( lambda x:tuple(x), self._param_namer, self._vertex_namer )
     def separate_arrows( self ):
@@ -409,8 +414,8 @@ class CompositeBoxModel(boxmodel.BoxModel):
 	    else:
 		yield e
 	return BoxModel( DiGraph(
-		[ (v,w,ee) for v,w,e in self._flow_graph.edge_iterator() for ee in arrow_iterator(e) ],
-		pos = self._flow_graph._pos,
+		[ (v,w,ee) for v,w,e in self._graph.edge_iterator() for ee in arrow_iterator(e) ],
+		pos = self._graph._pos,
 		multiedges=True
 	    ),
 	    self._vars
@@ -419,15 +424,15 @@ class CompositeBoxModel(boxmodel.BoxModel):
 	    param_relabeling_after=lambda *x:dynamicalsystems.subscriptedsymbol(*x),
 	    vertex_namer_after=default_vertex_namer ):
         aggregate = {}
-        for vt in self._graph.vertex_iterator():
+        for vt in self._tuple_graph.vertex_iterator():
             aggregate.setdefault( compartment_aggregation( vt.operands() ), [] ).append( vt.operands() )
         ## aggregate is { new_tuple: [old tuples], ... }
         #print 'aggregate:', aggregate
         flow_sums = {}
-        for v in self._graph.vertex_iterator():
+        for v in self._tuple_graph.vertex_iterator():
 	    av = bm_state( *compartment_aggregation( v.operands() ) )
 	    if av not in flow_sums: flow_sums[av] = {}
-	    for _,w,e in self._graph.outgoing_edge_iterator(v):
+	    for _,w,e in self._tuple_graph.outgoing_edge_iterator(v):
 		aw = bm_state( *compartment_aggregation( w.operands() ) )
 	        flow_sums[av].setdefault( aw, SR(0) )
 		#print 'substitute:', e
@@ -481,18 +486,18 @@ class CompositeBoxModel(boxmodel.BoxModel):
         ## position the aggregates by matching them to a subset of original
 	## compartments
 	apos = {}
-	for t,p in self._graph.get_pos().iteritems():
+	for t,p in self._tuple_graph.get_pos().iteritems():
 	    at = t.substitute_function( bm_state, xform_state )
 	    if at not in apos: apos[at] = p
 	#print 'apos', apos
-	## The transformation produces a flow_graph only, not a structured
+	## The transformation produces a flow graph only, not a structured
 	## representation
         return boxmodel.BoxModel( DiGraph( agg_graph_dict, pos=apos ), agg_vars )
     def add_transitions( self, trs ):
 	# it's an immutable object, so this operation
 	# returns a new BoxModel.  trs is a list of (source,target,rate)
-	# tuples suitable for adding to self._graph (rather than _flow_graph).
-	fg = deepcopy(self._flow_graph)
+	# tuples suitable for adding to self._tuple_graph (rather than _graph).
+	fg = deepcopy(self._graph)
 	bm_to_vars = lambda e: e.substitute_function( bm_state, self._vertex_namer).substitute_function( bm_param, self._param_namer )
 	fg.add_edges( [ (bm_to_vars(v), bm_to_vars(w), bm_to_vars(e)) for v,w,e in trs ] )
 	return boxmodel.BoxModel(
@@ -558,7 +563,7 @@ class BoxModelProduct(CompositeBoxModel):
 
         #print 'make vars from tuples'
 	# are vertices from product of graphs?
-	#representative_tuple = self._graph.vertex_iterator().next().operands()
+	#representative_tuple = self._tuple_graph.vertex_iterator().next().operands()
         if False:
             ## don't do this, for now
             if all( len( tup.operands() ) == len( models ) and all( v in m._vars for v,m in zip( tup.operands(), models ) ) for tup in graph.vertex_iterator() ):
@@ -592,15 +597,15 @@ class BoxModelProduct(CompositeBoxModel):
         edges = [ (v,w,e) for v,w,e in edges if v in vars_d or w in vars_d ]
 
 	#print 'edges for product graph:', edges; sys.stdout.flush()
-	graph = DiGraph( edges, multiedges=True )
+	tuple_graph = DiGraph( edges, multiedges=True )
 
         print 'vertex_positioner'
 	# graphical positions of graph vertices
-	graph.set_pos( vertex_positioner( graph, models ) )
+	tuple_graph.set_pos( vertex_positioner( tuple_graph, models ) )
 
         print 'super'
 	super(BoxModelProduct,self).__init__(
-	    graph=graph,
+	    tuple_graph=tuple_graph,
             var_tuples=vars_d.keys(),
             source_tuples=sources_s,
             sink_tuples=sinks_s,
@@ -612,7 +617,7 @@ class BoxModelProduct(CompositeBoxModel):
 
         print 'inclusion bindings'
 	self._inclusion_tuples = {}
-	for vbm in self._graph.vertex_iterator():
+	for vbm in self._tuple_graph.vertex_iterator():
 	    vs = vbm.operands()
 	    for v in vs:
 		if not v.is_numeric():
@@ -744,6 +749,8 @@ def strong_edge_generator(
     import itertools
     if seed_set is None:
 	seed_set = Set( itertools.product( *((m._vars + list(m._sources)) for m in models) ) )
+    else:
+        seed_set = Set( seed_set )
     print 'seed set', seed_set
     edges = []
     old_vertices = Set()
@@ -765,7 +772,7 @@ def strong_edge_generator(
 		inclusions=inclusions
 	    )
 	    for iset in Subsets( Set( range(len(models)) ) )
-	    for eis in itertools.product( *([(e,i) for e in models[i]._graph.edge_iterator()] for i in iset) )
+	    for eis in itertools.product( *([(e,i) for e in models[i]._tuple_graph.edge_iterator()] for i in iset) )
         ] ) )
 	edges += new_edges
         print 'new edges', new_edges
@@ -789,7 +796,7 @@ def cross( *models ):
 
 def union_edge_generator( models, vertex_namer, param_namer, compartment_renaming, **whatever ):
     import itertools
-    return itertools.chain( *(m._graph.edge_iterator() for m in models) )
+    return itertools.chain( *(m._tuple_graph.edge_iterator() for m in models) )
 
 def union_positioner( graph, models, compartment_renaming=None ):
     return {

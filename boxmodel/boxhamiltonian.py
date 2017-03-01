@@ -25,10 +25,10 @@ def hamiltonian_callback( self, N, km_states, bind_state, state_index, B, p_vars
 		)
 	    ) ) - 1
 	)
-	for s,t,w in self._flow_graph.edge_iterator()
+	for s,t,w in self._graph.edge_iterator()
     )
     #H = SR(0)
-    #for s,t,w in self._flow_graph.edge_iterator():
+    #for s,t,w in self._graph.edge_iterator():
 	#r = B[ state_index[t] ] - B[ state_index[s] ]
 	#w = reduce_bindings(w)
 	#print 'r,w:', r, w
@@ -66,7 +66,7 @@ def lagrangian_callback( self, N, km_states, bind_state, state_index, B, p_vars,
 	reduce_bindings = dynamicalsystems.Bindings()
     H0 = sum(
 	reduce_bindings(r)
-	for s,t,r in self._flow_graph.edge_iterator()
+	for s,t,r in self._graph.edge_iterator()
     )
     H1 = sum(
 	reduce_bindings(r) * (
@@ -77,7 +77,7 @@ def lagrangian_callback( self, N, km_states, bind_state, state_index, B, p_vars,
 		)
 	    ) )
 	)
-	for s,t,r in self._flow_graph.edge_iterator()
+	for s,t,r in self._graph.edge_iterator()
     )
     L1 = sum(
 	reduce_bindings(r) * 
@@ -89,10 +89,10 @@ def lagrangian_callback( self, N, km_states, bind_state, state_index, B, p_vars,
 		p_vars,
 		B[ state_index[t] ] - B[ state_index[s] ]
 	    ) ) )
-	for s,t,r in self._flow_graph.edge_iterator()
+	for s,t,r in self._graph.edge_iterator()
     )
     L = H0 - H1 + L1
-    #for s,t,w in self._flow_graph.edge_iterator():
+    #for s,t,w in self._graph.edge_iterator():
 	#r = B[ state_index[t] ] - B[ state_index[s] ]
 	#w = reduce_bindings(w)
 	#print 'r,w:', r, w

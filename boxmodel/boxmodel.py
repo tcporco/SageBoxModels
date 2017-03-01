@@ -56,7 +56,6 @@ class BoxModel(SageObject):
 	parameter_dependencies={},
 	sources=(),
 	sinks=(),
-	flow_graph=None,
         bindings=dynamicalsystems.Bindings()):
 	# we are given a directed graph whose vertex labels are state
 	# variables, representing fractions of total population,
@@ -107,19 +106,16 @@ class BoxModel(SageObject):
 	self._bindings = bindings
 	if self._graph.get_pos() is None:
 	    self._graph.set_pos( { v:(i,0) for i,v in enumerate(self._vars) } )
-	if flow_graph is None:
-	    flow_graph = self._graph
-	self._flow_graph = flow_graph
     def bind(self, *args, **vargs):
 	bindings = dynamicalsystems.Bindings( *args, **vargs )
-	bound_flow_graph = DiGraph( [
-	        (bindings(v),bindings(w),bindings(e)) for v,w,e in self._flow_graph.edge_iterator()
+	bound_graph = DiGraph( [
+	        (bindings(v),bindings(w),bindings(e)) for v,w,e in self._graph.edge_iterator()
 	    ],
 	    multiedges=True,
-	    pos = { bindings(v):p for v,p in self._flow_graph.get_pos().items() } if self._flow_graph.get_pos() is not None else None
+	    pos = { bindings(v):p for v,p in self._graph.get_pos().items() } if self._graph.get_pos() is not None else None
 	)
 	return BoxModel(
-	    bound_flow_graph,
+	    bound_graph,
 	    vars = [ bindings(v) for v in self._vars ],
             sources = Set( bindings(v) for v in self._sources ),
             sinks = Set( bindings(v) for v in self._sinks ),
@@ -127,19 +123,16 @@ class BoxModel(SageObject):
 	    parameter_dependencies = {
 		bindings(p):[(bindings(d),t) for d,t in pd] for p,pd in self._parameter_dependencies.items()
 	    },
-	    flow_graph = bound_flow_graph,
 	    bindings = self._bindings + bindings
 	)
     def add_transitions( self, trs ):
 	# We take BoxModel to be an immutable object, so this operation
 	# returns a new BoxModel.  trs is a list of (source,target,rate)
-	# tuples suitable for adding to self._graph (rather than _flow_graph).
+	# tuples suitable for adding to self._graph
 	print 'add_transitions', trs
 	print 'parameters before', self._parameters
 	nbm = deepcopy(self)
 	nbm._graph.add_edges( trs )
-	if self._flow_graph is not self._graph:
-	    nbm._flow_graph.add_edges( trs )
 	print self._vars
 	for f,t,r in trs:
 	    try:
@@ -166,7 +159,7 @@ class BoxModel(SageObject):
                 ## parameters first, Greek letters before Roman
                 [ (latex(v),(T,T)) for v in self._parameters for T in [-1e+10 if latex(v)[0] == '\\' else -0.9e+10] ] +
                 ## then compartment names, in order of the graph layout
-	        [ (latex(vv),(pp[0],-pp[1])) for vv,pp in self._flow_graph.get_pos().items() ]
+	        [ (latex(vv),(pp[0],-pp[1])) for vv,pp in self._graph.get_pos().items() ]
 	    )
 	    # this converter is defined later in this file
 	    self._sorter = sort_latex_variables(
@@ -181,11 +174,8 @@ class BoxModel(SageObject):
 	try: return self._sorter( ex )
 	except AttributeError: # ex is not an expression
 	    return ex
-    def plot_boxes( self, filename=None, raw=False, inline=False, figsize=(6,6), transform_graph=None, **options ):
-	if raw:
-	    g = self._graph
-	else:
-	    g = self._flow_graph
+    def plot_boxes( self, filename=None, inline=False, figsize=(6,6), transform_graph=None, **options ):
+	g = self._graph
 	## apply the user-supplied transform if any
         if transform_graph is not None:
             g = transform_graph(g)
@@ -201,23 +191,20 @@ class BoxModel(SageObject):
     def plot( self, *args, **aargs ):
 	def lx(s): return '$%s$'%latex(s)
 	lfg = DiGraph(
-	    [[lx(s) for s in tup] for tup in self._flow_graph.edge_iterator() ],
+	    [[lx(s) for s in tup] for tup in self._graph.edge_iterator() ],
 	    multiedges=True
 	)
 	vargs = {
 	    'edge_labels' : True,
 	    'talk' : True
 	}
-	#print 'flow_graph pos:', self._flow_graph.get_pos()
-	if 'pos' not in aargs and self._flow_graph.get_pos() is not None:
-	    vargs['pos'] = { lx(v) : p for v,p in self._flow_graph.get_pos().items() }
+	if 'pos' not in aargs and self._graph.get_pos() is not None:
+	    vargs['pos'] = { lx(v) : p for v,p in self._graph.get_pos().items() }
 	vargs.update( aargs )
 	#print 'plot vargs:', vargs
 	return lfg.plot( *args, **vargs )
     def transpose_graph_in_place( self ):
 	self._graph.set_pos( { v:(-y,-x) for v,(x,y) in self._graph.get_pos().iteritems() } )
-	if self._flow_graph is not self._graph:
-	    self._flow_graph.set_pos( { v:(-y,-x) for v,(x,y) in self._flow_graph.get_pos().iteritems() } )
     def transpose_graph( self ):
 	nm = deepcopy( self )
         nm.transpose_graph_in_place()
@@ -325,7 +312,7 @@ class BoxModel(SageObject):
                 return r
             self._jump_process = dynamicalsystems.JumpProcess(
                 vars,
-                [ (to_r(s,t),rate) for s,t,rate in self._flow_graph.edges() ],
+                [ (to_r(s,t),rate) for s,t,rate in self._graph.edges() ],
                 bindings=self._bindings
             )
 	return self._jump_process
@@ -344,7 +331,7 @@ class BoxModel(SageObject):
 	# (in addition to making it work)
 	ltx = dynamicalsystems.latex_output_base( dynamicalsystems.write_to_string() )
 	lines = []
-	for source, target, rate in self._flow_graph.edge_iterator():
+	for source, target, rate in self._graph.edge_iterator():
 	    mu = MakeMicro( self, source )
 	    ut = mu( rate )
 	    print str(ut); sys.stdout.flush()
