@@ -772,7 +772,7 @@ def strong_edge_generator(
 		inclusions=inclusions
 	    )
 	    for iset in Subsets( Set( range(len(models)) ) )
-	    for eis in itertools.product( *([(e,i) for e in models[i]._tuple_graph.edge_iterator()] for i in iset) )
+	    for eis in itertools.product( *([(e,i) for e in models[i]._graph.edge_iterator()] for i in iset) )
         ] ) )
 	edges += new_edges
         print 'new edges', new_edges
@@ -820,17 +820,22 @@ def bmunion( *models ):
 ## TODO: rewrite using new strong_edge_generator with bop
 def strong_product( *models, **kwargs ):
     compartment_renaming =  kwargs.pop( 'compartment_renaming',  default_compartment_renaming )
-    vertex_namer =    kwargs.pop( 'vertex_namer',    default_vertex_namer )
-    param_namer =     kwargs.pop( 'param_namer',     default_vertex_namer )
+    vertex_namer =      kwargs.pop( 'vertex_namer',      default_vertex_namer )
+    param_namer =       kwargs.pop( 'param_namer',       default_vertex_namer )
+    param_relabeling =  kwargs.pop( 'param_relabeling',  full_param_relabeling )
     vertex_positioner = kwargs.pop( 'vertex_positioner', default_vertex_positioner )
-    binary_op =       kwargs.pop( 'binary_op',       default_bop_strong )
+    unary_operation =   kwargs.pop( 'unary_operation',   default_sop_strong )
+    binary_operation =  kwargs.pop( 'binary_operation',  default_bop_strong )
     if kwargs: raise TypeError, "Unknown named arguments to BoxModelProduct: %s" % str(kwargs)
     return BoxModelProduct( *models,
 	edge_generator = strong_edge_generator,
 	vertex_namer = vertex_namer,
 	compartment_renaming = compartment_renaming,
 	param_namer = param_namer,
-	vertex_positioner = vertex_positioner
+        param_relabeling = param_relabeling,
+	vertex_positioner = vertex_positioner,
+        unary_operation = unary_operation,
+        binary_operation = binary_operation
     )
 
 def power( model, i, compartment_renaming=lambda *x:x, param_relabeling=default_param_relabeling, vertex_namer=x_namer ):
