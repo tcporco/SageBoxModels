@@ -127,6 +127,14 @@ class BoxModelProductException(Exception): pass
 # component model, given a set of product vertices.  It loops
 # over those vertices and generates all the product edges involving
 # those vertices that are versions of that one component edge.
+# yields, for each product edge:
+#  source and target vertices, transformed by compartment_renaming,
+#   but not wrapped in bm_state or named by vertex_namer.
+#  original rate expression together in a tuple with dictionaries
+#   specifying vertex replacements, post renaming but pre wrapping and naming,
+#   and param replacements.
+#   They can't actually be substituted at this stage because they aren't
+#   compatible with SR until wrapped.
 def default_single_edge_stratifier(
 	source, target, rate, i, models,
 	seed_set, vertex_namer, param_relabeling, compartment_renaming,
@@ -134,74 +142,54 @@ def default_single_edge_stratifier(
 	unary_operation=default_sop, binary_operation=default_bop,
 	inclusions=tuple_inclusions
     ):
-    #print 'stratify edge ', (source, target, rate), ' in position ', i
-    #print 'inclusions', ('tuple' if inclusions == tuple_inclusions else 'not tuples')
-    #print 'old set', old_set, '// seed set', seed_set
-    # produce all product edges made from this component edge
-    # list the compartments involved in the transition
+    # list the compartments and parameters involved in the transition rate
     def getvars(r):
         try: return r.variables()
         except AttributeError: return []
     rate_comps = [ x for x in getvars(rate) if x in models[i]._vars ]
     rate_params = Set( getvars(rate) ) - Set( rate_comps )
-    #print 'rate_comps ', rate_comps, ', rate_params ', rate_params; sys.stdout.flush()
     # we can handle constant, linear or bilinear transitions
     if rate_comps == [] or rate_comps == [source]:
-        #print 'transition', rate, 'is unary in', rate_comps
 	for V in seed_set:
 	    s_inclusions = inclusions( source, V, i )
-	    #print 'inclusions(', source, ',', V, ',', i, ') => ', s_inclusions
 	    for iota in s_inclusions:
-                #print V, ' => bm_state( *', compartment_renaming( *V ), ')'
-		repl = { source: bm_state( *compartment_renaming( *V ) ) }
+		c_repl = { source: compartment_renaming( *V ) }
 	        ws = unary_operation( V, iota, source, target, rate )
-		#print 'unary op( ', V, ', ', iota, ',', source, ', ', target, ', ', rate, ') => ', ws
 	        for W in ws:
 		    # TODO: param_namer
-		    repl.update( { p: param_relabeling( p, V, iota, W ) for p in rate_params } )
-                    r = rate.subs( repl )
+		    p_repl = { p: param_relabeling( p, V, iota, W ) for p in rate_params }
+                    #r = rate.subs( repl )
                     #print r
-		    yield ( V, W, r )
+		    yield ( compartment_renaming(*V), compartment_renaming(*W), (rate,c_repl,p_repl) )
     elif ( (len(rate_comps) == 2 and source in rate_comps) or
             (len(rate_comps) == 1 and source not in rate_comps) ):
 	catalyst, = Set(rate_comps) - Set([source])
-        #print 'transition', rate, 'from', source, 'has catalyst', catalyst
         import itertools
 	for V,C in itertools.chain( itertools.product(seed_set, old_set), itertools.product(old_set + seed_set, seed_set) ):
-	    #print 'consider', V, '+', C, 'at', i
             ## don't interact with source/sink compartments
             if any( c in m._sources or c in m._sinks for c,m in zip(C,models) ): continue
 	    # do only the one source inclusion here to avoid duplication
-	    #s_inclusions = [ iota for iota,x in enumerate(V) if x == source and iota == i ]
 	    s_inclusions = Set( inclusions( source, V, i ) ).intersection( Set( [i] ) )
-	    #print source, 'in V:', s_inclusions
 	    for iota in s_inclusions:
 		if cross_interactions:
 		    c_inclusions = inclusions( catalyst, C, i )
 		else:
 		    c_inclusions = Set( inclusions( catalyst, C, i ) ).intersection( Set( [i] ) )
-		#print catalyst, 'in C:', c_inclusions
 		for iota_ in c_inclusions:
-	            #print 'do edges for', V, iota, C, iota_
-		    repl = {
-			source: bm_state( *compartment_renaming( *V ) ),
-			catalyst: bm_state( *compartment_renaming( *C ) )
+		    c_repl = {
+			source: compartment_renaming( *V ),
+			catalyst: compartment_renaming( *C )
 		    }
 		    for W in binary_operation( V, iota, C, iota_, source, target, rate ):
-		        repl.update( { p: param_relabeling( p, V, iota, C, iota_, W ) for p in rate_params } )
-		        #print V, iota, C, iota_, ':', compartment_renaming( *W ), rate
-                        #print repl
-                        r = rate.subs( repl )
-                        #print r
-		        yield ( V, W, r )
+		        p_repl = { p: param_relabeling( p, V, iota, C, iota_, W ) for p in rate_params }
+                        #r = rate.subs( repl )
+		        yield ( compartment_renaming(*V), compartment_renaming(*W), (rate,c_repl,p_repl) )
 		        if V == C:
 			    # TODO: is this within-class case right in general?
 			    # A: no, needs iota_ somewhere
-		            repl.update( { p: param_relabeling( p, V, iota, iota_, W ) for p in rate_params } )
-                            r = rate.subs( repl ) / bm_state(*compartment_renaming(*C))
-		            #print V, iota, iota_, ':', W, r / bm_state(*C)
-                            #print r
-		            yield( V, W, r )
+		            p_repl = { p: param_relabeling( p, V, iota, iota_, W ) for p in rate_params }
+                            #r = rate.subs( repl ) / bm_state(*compartment_renaming(*C))
+		            yield( compartment_renaming(*V), compartment_renaming(*W), (rate/catalyst,c_repl,p_repl) )
     else: # wrong variables in rate
 	raise BoxModelProductException, "Don't understand rate {0}".format(rate)
 
@@ -214,6 +202,7 @@ def simple_edge_stratifier( *args, **kwargs ):
 # It calls its single_edge_generator once for each edge of each
 # component model, to generate all the product edges made from
 # that original edge.
+# returns list of edges in the format yielded by the single edge generator
 def default_edge_generator(
 	models,
 	vertex_namer, param_relabeling, compartment_renaming,
@@ -235,7 +224,7 @@ def default_edge_generator(
 	param_relabeling = full_param_relabeling
     import itertools
     if seed_set is None:
-	seed_set = Set( itertools.product( *((m._vars + list(m._sources)) for m in models) ) )
+	seed_set = Set( compartment_renaming(*V) for V in ( itertools.product( *((m._vars + list(m._sources)) for m in models) ) ) )
     else:
         seed_set = Set( seed_set )
     edges = []
@@ -269,7 +258,8 @@ def default_edge_generator(
 	if len(old_vertices) + len(seed_set) > 100 * reduce( lambda a,b:a*b, ( len(m._vars) for m in models ) ):
             #print len(old_vertices) + len(seed_set), ', more than ', 100 * reduce( lambda a,b:a*b, ( len(m._vars) for m in models ) ), ' compartments'; sys.stdout.flush()
 	    raise RuntimeError, 'Recursion produces too many compartments'
-    return [ ( bm_state( *compartment_renaming( *V ) ), bm_state( *compartment_renaming( *W ) ), r ) for V,W,r in edges ]
+    return edges
+    #return [ ( bm_state( *compartment_renaming( *V ) ), bm_state( *compartment_renaming( *W ) ), r ) for V,W,r in edges ]
 
 def simple_edge_generator( *args, **kwargs ):
     kwargs['cross_interactions'] = False
@@ -515,6 +505,7 @@ class BoxModelProduct(CompositeBoxModel):
         print 'BoxModelProduct'
 	self._models = models
 	compartment_renaming =  kwargs.pop( 'compartment_renaming', default_compartment_renaming )
+        compartment_wrapper =   kwargs.pop( 'compartment_wrapper', bm_state )
 	vertex_namer =          kwargs.pop( 'vertex_namer', default_vertex_namer )
 	param_relabeling =      kwargs.pop( 'param_relabeling', default_param_relabeling )
         param_namer =           kwargs.pop( 'param_namer', dynamicalsystems.subscriptedsymbol )
@@ -530,7 +521,8 @@ class BoxModelProduct(CompositeBoxModel):
 	if kwargs: raise TypeError, "Unknown named arguments to BoxModelProduct: %s" % str(kwargs)
 
         print 'edge_generator'
-	edges = list( edge_generator(
+        ## this produces a list of tuples and pre-substitution rate expressions
+	raw_edges = list( edge_generator(
 	    models,
 	    vertex_namer,
 	    param_relabeling,
@@ -541,6 +533,17 @@ class BoxModelProduct(CompositeBoxModel):
 	    inclusions=inclusions,
 	    seed_set=seed_set
 	) )
+        #print 'raw edges:\n', raw_edges
+        #print [ { c:compartment_wrapper(*C) for c,C in c_repl.iteritems() } for V,W,(r,c_repl,p_repl) in raw_edges ]
+        #print [ [ r, r.subs( { c:compartment_wrapper(*C) for c,C in c_repl.iteritems() } ), r.subs( { c:compartment_wrapper(*C) for c,C in c_repl.iteritems() } ).subs( p_repl ) ] for V,W,(r,c_repl,p_repl) in raw_edges ]
+        print [ compartment_wrapper(*V) for V,W,(r,c_repl,p_repl) in raw_edges ]
+        print [ compartment_wrapper(*W) for V,W,(r,c_repl,p_repl) in raw_edges ]
+        edges = [ (
+            compartment_wrapper(*V),
+            compartment_wrapper(*W),
+            r.subs( { c:compartment_wrapper(*C) for c,C in c_repl.iteritems() } ).subs( p_repl )
+        ) for V,W,(r,c_repl,p_repl) in raw_edges ]
+        self._raw_tuples = list( Set( [ V for V,W,rr in raw_edges ] ) | Set( [ W for V,W,rr in raw_edges ] ) )
 
         print 'separate vars, sources, sinks'
 	from collections import OrderedDict
@@ -681,12 +684,12 @@ def default_strong_edge_bundle_generator(
     if rate_comps == [source]:
 	for V in seed_set:
 	    if all( i in inclusions( v, V, i ) for (v,w,r),i in eis ):
-		repl = { source: bm_state( *compartment_renaming( *V ) ) }
+		c_repl = { source: compartment_renaming( *V ) }
 	        for W in unary_operation( V, [i for e,i in eis], eis ):
 		    # TODO: param_namer
-		    repl.update( { p: param_relabeling( p, V, [i for e,i in eis], W ) for p in rate_params } )
+		    p_repl = { p: param_relabeling( p, V, [i for e,i in eis], W ) for p in rate_params }
 		    #print V, eis, '=>', W, repl, r.subs(repl)
-		    yield ( V, W, rate.subs( repl ) )
+		    yield ( V, W, (rate,c_repl,p_repl) )
     elif len(rate_comps) == 2 and source in rate_comps:
 	catalyst, = Set(rate_comps) - Set([source])
         import itertools
@@ -710,22 +713,22 @@ def default_strong_edge_bundle_generator(
 		#print 'inclusions of', eis, 'in', C, ':', list( c_inclusions )
 	    for iota_ in c_inclusions:
                 #print 'do edges for', V, iota, C, iota_
-    	        repl = {
-    		    source: bm_state( *compartment_renaming( *V ) ),
-    		    catalyst: bm_state( *compartment_renaming( *C ) )
+    	        c_repl = {
+    		    source: compartment_renaming( *V ),
+    		    catalyst: compartment_renaming( *C )
     	        }
     	        ts = binary_operation( V, list( iota ), C, list( iota_ ), eis )
 		#print 'bop returns', ts
 		# TODO: check if in-compartment interaction is right
     	        for W in ts:
-    	            repl.update( { p: param_relabeling( p, V, iota, C, iota_, W ) for p in rate_params } )
+    	            p_repl = { p: param_relabeling( p, V, iota, C, iota_, W ) for p in rate_params }
     	            #print V, iota, C, iota_, ':', compartment_renaming( *W ), rate.subs( repl )
-    	            yield ( V, W, rate.subs( repl ) )
+    	            yield ( V, W, (rate,c_repl,p_repl) )
     	            if V == C:
     		        # TODO: is this within-class case right in general?
-    	                repl.update( { p: param_relabeling( p, V, iota, iota_, W ) for p in rate_params } )
+    	                p_repl = { p: param_relabeling( p, V, iota, iota_, W ) for p in rate_params }
     	                #print V, iota, iota_, ':', W, rate.subs( repl ) / bm_state(*C)
-    	                yield( V, W, rate.subs( repl ) / bm_state(*compartment_renaming(*C)) )
+    	                yield( V, W, (rate/catalyst,c_repl,p_repl) )
     else: # wrong variables in rate
 	raise BoxModelProductException, "Can't stratify rate {0}".format(rate)
 
@@ -748,7 +751,7 @@ def strong_edge_generator(
 	param_relabeling = full_param_relabeling
     import itertools
     if seed_set is None:
-	seed_set = Set( itertools.product( *((m._vars + list(m._sources)) for m in models) ) )
+	seed_set = Set( compartment_renaming(*V) for V in ( itertools.product( *((m._vars + list(m._sources)) for m in models) ) ) )
     else:
         seed_set = Set( seed_set )
     print 'seed set', seed_set
@@ -789,7 +792,8 @@ def strong_edge_generator(
 	if len(old_vertices) + len(seed_set) > 100 * reduce( lambda a,b:a*b, ( len(m._vars) for m in models ) ):
             #print len(old_vertices) + len(seed_set), ', more than ', 100 * product( len(m._vars) for m in models ), ' compartments'; sys.stdout.flush()
 	    raise RuntimeError, 'Recursion produces too many compartments'
-    return [ ( bm_state( *compartment_renaming( *V ) ), bm_state( *compartment_renaming( *W ) ), r ) for V,W,r in edges ]
+    return edges
+    #return [ ( bm_state( *compartment_renaming( *V ) ), bm_state( *compartment_renaming( *W ) ), r ) for V,W,r in edges ]
 
 def cross( *models ):
     return BoxModelProduct( *models )
@@ -820,17 +824,19 @@ def bmunion( *models ):
 ## TODO: rewrite using new strong_edge_generator with bop
 def strong_product( *models, **kwargs ):
     compartment_renaming =  kwargs.pop( 'compartment_renaming',  default_compartment_renaming )
+    compartment_wrapper = kwargs.pop( 'compartment_wrapper', bm_state )
     vertex_namer =      kwargs.pop( 'vertex_namer',      default_vertex_namer )
     param_namer =       kwargs.pop( 'param_namer',       default_vertex_namer )
     param_relabeling =  kwargs.pop( 'param_relabeling',  full_param_relabeling )
     vertex_positioner = kwargs.pop( 'vertex_positioner', default_vertex_positioner )
     unary_operation =   kwargs.pop( 'unary_operation',   default_sop_strong )
     binary_operation =  kwargs.pop( 'binary_operation',  default_bop_strong )
-    if kwargs: raise TypeError, "Unknown named arguments to BoxModelProduct: %s" % str(kwargs)
+    if kwargs: raise TypeError, "Unknown named arguments to strong_product: %s" % str(kwargs)
     return BoxModelProduct( *models,
 	edge_generator = strong_edge_generator,
-	vertex_namer = vertex_namer,
 	compartment_renaming = compartment_renaming,
+        compartment_wrapper = compartment_wrapper,
+	vertex_namer = vertex_namer,
 	param_namer = param_namer,
         param_relabeling = param_relabeling,
 	vertex_positioner = vertex_positioner,
