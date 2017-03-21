@@ -517,6 +517,7 @@ class BoxModelProduct(CompositeBoxModel):
 	unary_operation =       kwargs.pop( 'unary_operation', default_sop )
 	binary_operation =      kwargs.pop( 'binary_operation', default_bop )
 	inclusions =            kwargs.pop( 'inclusions', tuple_inclusions )
+        within_compartment_interactions = kwargs.pop( 'within_compartment_interactions', True )
 	seed_set =              kwargs.pop( 'seed_set', None )
 	if kwargs: raise TypeError, "Unknown named arguments to BoxModelProduct: %s" % str(kwargs)
 
@@ -531,11 +532,13 @@ class BoxModelProduct(CompositeBoxModel):
 	    unary_operation=unary_operation,
 	    binary_operation=binary_operation,
 	    inclusions=inclusions,
+            within_compartment_interactions=within_compartment_interactions,
 	    seed_set=seed_set
 	) )
-        #print 'raw edges:\n', raw_edges
+        print 'raw edges:\n', raw_edges
         #print [ { c:compartment_wrapper(*C) for c,C in c_repl.iteritems() } for V,W,(r,c_repl,p_repl) in raw_edges ]
-        #print [ [ r, r.subs( { c:compartment_wrapper(*C) for c,C in c_repl.iteritems() } ), r.subs( { c:compartment_wrapper(*C) for c,C in c_repl.iteritems() } ).subs( p_repl ) ] for V,W,(r,c_repl,p_repl) in raw_edges ]
+        print [ p_repl for V,W,(r,c_repl,p_repl) in raw_edges ]
+        print [ [ r, r.subs( { c:compartment_wrapper(*C) for c,C in c_repl.iteritems() } ), r.subs( { c:compartment_wrapper(*C) for c,C in c_repl.iteritems() } ).subs( p_repl ) ] for V,W,(r,c_repl,p_repl) in raw_edges ]
         print [ compartment_wrapper(*V) for V,W,(r,c_repl,p_repl) in raw_edges ]
         print [ compartment_wrapper(*W) for V,W,(r,c_repl,p_repl) in raw_edges ]
         edges = [ (
@@ -661,6 +664,7 @@ def default_strong_edge_bundle_generator(
 	eis, models,
 	seed_set, vertex_namer, param_relabeling, compartment_renaming,
 	old_set=Set(), cross_interactions=True,
+        within_compartment_interactions=True,
 	unary_operation=default_sop_strong, binary_operation=default_bop,
 	inclusions=tuple_inclusions
     ):
@@ -724,7 +728,7 @@ def default_strong_edge_bundle_generator(
     	            p_repl = { p: param_relabeling( p, V, iota, C, iota_, W ) for p in rate_params }
     	            #print V, iota, C, iota_, ':', compartment_renaming( *W ), rate.subs( repl )
     	            yield ( V, W, (rate,c_repl,p_repl) )
-    	            if V == C:
+    	            if within_compartment_interactions and V == C:
     		        # TODO: is this within-class case right in general?
     	                p_repl = { p: param_relabeling( p, V, iota, iota_, W ) for p in rate_params }
     	                #print V, iota, iota_, ':', W, rate.subs( repl ) / bm_state(*C)
@@ -737,6 +741,7 @@ def strong_edge_generator(
 	vertex_namer, param_relabeling, compartment_renaming,
 	single_edge_generator=None,
 	seed_set=None, cross_interactions=True,
+        within_compartment_interactions=True,
 	unary_operation=default_sop_strong, binary_operation=default_bop,
 	inclusions=tuple_inclusions
     ):
@@ -772,7 +777,8 @@ def strong_edge_generator(
 	        unary_operation=unary_operation,
 		binary_operation=binary_operation,
 		cross_interactions=cross_interactions,
-		inclusions=inclusions
+		inclusions=inclusions,
+                within_compartment_interactions=within_compartment_interactions
 	    )
 	    for iset in Subsets( Set( range(len(models)) ) )
 	    for eis in itertools.product( *([(e,i) for e in models[i]._graph.edge_iterator()] for i in iset) )
@@ -823,6 +829,8 @@ def bmunion( *models ):
 
 ## TODO: rewrite using new strong_edge_generator with bop
 def strong_product( *models, **kwargs ):
+    inclusions =        kwargs.pop( 'inclusions', tuple_inclusions )
+    within_compartment_interactions = kwargs.pop( 'within_compartment_interactions', True )
     compartment_renaming =  kwargs.pop( 'compartment_renaming',  default_compartment_renaming )
     compartment_wrapper = kwargs.pop( 'compartment_wrapper', bm_state )
     vertex_namer =      kwargs.pop( 'vertex_namer',      default_vertex_namer )
@@ -833,6 +841,8 @@ def strong_product( *models, **kwargs ):
     binary_operation =  kwargs.pop( 'binary_operation',  default_bop_strong )
     if kwargs: raise TypeError, "Unknown named arguments to strong_product: %s" % str(kwargs)
     return BoxModelProduct( *models,
+        inclusions = inclusions,
+        within_compartment_interactions = within_compartment_interactions,
 	edge_generator = strong_edge_generator,
 	compartment_renaming = compartment_renaming,
         compartment_wrapper = compartment_wrapper,
