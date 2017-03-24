@@ -184,7 +184,7 @@ def default_single_edge_stratifier(
 		        p_repl = { p: param_relabeling( p, V, iota, C, iota_, W ) for p in rate_params }
                         #r = rate.subs( repl )
 		        yield ( compartment_renaming(*V), compartment_renaming(*W), (rate,c_repl,p_repl) )
-		        if V == C:
+		        if V == C and iota != iota_:
 			    # TODO: is this within-class case right in general?
 			    # A: no, needs iota_ somewhere
 		            p_repl = { p: param_relabeling( p, V, iota, iota_, W ) for p in rate_params }
@@ -726,12 +726,12 @@ def default_strong_edge_bundle_generator(
 		# TODO: check if in-compartment interaction is right
     	        for W in ts:
     	            p_repl = { p: param_relabeling( p, V, iota, C, iota_, W ) for p in rate_params }
-    	            #print V, iota, C, iota_, ':', compartment_renaming( *W ), rate.subs( repl )
+    	            #print V, iota, C, iota_, ':', compartment_renaming( *W )
     	            yield ( V, W, (rate,c_repl,p_repl) )
-    	            if within_compartment_interactions and V == C:
+	            if within_compartment_interactions and (V == C) and list(iota) != list(iota_):
     		        # TODO: is this within-class case right in general?
     	                p_repl = { p: param_relabeling( p, V, iota, iota_, W ) for p in rate_params }
-    	                #print V, iota, iota_, ':', W, rate.subs( repl ) / bm_state(*C)
+    	                #print V, iota, iota_, (iota != iota_), '::', compartment_renaming( *W )
     	                yield( V, W, (rate/catalyst,c_repl,p_repl) )
     else: # wrong variables in rate
 	raise BoxModelProductException, "Can't stratify rate {0}".format(rate)
