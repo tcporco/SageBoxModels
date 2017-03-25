@@ -3,7 +3,7 @@ import dynamicalsystems
 import boxmodel
 
 # function names used by the edge generator: we can't put tuples into
-# symbolic expressions directly so we represent them by instances like
+# symbolic expressions directly so we represent them by expressions like
 # bm_state( S, a ), bm_param( beta, S, I ), etc.
 from sage.symbolic.function_factory import function
 bm_state = function( 'bm_state', latex_name='X' )
@@ -693,7 +693,7 @@ def default_strong_edge_bundle_generator(
 		    # TODO: param_namer
 		    p_repl = { p: param_relabeling( p, V, [i for e,i in eis], W ) for p in rate_params }
 		    #print V, eis, '=>', W, repl, r.subs(repl)
-		    yield ( V, W, (rate,c_repl,p_repl) )
+		    yield ( compartment_renaming(*V), compartment_renaming(*W), (rate,c_repl,p_repl) )
     elif len(rate_comps) == 2 and source in rate_comps:
 	catalyst, = Set(rate_comps) - Set([source])
         import itertools
@@ -726,13 +726,13 @@ def default_strong_edge_bundle_generator(
 		# TODO: check if in-compartment interaction is right
     	        for W in ts:
     	            p_repl = { p: param_relabeling( p, V, iota, C, iota_, W ) for p in rate_params }
-    	            #print V, iota, C, iota_, ':', compartment_renaming( *W )
-    	            yield ( V, W, (rate,c_repl,p_repl) )
+	            #print V, iota, C, iota_, ':', compartment_renaming( *W )
+    	            yield ( compartment_renaming(*V), compartment_renaming(*W), (rate,c_repl,p_repl) )
 	            if within_compartment_interactions and (V == C) and list(iota) != list(iota_):
     		        # TODO: is this within-class case right in general?
     	                p_repl = { p: param_relabeling( p, V, iota, iota_, W ) for p in rate_params }
-    	                #print V, iota, iota_, (iota != iota_), '::', compartment_renaming( *W )
-    	                yield( V, W, (rate/catalyst,c_repl,p_repl) )
+	                #print V, iota, iota_, (iota != iota_), '::', compartment_renaming( *W )
+    	                yield( compartment_renaming(*V), compartment_renaming(*W), (rate/catalyst,c_repl,p_repl) )
     else: # wrong variables in rate
 	raise BoxModelProductException, "Can't stratify rate {0}".format(rate)
 
