@@ -447,24 +447,46 @@ class sort_latex_variables(sage.symbolic.expression_conversions.ExpressionTreeWa
 		    else: return self._unknown_order
 	    ll = sorted( ex.operands(), key=keyfn )
             minusop = (SR.symbol('x')-1).operator() # it's actually +
+            ## special case: a factor is -(x-1) :
+            ## we will write that as (1-x)
+            ## if there's a factor of -1, look for a subtraction
             rev = [ e for e in ll if e.operator() == minusop ] if -1 in ll else []
             if len( rev ) > 0:
+                ## there will only be one -1
                 ll = [ e for e in ll if e != -1 ]
+                rev = rev[:1]
+            ## if there are factors of y^-1
+            ## we will put those as y in a denominator
             denom = [ d for d in ll if
                 d.operator()==(1/SR.symbol('x')).operator()
                 and d.operands()[1] == SR(-1)
             ]
+            ## function to render each factor in latex
             def to_lx( ex ):
+                ## leave out y^-1 factors, they'll come in as y later
                 if ex in denom: return ''
+                ## subtractions
                 if ex.operator() == minusop:
+                    ## if reversed, write backwards
                     if ex in rev:
                         return r'\left({}-{}\right)'.format(latex(-ex.operands()[1]),latex(ex.operands()[0]))
+                    ## otherwise, write forwards
                     else:
                         return ''.join( (r'\left(',latex(ex),r'\right)') )
+                ## write additions
                 if ex.operator() == (SR.symbol('x')+1).operator():
                     return r'\left({}\right)'.format('+'.join(ex.operands()))
+                ## if it's a compound symbol, put it in parens
+                if ex.is_symbol():
+                    lx = latex(ex)
+                    if len(lx) > 1 and '_' not in lx and '^' not in lx:
+                        return r'\left({}\right)'.format(lx)
+                    else: return lx
+                ## anything else, use default latex rendering
                 return latex(ex)
+            ## combine the factors in the numerator
             lname = ' '.join(to_lx(v) for v in ll)
+            ## if any factors in denominator, combine them and make fraction
             if len(denom) > 0:
                 lden = ' '.join(to_lx(v.operands()[0]) for v in denom)
                 lname = r'\frac{'+lname+'}{'+lden+'}'
