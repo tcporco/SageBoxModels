@@ -156,11 +156,14 @@ def default_single_edge_stratifier(
 		c_repl = { source: compartment_renaming( *V ) }
 	        ws = unary_operation( V, iota, source, target, rate )
 	        for W in ws:
-		    # TODO: param_namer
-		    p_repl = { p: param_relabeling( p, V, iota, W ) for p in rate_params }
-                    #r = rate.subs( repl )
-                    #print r
-		    yield ( compartment_renaming(*V), compartment_renaming(*W), (rate,c_repl,p_repl) )
+                    Vc = compartment_renaming(*V)
+                    Wc = compartment_renaming(*W)
+                    if Wc != Vc:
+                        # TODO: param_namer
+                        p_repl = { p: param_relabeling( p, V, iota, W ) for p in rate_params }
+                        #r = rate.subs( repl )
+                        #print r
+                        yield ( Vc, Wc, (rate,c_repl,p_repl) )
     elif ( (len(rate_comps) == 2 and source in rate_comps) or
             (len(rate_comps) == 1 and source not in rate_comps) ):
 	catalyst, = Set(rate_comps) - Set([source])
@@ -175,21 +178,22 @@ def default_single_edge_stratifier(
 		    c_inclusions = inclusions( catalyst, C, i )
 		else:
 		    c_inclusions = Set( inclusions( catalyst, C, i ) ).intersection( Set( [i] ) )
+                Vc = compartment_renaming(*V)
 		for iota_ in c_inclusions:
 		    c_repl = {
-			source: compartment_renaming( *V ),
+			source: Vc,
 			catalyst: compartment_renaming( *C )
 		    }
 		    for W in binary_operation( V, iota, C, iota_, source, target, rate ):
-		        p_repl = { p: param_relabeling( p, V, iota, C, iota_, W ) for p in rate_params }
-                        #r = rate.subs( repl )
-		        yield ( compartment_renaming(*V), compartment_renaming(*W), (rate,c_repl,p_repl) )
-		        if V == C and iota != iota_:
-			    # TODO: is this within-class case right in general?
-			    # A: no, needs iota_ somewhere
-		            p_repl = { p: param_relabeling( p, V, iota, iota_, W ) for p in rate_params }
-                            #r = rate.subs( repl ) / bm_state(*compartment_renaming(*C))
-		            yield( compartment_renaming(*V), compartment_renaming(*W), (rate/catalyst,c_repl,p_repl) )
+                        Wc = compartment_renaming(*W)
+                        if Wc != Vc:
+                            p_repl = { p: param_relabeling( p, V, iota, C, iota_, W ) for p in rate_params }
+                            #r = rate.subs( repl )
+                            yield ( Vc, Wc, (rate,c_repl,p_repl) )
+                            if V == C and iota != iota_:
+                                # TODO: is this within-class case right in general?
+                                p_repl = { p: param_relabeling( p, V, iota, iota_, W ) for p in rate_params }
+                                yield( Vc, Wc, (rate/catalyst,c_repl,p_repl) )
     else: # wrong variables in rate
 	raise BoxModelProductException, "Don't understand rate {0}".format(rate)
 
@@ -687,12 +691,15 @@ def default_strong_edge_bundle_generator(
     if rate_comps == [source]:
 	for V in seed_set:
 	    if all( i in inclusions( v, V, i ) for (v,w,r),i in eis ):
-		c_repl = { source: compartment_renaming( *V ) }
+                Vc = compartment_renaming(*V)
+		c_repl = { source: Vc }
 	        for W in unary_operation( V, [i for e,i in eis], eis ):
-		    # TODO: param_namer
-		    p_repl = { p: param_relabeling( p, V, [i for e,i in eis], W ) for p in rate_params }
-		    #print V, eis, '=>', W, repl, r.subs(repl)
-		    yield ( compartment_renaming(*V), compartment_renaming(*W), (rate,c_repl,p_repl) )
+                    Wc = compartment_renaming(*W)
+                    if Wc != Vc:
+                        # TODO: param_namer
+                        p_repl = { p: param_relabeling( p, V, [i for e,i in eis], W ) for p in rate_params }
+                        #print V, eis, '=>', W, repl, r.subs(repl)
+                        yield ( Vc, Wc, (rate,c_repl,p_repl) )
     elif len(rate_comps) == 2 and source in rate_comps:
 	catalyst, = Set(rate_comps) - Set([source])
         import itertools
@@ -726,22 +733,25 @@ def default_strong_edge_bundle_generator(
 	    #print 'inclusions of', eis, 'in', C, ':', list( c_inclusions )
 	    for iota_ in c_inclusions:
                 #print 'do edges for', V, iota, C, iota_
+                Vc = compartment_renaming(*V)
     	        c_repl = {
-    		    source: compartment_renaming( *V ),
+    		    source: Vc,
     		    catalyst: compartment_renaming( *C )
     	        }
     	        ts = binary_operation( V, list( iota ), C, list( iota_ ), eis )
 		#print 'bop returns', ts
 		# TODO: check if in-compartment interaction is right
     	        for W in ts:
-    	            p_repl = { p: param_relabeling( p, V, iota, C, iota_, W ) for p in rate_params }
-	            #print V, iota, C, iota_, ':', compartment_renaming( *W )
-    	            yield ( compartment_renaming(*V), compartment_renaming(*W), (rate,c_repl,p_repl) )
-	            if within_compartment_interactions and (V == C) and list(iota) != list(iota_):
-    		        # TODO: is this within-class case right in general?
-    	                p_repl = { p: param_relabeling( p, V, iota, iota_, W ) for p in rate_params }
-	                #print V, iota, iota_, (iota != iota_), '::', compartment_renaming( *W )
-    	                yield( compartment_renaming(*V), compartment_renaming(*W), (rate/catalyst,c_repl,p_repl) )
+                    Wc = compartment_renaming(*W)
+                    if Wc != Vc:
+                        p_repl = { p: param_relabeling( p, V, iota, C, iota_, W ) for p in rate_params }
+                        #print V, iota, C, iota_, ':', compartment_renaming( *W )
+                        yield ( Vc, Wc, (rate,c_repl,p_repl) )
+                        if within_compartment_interactions and (V == C) and list(iota) != list(iota_):
+                            # TODO: is this within-class case right in general?
+                            p_repl = { p: param_relabeling( p, V, iota, iota_, W ) for p in rate_params }
+                            #print V, iota, iota_, (iota != iota_), '::', compartment_renaming( *W )
+                            yield( Vc, Wc, (rate/catalyst,c_repl,p_repl) )
     else: # wrong variables in rate
 	raise BoxModelProductException, "Can't stratify rate {0}".format(rate)
 
