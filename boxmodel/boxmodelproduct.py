@@ -212,6 +212,7 @@ def default_edge_generator(
 	vertex_namer, param_relabeling, compartment_renaming,
 	single_edge_generator=None,
 	seed_set=None, cross_interactions=True,
+        within_compartment_interactions=False,
 	unary_operation=default_sop, binary_operation=default_bop,
 	inclusions=tuple_inclusions
     ):
@@ -226,6 +227,8 @@ def default_edge_generator(
 	any( not Set(m1._vars).intersection( Set(m2._vars) ).is_empty() for m1 in models for m2 in models if m2 is not m1 )
     ):
 	param_relabeling = full_param_relabeling
+    if within_compartment_interactions:
+        raise ValueError, 'within_compartment_interactions option not supported in single_edge_generator()'
     import itertools
     if seed_set is None:
 	seed_set = Set( compartment_renaming(*V) for V in ( itertools.product( *((m._vars + list(m._sources)) for m in models) ) ) )
@@ -391,11 +394,57 @@ class CompositeBoxModel(boxmodel.BoxModel):
         d._bindings = d._bindings + b
         d.assign_parameters()
         return d
-    def combine_arrows( self ):
+    def combine_arrows( self, use_names=() ):
+        if use_names: ## if non empty collection of variable names to introduce
+            try:
+                ## case: use_names is a dictionary { name:sum of things }
+                ## transform it to { one of things:name - rest of things }
+                ##  to do the substitution that simplifies sum to name
+                ## also, expand references to things in inclusion_variables
+                #expand_inclusions = dynamicalsystems.Bindings( { k:sum(vl) for k,vl in self._inclusion_variables.items() } )
+                #print 'expand_inclusions:', expand_inclusions
+                #print 'is', SR('x+1').operator(), '?', { k:v.op
+                combine_names_dict = { k:v for k,v in use_names.iteritems() }
+                print '=', use_names
+                #subs = { xt:expand_inclusions(k-(v-xt)) for k,v in use_names.items() for xt in ( ( v.operands()[-1], ) if v.operator()==SR('x+1').operator() else None ) }
+            except AttributeError:
+                try:
+                    ## case: use_names is a tuple of variables,
+                    ## which are keys in self._inclusion_variables
+                    use_names[0]
+                except TypeError:
+                    ## fall back case: use_names is a single variable
+                    ## make it into a tuple and continue
+                    use_names = ( use_names, )
+                print 'inclusion_variables is', self._inclusion_variables
+                combine_names_dict = { v:sum( self._inclusion_variables[v] ) for v in use_names }
+                #subs = { it[-1]:sum( it[:-1] + [v] ) for v in use_names for it in ( self._inclusion_variables[v], ) }
+            #b = b.bind( subs )
+            #print 'combined rates:'
+            #for v,w,r in b._graph.edge_iterator():
+            #    print ' ', r
+        else:
+            combine_names_dict = {}
         d = {}
         for v,w,r in self._graph.edge_iterator():
             d[(v,w)] = d.get( (v,w), 0 ) + r
-        ee = [ (v,w,r) for (v,w),r in d.iteritems() ]
+        print '==', combine_names_dict
+        def combine_names(r):
+            for k,v in combine_names_dict.iteritems():
+                if v.operator() == sage.symbolic.operators.add_vararg:
+                    rate_vars = Set( r.variables() )
+                    terms_in_rate = [ x for x in v.operands() if x in rate_vars ]
+                    if len(terms_in_rate) > 1:
+                        print ':', r
+                        print ':', k, v
+                        expando = { terms_in_rate[0] : k - (v + terms_in_rate[0]) }
+                        print ':', expando
+                        r = r.subs( expando ).simplify()
+                        print '::', r
+                else:
+                    r = r.subs( { k:v } )
+            return r
+        ee = [ (v,w,combine_names(r)) for (v,w),r in d.iteritems() ]
         b = boxmodel.BoxModel( DiGraph( ee, pos=self._graph.get_pos() ), self._vars, sources=self._sources, sinks=self._sinks )
         return b
 	#return self.aggregate_compartments( lambda x:tuple(x), self._param_namer, self._vertex_namer )
@@ -521,7 +570,7 @@ class BoxModelProduct(CompositeBoxModel):
 	unary_operation =       kwargs.pop( 'unary_operation', default_sop )
 	binary_operation =      kwargs.pop( 'binary_operation', default_bop )
 	inclusions =            kwargs.pop( 'inclusions', tuple_inclusions )
-        within_compartment_interactions = kwargs.pop( 'within_compartment_interactions', True )
+        within_compartment_interactions = kwargs.pop( 'within_compartment_interactions', False )
 	seed_set =              kwargs.pop( 'seed_set', None )
 	if kwargs: raise TypeError, "Unknown named arguments to BoxModelProduct: %s" % str(kwargs)
 

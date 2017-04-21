@@ -479,8 +479,12 @@ class sort_latex_variables(sage.symbolic.expression_conversions.ExpressionTreeWa
                 ## if it's a compound symbol, put it in parens
                 if ex.is_symbol():
                     lx = latex(ex)
-                    if len(lx) > 1 and '_' not in lx and '^' not in lx:
-                        return r'\left({}\right)'.format(lx)
+                    lxinner = lx
+                    while lxinner[0] == '{' and lxinner[-1] == '}':
+                        lxinner = lxinner[1:-1]
+                    if len(lxinner) > 1 and '_' not in lxinner and '^' not in lxinner and not( lxinner[0] == '\\' and lxinner[1:].isalpha() ):
+                        print 'add () to', lxinner
+                        return r'\left({}\right)'.format(lxinner)
                     else: return lx
                 ## anything else, use default latex rendering
                 return latex(ex)
