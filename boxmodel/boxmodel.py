@@ -44,6 +44,21 @@ def plot_boxmodel_graph( g, filename=None, inline=False, figsize=(6,6), empty_ve
         LF.close()
     return LT
 
+## see BoxModel.plot_boxes() method below
+## this is a transformation that supports plotting a box model
+## graph using per capita flow rates rather than absolute rates
+def per_capita_rates(g):
+    def to_per_capita(r,s):
+        if s in r.variables(): return r/s
+        else:
+            print 'Warning: rate ', str(r), 'not converted to per capita'
+            return r
+    return DiGraph(
+        [ (v,w,to_per_capita(e,v)) for v,w,e in g.edge_iterator() ],
+        multiedges=True,
+        pos = g.get_pos()
+    )
+
 class BoxModel(SageObject):
     """Parent class for all kinds of box models.
     Note that since this gets its variables from a graph's vertices,
@@ -56,6 +71,7 @@ class BoxModel(SageObject):
 	parameter_dependencies={},
 	sources=(),
 	sinks=(),
+        aggregate_names=(),
         bindings=dynamicalsystems.Bindings()):
 	# we are given a directed graph whose vertex labels are state
 	# variables, representing fractions of total population,
@@ -68,6 +84,7 @@ class BoxModel(SageObject):
 	self._graph.set_latex_options( edge_labels=True )
 	self._sources = Set( sources )
 	self._sinks = Set( sinks )
+        self._aggregate_names = aggregate_names
 	if vars is None:
 	    vars = list( Set( graph.vertices() ) - self._sources - self._sinks )
 	self._vars = vars
@@ -76,7 +93,7 @@ class BoxModel(SageObject):
 	    except AttributeError: return []
 	if parameters is None:
 	    # avoid namespace confusion with boxmodelproduct.union
-	    parameters = reduce( lambda x,y: x.union(y), (Set(getvars(r)) for f,t,r in graph.edges()), Set() ).difference( Set( self._vars ) )
+	    parameters = list( reduce( lambda x,y: x.union(y), (Set(getvars(r)) for f,t,r in graph.edges()), Set() ) - self._vars - self._aggregate_names )
 	self._parameters = parameters
 	#print 'parameters:', parameters
 	self._parameter_dependencies = parameter_dependencies
@@ -123,6 +140,7 @@ class BoxModel(SageObject):
 	    parameter_dependencies = {
 		bindings(p):[(bindings(d),t) for d,t in pd] for p,pd in self._parameter_dependencies.items()
 	    },
+            aggregate_names = self._aggregate_names,
 	    bindings = self._bindings + bindings
 	)
     def add_transitions( self, trs ):
@@ -139,7 +157,7 @@ class BoxModel(SageObject):
 		print r
 		print r.variables()
 		print Set( r.variables() ).difference( Set( self._vars ) )
-		nbm._parameters.update( Set( r.variables() ).difference( Set( self._vars ) ) )
+		nbm._parameters.update( Set( r.variables() ) - self._vars - self._aggregate_names )
 	    except AttributeError: pass
 	print 'parameters after', nbm._parameters
 	return nbm 
@@ -157,9 +175,11 @@ class BoxModel(SageObject):
 	    from collections import defaultdict
 	    sort_order_map = dict(
                 ## parameters first, Greek letters before Roman
-                [ (latex(v),(T,T)) for v in self._parameters for T in [-1e+10 if latex(v)[0] == '\\' else -0.9e+10] ] +
+                [ (latex(v),(T,T)) for v in self._parameters for T in [-1e+10 if latex(v)[0] == '\\' or latex(v)[0:2] == '{\\' else -0.9e+10] ] +
                 ## then compartment names, in order of the graph layout
-	        [ (latex(vv),(pp[0],-pp[1])) for vv,pp in self._graph.get_pos().items() ]
+	        [ (latex(vv),(pp[0],-pp[1])) for vv,pp in self._graph.get_pos().items() ] +
+                ## then any aggregate names
+                [ (latex(v),(1e+10,1e+10)) for v in self._aggregate_names ]
 	    )
 	    # this converter is defined later in this file
 	    self._sorter = sort_latex_variables(
@@ -177,6 +197,8 @@ class BoxModel(SageObject):
     def plot_boxes( self, filename=None, inline=False, figsize=(6,6), transform_graph=None, **options ):
 	g = self._graph
 	## apply the user-supplied transform if any
+        ## for example, use transform_graph=per_capita_rates to
+        ## plot using per capita rather than absolute flow rates
         if transform_graph is not None:
             g = transform_graph(g)
 	## tweak the latex representation of the rates
@@ -432,12 +454,14 @@ class MakeMicro(IdentityConverter):
 
 class sort_latex_variables(sage.symbolic.expression_conversions.ExpressionTreeWalker):
     def __init__(self, sort_order_map, order_numbers_as=-oo, order_unknown_as=oo):
+        print 'sort_order_map is', sort_order_map
 	self._map = sort_order_map
 	self._number_order = order_numbers_as
 	self._unknown_order = order_unknown_as
 	return super(sort_latex_variables,self).__init__(SR(0))
     def arithmetic(self, ex, operator):
         if operator == (2*SR.symbol('x')).operator():
+            print 'reorder latex product of', ex.operands()
             ## sort the factors in a multiplication
 	    def keyfn(x):
 	        try:
@@ -489,9 +513,11 @@ class sort_latex_variables(sage.symbolic.expression_conversions.ExpressionTreeWa
                 ## anything else, use default latex rendering
                 return latex(ex)
             ## combine the factors in the numerator
+            print ll
             lname = ' '.join(to_lx(v) for v in ll)
             ## if any factors in denominator, combine them and make fraction
             if len(denom) > 0:
+                print '/', denom
                 lden = ' '.join(to_lx(v.operands()[0]) for v in denom)
                 lname = r'\frac{'+lname+'}{'+lden+'}'
             #print latex(ex), ' ==> ', lname

@@ -314,6 +314,7 @@ class CompositeBoxModel(boxmodel.BoxModel):
             vars=None,
             sources=None,
             sinks=None,
+            aggregate_names=(),
 	    vertex_namer=x_namer,
 	    param_namer=dynamicalsystems.subscriptedsymbol,
 	    bindings=dynamicalsystems.Bindings()
@@ -370,6 +371,8 @@ class CompositeBoxModel(boxmodel.BoxModel):
         else:
             self._sinks = Set( vertex_labels[v] for v in sink_tuples )
         print 'vars', self._vars, ' sources', self._sources, 'sinks', self._sinks
+        self._aggregate_names = aggregate_names
+
 	self._vertex_namer = vertex_namer
 	self._param_namer = param_namer
         print 'extract parameters from rates'
@@ -437,15 +440,21 @@ class CompositeBoxModel(boxmodel.BoxModel):
                     if len(terms_in_rate) > 1:
                         print ':', r
                         print ':', k, v
-                        expando = { terms_in_rate[0] : k - (v + terms_in_rate[0]) }
+                        expando = { terms_in_rate[0] : k - (v - terms_in_rate[0]) }
                         print ':', expando
-                        r = r.subs( expando ).simplify()
+                        r = r.subs( expando ).expand().simplify()
                         print '::', r
                 else:
                     r = r.subs( { k:v } )
             return r
         ee = [ (v,w,combine_names(r)) for (v,w),r in d.iteritems() ]
-        b = boxmodel.BoxModel( DiGraph( ee, pos=self._graph.get_pos() ), self._vars, sources=self._sources, sinks=self._sinks )
+        b = boxmodel.BoxModel(
+                DiGraph( ee, pos=self._graph.get_pos() ),
+                self._vars,
+                sources=self._sources,
+                sinks=self._sinks,
+                aggregate_names=combine_names_dict.keys()
+        )
         return b
 	#return self.aggregate_compartments( lambda x:tuple(x), self._param_namer, self._vertex_namer )
     def separate_arrows( self ):
