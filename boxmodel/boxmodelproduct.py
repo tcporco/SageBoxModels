@@ -307,7 +307,8 @@ class CompositeBoxModel(boxmodel.BoxModel):
     def __init__(
 	    self,
 	    tuple_graph,
-	    var_tuples,
+            raw_tuples,
+	    var_tuples = None,
             source_tuples=[],
             sink_tuples=[],
             flow_graph=None,
@@ -330,7 +331,14 @@ class CompositeBoxModel(boxmodel.BoxModel):
         ## because of suppression of source-sink edges there may be
         ## variables in these three collections that aren't in the
         ## graph
-        vertex_labels = { v: v_subs(v) for v in Set( var_tuples ) | Set( source_tuples ) | Set( sink_tuples ) | Set( self._tuple_graph.vertex_iterator() ) }
+
+        self._raw_tuples = raw_tuples
+        if var_tuples is not None:
+	    self._var_tuples = var_tuples
+        else:
+            self._var_tuples = [ bm_state( *rt ) for rt in self._raw_tuples ]
+
+        vertex_labels = { v: v_subs(v) for v in Set( self._var_tuples ) | Set( source_tuples ) | Set( sink_tuples ) | Set( self._tuple_graph.vertex_iterator() ) }
         print 'vertex labels has', vertex_labels.keys()
 
         if flow_graph is not None:
@@ -355,11 +363,10 @@ class CompositeBoxModel(boxmodel.BoxModel):
             if positions is not None:
                 self._graph.set_pos( { vertex_labels[v]:positions[v] for v in vertex_labels.iterkeys() } )
 
-	self._var_tuples = var_tuples
         if vars is not None:
             self._vars = vars
         else:
-            self._vars = [ vertex_labels[v] for v in var_tuples ] #vertex_labels.values()
+            self._vars = [ vertex_labels[v] for v in self._var_tuples ] #vertex_labels.values()
         self._source_tuples = source_tuples
         if sources is not None:
             self._sources = Set( sources )
@@ -607,7 +614,7 @@ class BoxModelProduct(CompositeBoxModel):
             compartment_wrapper(*W),
             r.subs( { c:compartment_wrapper(*C) for c,C in c_repl.iteritems() } ).subs( p_repl )
         ) for V,W,(r,c_repl,p_repl) in raw_edges ]
-        self._raw_tuples = list( Set( [ V for V,W,rr in raw_edges ] ) | Set( [ W for V,W,rr in raw_edges ] ) )
+        raw_tuples = list( Set( [ V for V,W,rr in raw_edges ] ) | Set( [ W for V,W,rr in raw_edges ] ) )
 
         print 'separate vars, sources, sinks'
 	from collections import OrderedDict
@@ -668,11 +675,12 @@ class BoxModelProduct(CompositeBoxModel):
 
         print 'vertex_positioner'
 	# graphical positions of graph vertices
-	tuple_graph.set_pos( vertex_positioner( tuple_graph, models, self._raw_tuples ) )
+	tuple_graph.set_pos( vertex_positioner( tuple_graph, models, raw_tuples ) )
 
         print 'super'
 	super(BoxModelProduct,self).__init__(
 	    tuple_graph=tuple_graph,
+            raw_tuples=raw_tuples,
             var_tuples=vars_d.keys(),
             source_tuples=sources_s,
             sink_tuples=sinks_s,
