@@ -32,11 +32,15 @@ def plot_boxmodel_graph( g, filename=None, inline=False, figsize=(6,6), empty_ve
     #g.set_latex_options( **lopts )
     gop.set_options( **lopts )
     gl = gop.latex()
+    xp = ''
+    if figsize[0] > 6.75 or figsize[1] > 9:
+        latex.add_package_to_preamble_if_available('geometry')
+        xp = '\\geometry{papersize={' + str(figsize[0] + 10) + 'cm,' + str(figsize[1] + 20) + 'cm}}\n'
     if inline:
         #LT = '\n\\vspace{24pt}\n' + gl + '\n\\vspace{24pt}\n'
         LT = gl
     else:
-        LT = _latex_file_( dynamicalsystems.wrap_latex( gl ), title='' )
+        LT = _latex_file_( dynamicalsystems.wrap_latex( gl ), title='', extra_preamble=xp )
     if filename is not None:
         #print 'plot to', filename
         LF = open( filename, 'w' )
@@ -79,7 +83,11 @@ class BoxModel(SageObject):
 	try:
 	    graph.edge_iterator()
 	except AttributeError:
-	    graph = DiGraph(graph)
+            try:
+                self.__init__( graph._graph, graph._vars, sources=graph._sources, sinks=graph._sinks, aggregate_names=graph._aggregate_names, bindings=graph._bindings )
+                return
+            except AttributeError:
+	        graph = DiGraph(graph)
 	self._graph = graph
 	self._graph.set_latex_options( edge_labels=True )
 	self._sources = Set( sources )
@@ -93,33 +101,36 @@ class BoxModel(SageObject):
 	    except AttributeError: return []
 	if parameters is None:
 	    # avoid namespace confusion with boxmodelproduct.union
+            print 'make parameters'; sys.stdout.flush()
 	    parameters = list( reduce( lambda x,y: x.union(y), (Set(getvars(r)) for f,t,r in graph.edges()), Set() ) - self._vars - self._aggregate_names )
+            print 'made parameters'; sys.stdout.flush()
 	self._parameters = parameters
 	#print 'parameters:', parameters
-	self._parameter_dependencies = parameter_dependencies
-	for p in self._parameters:
-	    if p not in self._parameter_dependencies:
-		# infer connections between parameters and compartmentalization
-		# for now, simple rule:
-		# just connect it to the source variable of its arrow
-		# TODO: inference including defined quantities like N
-		#print 'infer dependencies for parameter', p
-		for v,w,e in self._graph.edges():
-		    try: vs = getvars(e)
-		    except AttributeError: vs = []
-		    if p in vs:
-			pd = [ v ]
-			#print 'found', p, 'in arrow', e
-			#print 'infer dependency on', v
-			if p in self._parameter_dependencies and self._parameter_dependencies[p] != pd:
-			    #print 'but already inferred', self._parameter_dependencies[p]
-			    #print 'dependencies of parameter', p, 'are unclear, inferring no dependencies'
-			    pd = []
-			self._parameter_dependencies[p] = pd
-	for p, pd in self._parameter_dependencies.items():
-	    try: [ d[0] for d in pd ]
-	    except: self._parameter_dependencies[p] = [ (d,deps.index) for d in pd ]
-	#print 'parameter dependencies:', self._parameter_dependencies
+        if False:
+            self._parameter_dependencies = parameter_dependencies
+            for p in self._parameters:
+                if p not in self._parameter_dependencies:
+                    # infer connections between parameters and compartmentalization
+                    # for now, simple rule:
+                    # just connect it to the source variable of its arrow
+                    # TODO: inference including defined quantities like N
+                    #print 'infer dependencies for parameter', p
+                    for v,w,e in self._graph.edges():
+                        try: vs = getvars(e)
+                        except AttributeError: vs = []
+                        if p in vs:
+                            pd = [ v ]
+                            #print 'found', p, 'in arrow', e
+                            #print 'infer dependency on', v
+                            if p in self._parameter_dependencies and self._parameter_dependencies[p] != pd:
+                                #print 'but already inferred', self._parameter_dependencies[p]
+                                #print 'dependencies of parameter', p, 'are unclear, inferring no dependencies'
+                                pd = []
+                            self._parameter_dependencies[p] = pd
+            for p, pd in self._parameter_dependencies.items():
+                try: [ d[0] for d in pd ]
+                except: self._parameter_dependencies[p] = [ (d,deps.index) for d in pd ]
+            #print 'parameter dependencies:', self._parameter_dependencies
 	self._bindings = bindings
 	if self._graph.get_pos() is None:
 	    self._graph.set_pos( { v:(i,0) for i,v in enumerate(self._vars) } )

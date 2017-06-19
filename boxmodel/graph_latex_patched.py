@@ -441,6 +441,7 @@ def setup_latex_preamble():
         sage: ("\\usepackage{tikz}" in latex.extra_preamble()) == latex.has_file("tikz.sty")
         True
     """
+    latex.add_to_preamble("\n")
     latex.add_package_to_preamble_if_available("tikz")
     latex.add_to_mathjax_avoid_list("tikz")
     latex.add_package_to_preamble_if_available("tkz-graph")
@@ -1598,7 +1599,6 @@ class GraphLatex(SageObject):
         # and doing a shift of the larger to center
         # A linear function will map layout positions into the bordered graphic space
         translate = lambda p: ((p[0]-xmin)*x_scale+llx, (p[1]-ymin)*y_scale+lly)
-
 
         # The positions of the vertices will get scaled to fill the
         # specified size of the image, as given by graphic_size.

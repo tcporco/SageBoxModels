@@ -230,8 +230,13 @@ def default_edge_generator(
     if within_compartment_interactions:
         raise ValueError, 'within_compartment_interactions option not supported in single_edge_generator()'
     import itertools
+    def factor_tuples( m ):
+        try: return m._raw_tuples
+        except AttributeError: return [ (v,) for v in m._vars + list(m._sources)]
+    def flatten_tuple( tt ):
+        return reduce( lambda x,y:x+y, tt, () )
     if seed_set is None:
-	seed_set = Set( compartment_renaming(*V) for V in ( itertools.product( *((m._vars + list(m._sources)) for m in models) ) ) )
+	seed_set = Set( compartment_renaming(*flatten_tuple(V)) for V in itertools.product( *map(factor_tuples, models) ) )
     else:
         seed_set = Set( seed_set )
     edges = []
@@ -437,11 +442,14 @@ class CompositeBoxModel(boxmodel.BoxModel):
             combine_names_dict = {}
         d = {}
         for v,w,r in self._graph.edge_iterator():
+            print r; sys.stdout.flush()
             d[(v,w)] = d.get( (v,w), 0 ) + r
-        print '==', combine_names_dict
+        #print '==', combine_names_dict
         def combine_names(r):
             for k,v in combine_names_dict.iteritems():
-                if v.operator() == sage.symbolic.operators.add_vararg:
+                if r == v:
+                    r = k
+                elif v.operator() == sage.symbolic.operators.add_vararg:
                     rate_vars = Set( r.variables() )
                     terms_in_rate = [ x for x in v.operands() if x in rate_vars ]
                     if len(terms_in_rate) > 1:
@@ -451,10 +459,12 @@ class CompositeBoxModel(boxmodel.BoxModel):
                         print ':', expando
                         r = r.subs( expando ).expand().simplify()
                         print '::', r
-                else:
-                    r = r.subs( { k:v } )
+                #else:
+                #    r = r.subs( { k:v } )
             return r
+        print 'make ee'; sys.stdout.flush()
         ee = [ (v,w,combine_names(r)) for (v,w),r in d.iteritems() ]
+        print 'make b'; sys.stdout.flush()
         b = boxmodel.BoxModel(
                 DiGraph( ee, pos=self._graph.get_pos() ),
                 self._vars,
@@ -462,17 +472,18 @@ class CompositeBoxModel(boxmodel.BoxModel):
                 sinks=self._sinks,
                 aggregate_names=combine_names_dict.keys()
         )
+        print 'done'; sys.stdout.flush()
         return b
 	#return self.aggregate_compartments( lambda x:tuple(x), self._param_namer, self._vertex_namer )
     def separate_arrows( self ):
-	plus = SR(x+1).operator()
+	plus = SR('x+1').operator()
 	def arrow_iterator( e ):
 	    e = e.expand()
 	    if e.operator() == plus:
 		for t in e.operands(): yield t
 	    else:
 		yield e
-	return BoxModel( DiGraph(
+	return boxmodel.BoxModel( DiGraph(
 		[ (v,w,ee) for v,w,e in self._graph.edge_iterator() for ee in arrow_iterator(e) ],
 		pos = self._graph._pos,
 		multiedges=True
