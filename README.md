@@ -1,10 +1,26 @@
-This repo is a Jekyll website, with source code embedded using
-[working markup](http://lalashan.mcmaster.ca/theobio/projects/index.php/Working_Markup),
-for development relating to automated processing of compartment models.
+This repository is a package for the Sage computer math system,
+in the form of a Python module.
+This module provides an implementation of the compartmental model
+(or "box model")
+convention used in epidemiology, pharmacology and other disciplines,
+and a product framework for constructing compartmental models
+by combining simpler compartmental models.
 
-It includes [a Sage implementation of compartment models](BoxModelsInSage.html)
-built on [an external Sage package for dynamical systems](https://github.com/worden-lee/SageDynamics).
+To install, cd to this project's directory and type
 
-It also includes tests and development related to
-[an unfinished R package for compartment models](https://github.com/tcporco/boxmodel)
-(which is written largely in Common Lisp).
+`$ make install`
+
+or, if necessary,
+
+`$ sudo make install`
+
+depending on how your Sage installation is set up.
+
+It requires
+[an additional Sage package for dynamical systems](https://github.com/worden-lee/SageDynamics)
+as a prerequisite, which must also be installed.
+
+This repo also contains some documents relating to this project,
+which require the
+[working markup](http://lalashan.mcmaster.ca/theobio/projects/index.php/Working_Markup)
+system for processing.
