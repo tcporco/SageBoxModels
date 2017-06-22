@@ -19,8 +19,3 @@ depending on how your Sage installation is set up.
 It requires
 [an additional Sage package for dynamical systems](https://github.com/worden-lee/SageDynamics)
 as a prerequisite, which must also be installed.
-
-This repo also contains some documents relating to this project,
-which require the
-[working markup](http://lalashan.mcmaster.ca/theobio/projects/index.php/Working_Markup)
-system for processing.
