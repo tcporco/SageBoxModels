@@ -13,6 +13,7 @@ AUTHORS:
 - Nicolas M. Thiery (2010-02): dot2tex/graphviz interface
 - Rob Beezer (2010-05-29): Extended range of ``tkz-graph`` options
 - Jacob Laas (2015-03-31): added ability to render tkz-graph graphs with multiedges
+- Lee Worden (2017): small modifications, pending submission back into sage tree
 
 LaTeX Versions of Graphs
 -------------------------------------

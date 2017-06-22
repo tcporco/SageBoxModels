@@ -1,3 +1,10 @@
+#*****************************************************************************
+#  Copyright (C) 2017 Lee Worden <worden dot lee at gmail dot com>
+#
+#  Distributed under the terms of the GNU General Public License (GPL) v.2
+#                  http://www.gnu.org/licenses/
+#*****************************************************************************
+
 #from sage.all import *
 from boxmodelproduct import *
 from dynamicalsystems import *
