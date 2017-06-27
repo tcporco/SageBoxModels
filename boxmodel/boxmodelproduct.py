@@ -728,6 +728,30 @@ class BoxModelProduct(CompositeBoxModel):
         #    print k, 'is sum of', vl
 	#    self._bindings.merge_in_place( { k : sum( vl ) } )
 
+        print 'marginal parameters'
+        self._parameter_marginals = {}
+        ## ordered subsets of tuple of subscripts
+        def mubsets( ll ):
+            if len(ll) == 0: ## base case: empty set
+                yield ll
+            else:
+                for ls in subsets( ll[1:] ):
+                    yield ls
+                    yield [ll[0]] + ls
+        ## given a bm_params() structure, add all its marginals to the dict
+        def insert_marginals( *psubs ):
+            p, subs = ( psubs[0], psubs[1:] )
+            param = self._param_namer( *psubs )
+            for ss in subsets( subs ):
+                self._parameter_marginals.setdefault(
+                    self._param_namer( p, *ss ), []
+                ).append( param )
+            return param
+        for v,w,e in self._tuple_graph.edge_iterator():
+            e.substitute_function( bm_param, insert_marginals )
+        #print self._tuple_graph.edges()
+        print self._parameter_marginals
+
 def default_sop_strong( s_tuple, iset, eis ):
     # return set of t_tuples
     #print 'sop', s_tuple, eis

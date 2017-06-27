@@ -101,8 +101,8 @@ class BoxModel(SageObject):
 	self._sinks = Set( sinks )
         self._aggregate_names = aggregate_names
 	if vars is None:
-	    vars = list( Set( graph.vertices() ) - self._sources - self._sinks )
-	self._vars = vars
+	    vars = Set( graph.vertices() ) - self._sources - self._sinks
+	self._vars = list(vars)
 	def getvars(r):
 	    try: return r.variables()
 	    except AttributeError: return []
