@@ -274,6 +274,7 @@ choices. ::
     ...   edge_label_slopes={(0,3):False, (2,4):False},
     ...   edge_label_placement=0.50,
     ...   edge_label_placements={(0,4):'above', (2,3):'left', (0,0):'above', (4,4):'below'},
+    ...   bend_angles={(0,4):60},
     ...   loop_placement=(2.0, 'NO'),
     ...   loop_placements={4:(8.0, 'EA')}
     ...   )
@@ -527,6 +528,7 @@ class GraphLatex(SageObject):
             'edge_label_placements': {},
             'edge_style': None,
             'edge_styles': {},
+            'bend_angles': {},
             'loop_placement': (3.0, 'NO'),
             'loop_placements': {},
             'color_by_label' : False,
@@ -850,6 +852,9 @@ class GraphLatex(SageObject):
         - ``edge_styles`` -- styling for particular edges
           more documentation to come
 
+        - ``bend_angles`` -- placement of curved edges,
+          angles from rightward in degrees indexed by the edges.
+
         - ``loop_placement`` -- default: (3.0, 'NO') -- a pair,
           that determines how loops are rendered.  the first
           element of the pair is a distance, which determines
@@ -968,6 +973,7 @@ class GraphLatex(SageObject):
             sage: opts.set_option('edge_label_placement', 0.50)
             sage: opts.set_option('edge_label_placements', {(0,1):'above'})
             sage: opts.set_option('edge_label_placements', {(0,1):0.75})
+            sage: opts.set_option('bend_angles', {(0,1):30})
             sage: opts.set_option('loop_placement', (3.0, 'NO'))
             sage: opts.set_option('loop_placements', {0:(5.7,'WE')})
 
@@ -1207,6 +1213,13 @@ class GraphLatex(SageObject):
                     for key, p in value.items():
                         if not(type(p) in [float, RealLiteral] and (0 <= p) and (p <= 1)) and not(p in label_places):
                             raise ValueError('%s option for %s needs to be a number between 0.0 and 1.0 or a place (like "above"), not %s' % (name, key, p))
+            elif name == 'bend_angles':
+                if not isinstance(value, dict):
+                    raise TypeError('%s option must be a dictionary, not %s' (name, value))
+                else:
+                    for key, p in value.items():
+                        if not( isinstance(p,number_types) ):
+                            raise ValueError('%s option for %s needs to be a number, not %s' % (name, key, p))
             elif name == 'loop_placements':
                 if not isinstance(value, dict):
                     raise TypeError('%s option must be a dictionary, not %s' (name, value))
@@ -1783,6 +1796,8 @@ class GraphLatex(SageObject):
                 edge_label_slopes = self.get_option('edge_label_slopes')
                 edge_label_placements = self.get_option('edge_label_placements')
 
+            bend_angles = self.get_option('bend_angles')
+
             # Form dictionaries, each indexed for all edges
             #
             # A key of a dictionary indexed by edges may be
@@ -2023,7 +2038,10 @@ class GraphLatex(SageObject):
                 if self._graph.is_directed():
                     s+=['->,']
                 if (self._graph.is_directed() or self._graph.allows_multiple_edges()) and not loop:
-                    s+=['bend right=', str(10+20*multiedge_index), ',']
+                    if edge in bend_angles:
+                        s+=['bend right=', str(bend_angles[edge]), ',']
+                    else:
+                        s+=['bend right=', str(10+20*multiedge_index), ',']
                 edge_style = e_style[edge]
                 if edge_style is not None:
                     s+=[edge_style,',']

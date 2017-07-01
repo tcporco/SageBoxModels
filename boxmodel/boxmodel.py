@@ -18,7 +18,7 @@ class deps:
     index, sumover = range(0,2)
 
 def plot_boxmodel_graph( g, filename=None, inline=False, figsize=(6,6), empty_vertices=(), **options ):
-    print 'empty vertices:', empty_vertices
+    #print 'empty vertices:', empty_vertices
     lopts = {
         'graphic_size': figsize,
         'edge_labels': True,
@@ -36,7 +36,9 @@ def plot_boxmodel_graph( g, filename=None, inline=False, figsize=(6,6), empty_ve
     if inline:
         lopts['margins'] = (0.5,0.5,0.5,0.5)
     lopts.update( options )
-    #g.set_latex_options( **lopts )
+    #print 'lopts:',lopts
+    if 'latex_options' in options:
+        g.set_latex_options( **(options['latex_options']) )
     gop.set_options( **lopts )
     gl = gop.latex()
     xp = ''

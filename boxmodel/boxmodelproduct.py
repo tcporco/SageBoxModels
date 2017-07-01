@@ -743,9 +743,9 @@ class BoxModelProduct(CompositeBoxModel):
             p, subs = ( psubs[0], psubs[1:] )
             param = self._param_namer( *psubs )
             for ss in subsets( subs ):
-                self._parameter_marginals.setdefault(
-                    self._param_namer( p, *ss ), []
-                ).append( param )
+                pss = self._param_namer( p, *ss )
+                if pss != param:
+                    self._parameter_marginals.setdefault( pss, [] ).append( param )
             return param
         for v,w,e in self._tuple_graph.edge_iterator():
             e.substitute_function( bm_param, insert_marginals )
