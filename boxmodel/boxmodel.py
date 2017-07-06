@@ -42,13 +42,13 @@ def plot_boxmodel_graph( g, filename=None, inline=False, figsize=(6,6), empty_ve
     gop.set_options( **lopts )
     gl = gop.latex()
     xp = ''
-    if figsize[0] > 6.75 or figsize[1] > 9:
-        latex.add_package_to_preamble_if_available('geometry')
-        xp = '\\geometry{papersize={' + str(figsize[0] + 10) + 'cm,' + str(figsize[1] + 20) + 'cm}}\n'
     if inline:
         #LT = '\n\\vspace{24pt}\n' + gl + '\n\\vspace{24pt}\n'
         LT = gl
     else:
+        if figsize[0] > 6.75 or figsize[1] > 9:
+            latex.add_package_to_preamble_if_available('geometry')
+            xp = '\\geometry{papersize={' + str(figsize[0] + 10) + 'cm,' + str(figsize[1] + 20) + 'cm}}\n'
         LT = _latex_file_( dynamicalsystems.wrap_latex( gl ), title='', extra_preamble=xp )
     if filename is not None:
         #print 'plot to', filename
