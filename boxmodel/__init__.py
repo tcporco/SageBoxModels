@@ -8,6 +8,7 @@
 #!/usr/bin/python
 from boxmodel import *
 from boxmodelproduct import *
+from freeproduct import *
 from boxkolmogorov import *
 #from boxmarkov import *
 from boxhamiltonian import *
