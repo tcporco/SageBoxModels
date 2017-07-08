@@ -796,11 +796,11 @@ def default_strong_edge_bundle_generator(
     rate_comps = [ x for x in rate.variables() if x in models[i]._vars ]
     rate_params = Set( rate.variables() ) - Set( rate_comps )
     # we can handle linear or bilinear transitions
-    if rate_comps == [source]:
+    if rate_comps == [source] or rate_comps == []:
 	for V in seed_set:
 	    if all( i in inclusions( v, V, i ) for (v,w,r),i in eis ):
                 Vc = compartment_renaming(*V)
-		c_repl = { source: Vc }
+		c_repl = { s: Vc for s in rate_comps }
 	        for W in unary_operation( V, [i for e,i in eis], eis ):
                     Wc = compartment_renaming(*W)
                     if Wc != Vc:
