@@ -499,27 +499,29 @@ class sort_latex_variables(sage.symbolic.expression_conversions.ExpressionTreeWa
                 ## there will only be one -1
                 ll = [ e for e in ll if e != -1 ]
                 rev = rev[:1]
+                print 'will reverse', rev
             ## if there are factors of y^-1
             ## we will put those as y in a denominator
             denom = [ d for d in ll if
                 d.operator()==(1/SR.symbol('x')).operator()
                 and d.operands()[1] == SR(-1)
             ]
+            ll = [ n for n in ll if n not in denom ]
+            denom = [ 1/d for d in denom ]
             ## function to render each factor in latex
-            def to_lx( ex ):
-                ## leave out y^-1 factors, they'll come in as y later
-                if ex in denom: return ''
+            def to_lx( ex, within ):
                 ## subtractions
                 if ex.operator() == minusop:
                     ## if reversed, write backwards
                     if ex in rev:
                         return r'\left({}-{}\right)'.format(latex(-ex.operands()[1]),latex(ex.operands()[0]))
                     ## otherwise, write forwards
-                    else:
-                        return ''.join( (r'\left(',latex(ex),r'\right)') )
+                    #else:
+                        #return ''.join( (r'\left(',latex(ex),r'\right)') )
                 ## write additions
-                if ex.operator() == (SR.symbol('x')+1).operator():
-                    return r'\left({}\right)'.format('+'.join(ex.operands()))
+                if ex.operator() == (SR.symbol('x')+1).operator() and within:
+                    print 'add () to', ex
+                    return r'\left({}\right)'.format(latex(ex))
                 ## if it's a compound symbol, put it in parens
                 if ex.is_symbol():
                     lx = latex(ex)
@@ -529,18 +531,31 @@ class sort_latex_variables(sage.symbolic.expression_conversions.ExpressionTreeWa
                     if len(lxinner) > 1 and '_' not in lxinner and '^' not in lxinner and not( lxinner[0] == '\\' and lxinner[1:].isalpha() ):
                         print 'add () to', lxinner
                         return r'\left({}\right)'.format(lxinner)
-                    else: return lx
+                    else:
+                        print 'a symbol:', lx
+                        return lx
                 ## anything else, use default latex rendering
+                print ' default latex,', latex(ex)
                 return latex(ex)
             ## combine the factors in the numerator
             print ll
-            lname = ' '.join(to_lx(v) for v in ll)
+            lname = ' '.join(to_lx(v, len(ll)>1) for v in ll)
             ## if any factors in denominator, combine them and make fraction
             if len(denom) > 0:
                 print '/', denom
-                lden = ' '.join(to_lx(v.operands()[0]) for v in denom)
+                lden = ' '.join(to_lx(d, len(denom)>1) for d in denom)
                 lname = r'\frac{'+lname+'}{'+lden+'}'
-            #print latex(ex), ' ==> ', lname
+            print latex(ex), ' ==> ', lname
 	    Msym = SR.symbol( 'M_{}'.format( ZZ.random_element(1e+10) ), latex_name=lname )
             return Msym
+        elif ( operator == (2+SR.symbol('x')).operator() and
+            ex.operands()[0].operator() == (2*SR.symbol('x')).operator() and
+            SR(-1) in ex.operands()[0].operands() and
+            ex.operands()[1] == 1):
+            print 'normalise', latex(ex), 'to 1-x form'
+            lname = latex(ex.operands()[1])+'-'+latex(-ex.operands()[0])
+	    Msym = SR.symbol( 'M_{}'.format( ZZ.random_element(1e+10) ), latex_name=lname )
+            return Msym
+        print 'typeset', latex(ex), 'as is'
+        print 'operator is', str(ex.operator())
         return super(sort_latex_variables,self).arithmetic(ex,operator)
