@@ -62,7 +62,7 @@ def plot_boxmodel_graph( g, filename=None, inline=False, figsize=(6,6), empty_ve
 ## graph using per capita flow rates rather than absolute rates
 def per_capita_rates(g):
     def to_per_capita(r,s):
-        if s in r.variables(): return r/s
+        if s in r.variables(): return (r/s).collect_common_factors().expand()
         else:
             print 'Warning: rate ', str(r), 'not converted to per capita'
             return r
@@ -214,6 +214,8 @@ class BoxModel(SageObject):
 	try: return self._sorter( ex )
 	except AttributeError: # ex is not an expression
 	    return ex
+    def __repr__(self):
+        return '(BoxModel with compartments ' + str(tuple(self._vars)) + ')'
     def plot_boxes( self, filename=None, inline=False, figsize=(6,6), transform_graph=None, **options ):
 	g = self._graph
 	## apply the user-supplied transform if any
@@ -223,7 +225,7 @@ class BoxModel(SageObject):
             g = transform_graph(g)
 	## tweak the latex representation of the rates
 	g = DiGraph(
-	    [ self._vars, [ (v,w,self.reorder_latex_variables(e)) for v,w,e in g.edge_iterator() ] ],
+	    [ g.vertices(), [ (v,w,self.reorder_latex_variables(e)) for v,w,e in g.edge_iterator() ] ],
             format='vertices_and_edges',
 	    multiedges=True,
 	    pos = g.get_pos()
@@ -367,6 +369,11 @@ class BoxModel(SageObject):
 	return self.jump_process().deterministic_flow()
     def ode(self, time_variable=SR.symbol('t'), bindings=dynamicalsystems.Bindings()):
 	return self.jump_process().deterministic_ode(time_variable, bindings)
+    def difference_equation(self,
+            step=1., time_variable=SR.symbol('t'), bindings=dynamicalsystems.Bindings()):
+        return self.jump_process().approximate_deterministic_difference_equation(
+            step=step, time_variable=time_variable, bindings=bindings
+        )
     def micro_transitions( self ):
 	# This could produce micro transitions but it isn't right so far
 	# TODO: move this to JumpProcess

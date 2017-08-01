@@ -11,16 +11,29 @@ from dynamicalsystems import *
 
 ## code evaluating categories of compartments in R
 
-def R_inclusions_fn( self, name='observations', extras=Bindings() ):
+def R_inclusions_fn( self, name='observations', inclusions=None, extras=Bindings() ):
+    """R_inclusions_fn: emit definition of an R function that constructs
+    aggregate quantities from the compartments of a product model.
+
+    inclusions: which quantities to define, if not the ones generated in
+    the process of the product operation by tracking the division of
+    factor compartments into product compartments.
+    extras: quantities to include in addition to the above."""
     code = '#!/usr/bin/R\n'
     code += name + ' <- function( state ) {\n'
     code += '  with(state, {\n'
     code += '    obs <- list(c(\n'
-    code += ',\n'.join(
+    if inclusions is None:
+        code += ',\n'.join(
             '      ' + str(v) + ' = ' + ' + '.join( str(vt) for vt in ll )
             for v, ll in self._inclusion_variables.iteritems()
             if ll != [v]
-    ) + '\n'
+        ) + '\n'
+    else:
+        code += ',\n'.join(
+            '      ' + str(k) + ' = ' + str(v)
+            for k, v in inclusions._dict.iteritems()
+        ) + '\n'
     if len(extras._dict) > 0:
         code += ',\n'.join(
             '      ' + str(k) + ' = ' + str(v)
