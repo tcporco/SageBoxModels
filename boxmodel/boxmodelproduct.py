@@ -22,56 +22,67 @@ bm_param = function( 'bm_param', print_latex_func=lambda bmp, p, *xs:'{0}({1})'.
 # for one another, or simply to give them different names.
 # This is distinct from a compartment aggregation function, see below,
 # which adds compartments together instead of declaring them equivalent.
-def default_compartment_renaming(*args):
+def default_compartment_renaming( self, args ):
     return tuple(args)
 
 # A mapping from composite compartment names (tuples) into aggregate
 # quantities, for the purpose of summing compartments.  This is distinct
 # from a compartment renaming function, above.
-def default_compartment_aggregation(*args):
+def default_compartment_aggregation(self, args):
     return tuple(args)
 
 # by default, make tuples of state variables into combined state variables by
 # subscripting the first with the others
-default_vertex_namer = dynamicalsystems.subscriptedsymbol
+def default_vertex_namer(self, xx):
+    return dynamicalsystems.subscriptedsymbol(*xx)
 
 # sometimes we want to use this instead.  Rather than
 # (S,a) -> 'S_a', gives (S,a) -> 'X_{Sa}'.
-def X_namer( *ss ):
+def X_namer( self, ss ):
     return dynamicalsystems.subscriptedsymbol( 'X', *ss )
 x_namer = X_namer
 
-def N_namer( *ss ):
+def N_namer( self, ss ):
     return dynamicalsystems.subscriptedsymbol( 'N', *ss )
 
-# We are given an original parameter plus a list of tuples and indices into
-# them.  For example, (beta, (S,I), 0, (I,I), 0, (I,I)),
+# We are given an original parameter plus tuples and indices into
+# them.  For example, beta, ((S,I), 0), ((I,I), 0), (I,I),
 # for the beta parameter for the transition in the first S of (S,I) to
 # I as a result of contact with the first I in (I,I).
 # We return a bm_param expression that can be used in SR
 # (i.e. no tuples in the arguments) and ready to be made into a subscripted
 # variable.
-# In the simple case, we call this bm_param( beta, S, I ) because
-# that's enough to uniquely identify it.  This will become beta_{SI}.
+# In the simple case, we call this bm_param( beta, I, I ) because
+# that's enough to uniquely identify it.  This will become beta_{II}.
 # If there are cross interactions
 # between for instance the S class from the first model and the I class
 # from the second model, we need more detailed subscripting, see below.
-def default_param_relabeling( *vtuple ):
-    pairwise = iter(vtuple[1:-1])
-    lp = list( zip( pairwise, pairwise ) )
+def default_param_relabeling( self, p, si, ci, t ):
+    #pairwise = iter(vtuple[1:-1])
+    #lp = list( zip( pairwise, pairwise ) )
     #print 'simple param relabeling', vtuple, lp
-    pairwise = iter(vtuple[1:-1])
-    return bm_param( *( (vtuple[0],) + reduce( lambda l,m:l+m, (t[:i] + t[i+1:] for t,i in zip(pairwise,pairwise) ) ) ) )
+    #pairwise = iter(vtuple[1:-1])
+    def allbut( lst, i ):
+        return [ x for j,x in enumerate(lst) if j!=i ]
+    return bm_param( *(
+        [p] +
+        ( allbut(si[0],si[1]) if si is not None else [] ) +
+        ( allbut(ci[0],ci[1]) if ci is not None else [] )
+    ) )
+    #return bm_param( *( (vtuple[0],) + reduce( lambda l,m:l+m, (t[:i] + t[i+1:] for t,i in zip(pairwise,pairwise) ) ) ) )
 
 # Fuller parameter subscripting.  For example for
 # (beta, (S,I), 1, (I,I), 2, (I,I))
 # we return bm_param( beta, S, I, 1, I, I, 2 ).
-def full_param_relabeling( *vtuple ):
+def full_param_relabeling( self, p, si, ci, t ):
     #print 'full_param_relabeling', vtuple
     from matplotlib.cbook import flatten
-    return bm_param( *(flatten(vtuple[:-1])) )
+    return bm_param( *(flatten( [p, si[0], si[1]] + ([ci[0], ci[1]] if ci is not None else []) )) )
 
-def default_vertex_positioner( graph, models, raw_tuples ):
+def default_param_namer( self, p_tup ):
+    return dynamicalsystems.subscriptedsymbol( *p_tup )
+
+def default_vertex_positioner( self, tuple_graph ):
     """default_vertex_positioner:
     construct an X-Y position for each vertex of the product graph.
     assumes the vertices of the graph are tuples of vertices of the
@@ -80,51 +91,42 @@ def default_vertex_positioner( graph, models, raw_tuples ):
     rotations = [ matrix( [[cos(th),sin(th)],[-sin(th),cos(th)]] ) for th in directions ]
     original_positions = [
 	m._graph.get_pos() if m._graph.get_pos() is not None else { v:(i,0) for i,v in enumerate(list(m._sources) + list(m._vars) + list(m._sinks)) }
-	for m in models
+	for m in self._models
     ]
     #print 'default_vertex_positioner'
-    #for m in models:
+    #for m in self._models:
     #    print m._graph.get_pos() if m._graph.get_pos() is not None else 'None'
     #print 'original_positions:',original_positions
     #print 'vertices:', graph.vertices()
     positions = {
 	t : sum( r*vector(p[v]) for r,p,v in zip(rotations, original_positions, t.operands()) )
-	for t in graph.vertex_iterator()
+	for t in tuple_graph.vertex_iterator()
     }
-    #seq = { v:i for m in models for i,v in enumerate(m._vars) }
+    #seq = { v:i for m in product_model._models for i,v in enumerate(m._vars) }
     #positions = {
 	#t: [
 	#    sum(seq[v]*cos(d) for v,d in zip(t.operands(), directions)),
 	#    - sum(seq[v]*sin(d) for v,d in zip(t.operands(), directions))
-        #] for t in graph.vertex_iterator()
+        #] for t in tuple_graph.vertex_iterator()
     #}
     #print 'positions:', positions
     return positions
-    import itertools
-    positions = {
-        tuple(a[1] for a in dtup): [
-	    sum(a[0]*cos(d) for a,d in zip(dtup,self.directions)),
-	    - sum(a[0]*sin(d) for a,d in zip(dtup,self.directions))
-        ] for dtup in itertools.product(
-	    *[ enumerate(m._vars) for m in models ]
-        )
-    }
 
-def default_sop( s_tuple, i, s, t, r ):
+def default_sop( self, s_tuple, i, s, t, r ):
     #print 'sop', s_tuple, i, s, t, r
     # return set of t_tuples
     return Set( [ s_tuple[:i] + (t,) + s_tuple[i+1:] ] )
-def default_bop( s_tuple, i, c_tuple, i_, s, t, r ):
+def default_bop( self, s_tuple, i, c_tuple, i_, s, t, r ):
     # return set of t_tuples
     return Set( [ s_tuple[:i] + (t,) + s_tuple[i+1:] ] )
 
 # inclusive inclusions: interact with the thing whatever position it's in
-def tuple_inclusions( c, tup, i ):
+def tuple_inclusions( self, c, tup, i ):
     #print 'tuple inclusions'
     return [ iota for iota,x in enumerate(tup) if x == c ]
 
 # conservative inclusions: only if it's in the relevant position
-def conservative_inclusions( c, tup, i ):
+def conservative_inclusions( self, c, tup, i ):
     #print 'conservative inclusions'
     return ([i] if tup[i] == c else [])
 
@@ -143,31 +145,28 @@ class BoxModelProductException(Exception): pass
 #   They can't actually be substituted at this stage because they aren't
 #   compatible with SR until wrapped.
 def default_single_edge_stratifier(
-	source, target, rate, i, models,
-	seed_set, vertex_namer, param_relabeling, compartment_renaming,
+	self, source, target, rate, i, seed_set,
 	old_set=Set(), cross_interactions=True,
-	unary_operation=default_sop, binary_operation=default_bop,
-	inclusions=tuple_inclusions
     ):
     # list the compartments and parameters involved in the transition rate
     def getvars(r):
         try: return r.variables()
         except AttributeError: return []
-    rate_comps = [ x for x in getvars(rate) if x in models[i]._vars ]
+    rate_comps = [ x for x in getvars(rate) if x in self._models[i]._vars ]
     rate_params = Set( getvars(rate) ) - Set( rate_comps )
     # we can handle constant, linear or bilinear transitions
     if rate_comps == [] or rate_comps == [source]:
 	for V in seed_set:
-	    s_inclusions = inclusions( source, V, i )
+	    s_inclusions = self._inclusions( self, source, V, i )
 	    for iota in s_inclusions:
-		c_repl = { source: compartment_renaming( *V ) }
-	        ws = unary_operation( V, iota, source, target, rate )
+		c_repl = { source: self._compartment_renaming( self, V ) }
+	        ws = self._unary_operation( self, V, iota, source, target, rate )
 	        for W in ws:
-                    Vc = compartment_renaming(*V)
-                    Wc = compartment_renaming(*W)
+                    Vc = self._compartment_renaming(self, V)
+                    Wc = self._compartment_renaming(self, W)
                     if Wc != Vc:
                         # TODO: param_namer
-                        p_repl = { p: param_relabeling( p, V, iota, W ) for p in rate_params }
+                        p_repl = { p: self._param_relabeling( self, p, (V, iota), None, W ) for p in rate_params }
                         #r = rate.subs( repl )
                         #print r
                         yield ( Vc, Wc, (rate,c_repl,p_repl) )
@@ -177,36 +176,36 @@ def default_single_edge_stratifier(
         import itertools
 	for V,C in itertools.chain( itertools.product(seed_set, old_set), itertools.product(old_set + seed_set, seed_set) ):
             ## don't interact with source/sink compartments
-            if any( c in m._sources or c in m._sinks for c,m in zip(C,models) ): continue
+            if any( c in m._sources or c in m._sinks for c,m in zip(C,self._models) ): continue
 	    # do only the one source inclusion here to avoid duplication
-	    s_inclusions = Set( inclusions( source, V, i ) ).intersection( Set( [i] ) )
+	    s_inclusions = Set( self._inclusions( self, source, V, i ) ).intersection( Set( [i] ) )
 	    for iota in s_inclusions:
 		if cross_interactions:
-		    c_inclusions = inclusions( catalyst, C, i )
+		    c_inclusions = self._inclusions( self, catalyst, C, i )
 		else:
-		    c_inclusions = Set( inclusions( catalyst, C, i ) ).intersection( Set( [i] ) )
-                Vc = compartment_renaming(*V)
+		    c_inclusions = Set( self._inclusions( self, catalyst, C, i ) ).intersection( Set( [i] ) )
+                Vc = self._compartment_renaming(self,V)
 		for iota_ in c_inclusions:
 		    c_repl = {
 			source: Vc,
-			catalyst: compartment_renaming( *C )
+			catalyst: self._compartment_renaming( self, C )
 		    }
-		    for W in binary_operation( V, iota, C, iota_, source, target, rate ):
-                        Wc = compartment_renaming(*W)
+		    for W in self._binary_operation( self, V, iota, C, iota_, source, target, rate ):
+                        Wc = self._compartment_renaming(self, W)
                         if Wc != Vc:
-                            p_repl = { p: param_relabeling( p, V, iota, C, iota_, W ) for p in rate_params }
+                            p_repl = { p: self._param_relabeling( self, p, (V, iota), (C, iota_), W ) for p in rate_params }
                             #r = rate.subs( repl )
                             yield ( Vc, Wc, (rate,c_repl,p_repl) )
                             if V == C and iota != iota_:
                                 # TODO: is this within-class case right in general?
-                                p_repl = { p: param_relabeling( p, V, iota, iota_, W ) for p in rate_params }
+                                p_repl = { p: self._param_relabeling( self, p, (V, iota), (None, iota_), W ) for p in rate_params }
                                 yield( Vc, Wc, (rate/catalyst,c_repl,p_repl) )
     else: # wrong variables in rate
 	raise BoxModelProductException, "Don't understand rate {0}".format(rate)
 
-def simple_edge_stratifier( *args, **kwargs ):
+def simple_edge_stratifier( self, *args, **kwargs ):
     kwargs['cross_interactions'] = False
-    return default_single_edge_stratifier( *args, **kwargs )
+    return default_single_edge_stratifier( self, *args, **kwargs )
 
 # This edge generator is called to generate a set of product edges
 # given a set of product compartments and the component models.
@@ -215,13 +214,10 @@ def simple_edge_stratifier( *args, **kwargs ):
 # that original edge.
 # returns list of edges in the format yielded by the single edge generator
 def default_edge_generator(
-	models,
-	vertex_namer, param_relabeling, compartment_renaming,
+	self,
 	single_edge_generator=None,
 	seed_set=None, cross_interactions=True,
         within_compartment_interactions=False,
-	unary_operation=default_sop, binary_operation=default_bop,
-	inclusions=tuple_inclusions
     ):
     #print 'default_edge_generator,', ('tuple' if inclusions == tuple_inclusions else 'not tuple'), 'inclusions'
     if single_edge_generator is None:
@@ -229,11 +225,11 @@ def default_edge_generator(
     # TODO: hacky, fix
     # should be if param_relabeling is none then deduce labeling
     if (
-	(param_relabeling is default_param_relabeling) and
+	(self._param_relabeling is default_param_relabeling) and
 	cross_interactions and
-	any( not Set(m1._vars).intersection( Set(m2._vars) ).is_empty() for m1 in models for m2 in models if m2 is not m1 )
+	any( not Set(m1._vars).intersection( Set(m2._vars) ).is_empty() for m1 in self._models for m2 in self._models if m2 is not m1 )
     ):
-	param_relabeling = full_param_relabeling
+	self._param_relabeling = full_param_relabeling
     if within_compartment_interactions:
         raise ValueError, 'within_compartment_interactions option not supported in single_edge_generator()'
     import itertools
@@ -243,28 +239,24 @@ def default_edge_generator(
     def flatten_tuple( tt ):
         return reduce( lambda x,y:x+y, tt, () )
     if seed_set is None:
-	seed_set = Set( compartment_renaming(*flatten_tuple(V)) for V in itertools.product( *map(factor_tuples, models) ) )
+	seed_set = Set( self._compartment_renaming(self,flatten_tuple(V)) for V in itertools.product( *map(factor_tuples, self._models) ) )
     else:
         seed_set = Set( seed_set )
     edges = []
     old_vertices = Set()
-    sourcesinks = reduce( lambda x,y:x | y, (m._sources | m._sinks for m in models), Set() )
+    sourcesinks = reduce( lambda x,y:x | y, (m._sources | m._sinks for m in self._models), Set() )
     while not seed_set.is_empty():
         print 'old vertices', old_vertices, 'seed set', seed_set
         # for each edge of each model, we generate a set of derived edges
         # in the product model
         new_edges = list( itertools.chain( *(
 	    single_edge_generator(
-	        v, w, r, i, models, seed_set,
-	        vertex_namer, param_relabeling, compartment_renaming,
+	        self, v, w, r, i, seed_set,
 		old_set=old_vertices,
-	        unary_operation=unary_operation,
-		binary_operation=binary_operation,
-		cross_interactions=cross_interactions,
-		inclusions=inclusions
+		cross_interactions=cross_interactions
 	    )
-	    for i in range(len(models))
-	    for v,w,r in models[i]._graph.edge_iterator()
+	    for i in range(len(self._models))
+	    for v,w,r in self._models[i]._graph.edge_iterator()
         ) ) )
 	edges += new_edges
 	# the edges returned may involve vertices we didn't anticipate
@@ -274,15 +266,13 @@ def default_edge_generator(
         old_vertices += seed_set
         seed_set = Set( v for v,w,r in new_edges ).union( Set( w for v,w,r in new_edges ) ) - old_vertices
         seed_set = Set( t for t in seed_set if ( Set(t) & sourcesinks == Set() ) )
-	if len(old_vertices) + len(seed_set) > 100 * reduce( lambda a,b:a*b, ( len(m._vars) for m in models ) ):
-            #print len(old_vertices) + len(seed_set), ', more than ', 100 * reduce( lambda a,b:a*b, ( len(m._vars) for m in models ) ), ' compartments'; sys.stdout.flush()
+	if len(old_vertices) + len(seed_set) > 100 * reduce( lambda a,b:a*b, ( len(m._vars) for m in self._models ) ):
 	    raise RuntimeError, 'Recursion produces too many compartments'
     return edges
-    #return [ ( bm_state( *compartment_renaming( *V ) ), bm_state( *compartment_renaming( *W ) ), r ) for V,W,r in edges ]
 
-def simple_edge_generator( *args, **kwargs ):
+def simple_edge_generator( self, *args, **kwargs ):
     kwargs['cross_interactions'] = False
-    return default_edge_generator( *args, **kwargs )
+    return default_edge_generator( self, *args, **kwargs )
 
 class SubstituteFunctionByName(sage.symbolic.expression_conversions.ExpressionTreeWalker):
     ## dictionary of names of functions, shared across the class
@@ -329,17 +319,20 @@ class CompositeBoxModel(boxmodel.BoxModel):
             sinks=None,
             aggregate_names=(),
 	    vertex_namer=x_namer,
-	    param_namer=dynamicalsystems.subscriptedsymbol,
+	    param_namer=default_param_namer,
 	    bindings=dynamicalsystems.Bindings()
 	):
 
 	self._tuple_graph = tuple_graph
 	self._tuple_graph.set_latex_options( edge_labels=True, vertex_shape='rectangle' )
 
+	self._vertex_namer = vertex_namer
+	self._param_namer = param_namer
+
 	# for consumption by humans and math software, we map vertex
 	# tuples to regular variable names with subscripts
-        v_subs = SubstituteFunctionByName( 'bm_state', vertex_namer )
-        p_subs = SubstituteFunctionByName( 'bm_param', param_namer )
+        v_subs = SubstituteFunctionByName( 'bm_state', lambda *x: self._vertex_namer(self, x) )
+        p_subs = SubstituteFunctionByName( 'bm_param', lambda *x: self._param_namer(self, x) )
         ## because of suppression of source-sink edges there may be
         ## variables in these three collections that aren't in the
         ## graph
@@ -378,7 +371,7 @@ class CompositeBoxModel(boxmodel.BoxModel):
         if vars is not None:
             self._vars = vars
         else:
-            self._vars = [ vertex_labels[v] for v in self._var_tuples ] #vertex_labels.values()
+            self._vars = [ vertex_labels[v] for v in self._var_tuples ]
         self._source_tuples = source_tuples
         if sources is not None:
             self._sources = Set( sources )
@@ -392,8 +385,6 @@ class CompositeBoxModel(boxmodel.BoxModel):
         print 'vars', self._vars, ' sources', self._sources, 'sinks', self._sinks
         self._aggregate_names = aggregate_names
 
-	self._vertex_namer = vertex_namer
-	self._param_namer = param_namer
         print 'extract parameters from rates'
         self.assign_parameters()
 	self._bindings = bindings
@@ -422,13 +413,8 @@ class CompositeBoxModel(boxmodel.BoxModel):
                 ## case: use_names is a dictionary { name:sum of things }
                 ## transform it to { one of things:name - rest of things }
                 ##  to do the substitution that simplifies sum to name
-                ## also, expand references to things in inclusion_variables
-                #expand_inclusions = dynamicalsystems.Bindings( { k:sum(vl) for k,vl in self._inclusion_variables.items() } )
-                #print 'expand_inclusions:', expand_inclusions
-                #print 'is', SR('x+1').operator(), '?', { k:v.op
                 combine_names_dict = { k:v for k,v in use_names.iteritems() }
-                print '=', use_names
-                #subs = { xt:expand_inclusions(k-(v-xt)) for k,v in use_names.items() for xt in ( ( v.operands()[-1], ) if v.operator()==SR('x+1').operator() else None ) }
+                #print '=', use_names
             except AttributeError:
                 try:
                     ## case: use_names is a tuple of variables,
@@ -438,10 +424,8 @@ class CompositeBoxModel(boxmodel.BoxModel):
                     ## fall back case: use_names is a single variable
                     ## make it into a tuple and continue
                     use_names = ( use_names, )
-                print 'inclusion_variables is', self._inclusion_variables
+                #print 'inclusion_variables is', self._inclusion_variables
                 combine_names_dict = { v:sum( self._inclusion_variables[v] ) for v in use_names }
-                #subs = { it[-1]:sum( it[:-1] + [v] ) for v in use_names for it in ( self._inclusion_variables[v], ) }
-            #b = b.bind( subs )
             #print 'combined rates:'
             #for v,w,r in b._graph.edge_iterator():
             #    print ' ', r
@@ -497,23 +481,24 @@ class CompositeBoxModel(boxmodel.BoxModel):
 	    ),
 	    self._vars
 	)
-    def aggregate_compartments( self, compartment_aggregation=default_compartment_aggregation,
-	    param_relabeling_after=lambda *x:dynamicalsystems.subscriptedsymbol(*x),
+    def aggregate_compartments( self,
+            compartment_aggregation=default_compartment_aggregation,
+	    param_relabeling_after=lambda self, *x:dynamicalsystems.subscriptedsymbol(*x),
 	    vertex_namer_after=default_vertex_namer ):
         aggregate = {}
         for vt in self._tuple_graph.vertex_iterator():
-            aggregate.setdefault( compartment_aggregation( vt.operands() ), [] ).append( vt.operands() )
+            aggregate.setdefault( self._compartment_aggregation( self, vt.operands() ), [] ).append( vt.operands() )
         ## aggregate is { new_tuple: [old tuples], ... }
         #print 'aggregate:', aggregate
         flow_sums = {}
         for v in self._tuple_graph.vertex_iterator():
-	    av = bm_state( *compartment_aggregation( v.operands() ) )
+	    av = bm_state( *self._compartment_aggregation( self, v.operands() ) )
 	    if av not in flow_sums: flow_sums[av] = {}
 	    for _,w,e in self._tuple_graph.outgoing_edge_iterator(v):
-		aw = bm_state( *compartment_aggregation( w.operands() ) )
+		aw = bm_state( *self._compartment_aggregation( self, w.operands() ) )
 	        flow_sums[av].setdefault( aw, SR(0) )
 		#print 'substitute:', e
-		es = e.substitute_function( bm_param, param_relabeling_after ).substitute_function( bm_state, self._vertex_namer ).substitute_function( bm_param, self._param_namer )
+		es = e.substitute_function( bm_param, lambda *x: param_relabeling_after(self,x) ).substitute_function( bm_state, lambda *x: self._vertex_namer(self,x) ).substitute_function( bm_param, lambda *x: self._param_namer(self,x) )
 		#print 'substitute:', e, '|||', es
 	        flow_sums[av][aw] += es
 	## flow_sums[av][aw] is sum of all transitions from
@@ -525,16 +510,16 @@ class CompositeBoxModel(boxmodel.BoxModel):
         agg_subs = dynamicalsystems.Bindings()
         for newt,oldts in aggregate.items():
             #print 'will combine', sum( self._vertex_namer(*oldt) for oldt in oldts ), '==', vertex_namer_after(*newt)
-	    eqn = self._vertex_namer(*oldts[0]) == vertex_namer_after(*newt) - sum( self._vertex_namer(*oldt) for oldt in oldts[1:] )
+	    eqn = self._vertex_namer(self, oldts[0]) == vertex_namer_after(self,newt) - sum( self._vertex_namer(self,oldt) for oldt in oldts[1:] )
 	    if eqn.lhs() != eqn.rhs():
-                agg_symbols.append( self._vertex_namer(*oldts[0]) )
+                agg_symbols.append( self._vertex_namer(self,oldts[0]) )
                 agg_eqns.append( eqn )
         agg_graph_dict = {}
         for av, ve in flow_sums.iteritems():
-	    vn = av.substitute_function( bm_state, vertex_namer_after )
+	    vn = av.substitute_function( bm_state, lambda *x:vertex_namer_after(self,x) )
             agg_graph_dict[vn] = {}
             for aw, e in ve.iteritems():
-		wn = aw.substitute_function( bm_state, vertex_namer_after )
+		wn = aw.substitute_function( bm_state, lambda*x:vertex_namer_after(self,x) )
     	        sym = SR.symbol()
                 e = self._bindings( e )
     	        #print e
@@ -554,8 +539,8 @@ class CompositeBoxModel(boxmodel.BoxModel):
 	## they are in those dicts, but we want the order
         agg_vars = []
 	def xform_state( *t ):
-	    s = compartment_aggregation( t )
-	    return vertex_namer_after( *s )
+	    s = compartment_aggregation( self, t )
+	    return vertex_namer_after( self, s )
         for v in self._var_tuples:
 	    av = v.substitute_function( bm_state, xform_state )
 	    if av not in agg_vars: agg_vars.append(av)
@@ -575,7 +560,7 @@ class CompositeBoxModel(boxmodel.BoxModel):
 	# returns a new BoxModel.  trs is a list of (source,target,rate)
 	# tuples suitable for adding to self._tuple_graph (rather than _graph).
 	fg = deepcopy(self._graph)
-	bm_to_vars = lambda e: e.substitute_function( bm_state, self._vertex_namer).substitute_function( bm_param, self._param_namer )
+	bm_to_vars = lambda e: e.substitute_function( bm_state, lambda *x:self._vertex_namer(self,x)).substitute_function( bm_param, lambda *x: self._param_namer(self,x) )
 	fg.add_edges( [ (bm_to_vars(v), bm_to_vars(w), bm_to_vars(e)) for v,w,e in trs ] )
 	return boxmodel.BoxModel(
 	    fg,
@@ -591,19 +576,19 @@ class BoxModelProduct(CompositeBoxModel):
 	):
         print 'BoxModelProduct'
 	self._models = models
-	compartment_renaming =  kwargs.pop( 'compartment_renaming', default_compartment_renaming )
-        compartment_wrapper =   kwargs.pop( 'compartment_wrapper', bm_state )
-	vertex_namer =          kwargs.pop( 'vertex_namer', default_vertex_namer )
-	param_relabeling =      kwargs.pop( 'param_relabeling', default_param_relabeling )
-        param_namer =           kwargs.pop( 'param_namer', dynamicalsystems.subscriptedsymbol )
-	edge_generator =        kwargs.pop( 'edge_generator', default_edge_generator )
-	single_edge_generator = kwargs.pop( 'single_edge_generator', None )
+	self._compartment_renaming =  kwargs.pop( 'compartment_renaming', default_compartment_renaming )
+        self._compartment_wrapper =   kwargs.pop( 'compartment_wrapper', lambda self,x: bm_state(*x) )
+	self._vertex_namer =          kwargs.pop( 'vertex_namer', default_vertex_namer )
+	self._param_relabeling =      kwargs.pop( 'param_relabeling', default_param_relabeling )
+        self._param_namer =           kwargs.pop( 'param_namer', default_param_namer )
 	#compartment_aggregation = kwargs.pop( 'compartment_aggregation',
 	#    lambda x:x )
-	vertex_positioner =     kwargs.pop( 'vertex_positioner', default_vertex_positioner )
-	unary_operation =       kwargs.pop( 'unary_operation', default_sop )
-	binary_operation =      kwargs.pop( 'binary_operation', default_bop )
-	inclusions =            kwargs.pop( 'inclusions', tuple_inclusions )
+	self._vertex_positioner =     kwargs.pop( 'vertex_positioner', default_vertex_positioner )
+	self._unary_operation =       kwargs.pop( 'unary_operation', default_sop )
+	self._binary_operation =      kwargs.pop( 'binary_operation', default_bop )
+	self._inclusions =            kwargs.pop( 'inclusions', tuple_inclusions )
+	edge_generator =        kwargs.pop( 'edge_generator', default_edge_generator )
+	single_edge_generator = kwargs.pop( 'single_edge_generator', None )
         within_compartment_interactions = kwargs.pop( 'within_compartment_interactions', False )
 	seed_set =              kwargs.pop( 'seed_set', None )
 	if kwargs: raise TypeError, "Unknown named arguments to BoxModelProduct: %s" % str(kwargs)
@@ -611,14 +596,8 @@ class BoxModelProduct(CompositeBoxModel):
         print 'edge_generator'
         ## this produces a list of tuples and pre-substitution rate expressions
 	raw_edges = list( edge_generator(
-	    models,
-	    vertex_namer,
-	    param_relabeling,
-	    compartment_renaming,
+	    self,
 	    single_edge_generator=single_edge_generator,
-	    unary_operation=unary_operation,
-	    binary_operation=binary_operation,
-	    inclusions=inclusions,
             within_compartment_interactions=within_compartment_interactions,
 	    seed_set=seed_set
 	) )
@@ -628,9 +607,9 @@ class BoxModelProduct(CompositeBoxModel):
         #print [ compartment_wrapper(*V) for V,W,(r,c_repl,p_repl) in raw_edges ]
         #print [ compartment_wrapper(*W) for V,W,(r,c_repl,p_repl) in raw_edges ]
         edges = [ (
-            compartment_wrapper(*V),
-            compartment_wrapper(*W),
-            r.subs( { c:compartment_wrapper(*C) for c,C in c_repl.iteritems() } ).subs( p_repl )
+            self._compartment_wrapper(self,V),
+            self._compartment_wrapper(self,W),
+            r.subs( { c:self._compartment_wrapper(self,C) for c,C in c_repl.iteritems() } ).subs( p_repl )
         ) for V,W,(r,c_repl,p_repl) in raw_edges ]
         raw_tuples = list( Set( [ V for V,W,rr in raw_edges ] ) | Set( [ W for V,W,rr in raw_edges ] ) )
 
@@ -640,8 +619,8 @@ class BoxModelProduct(CompositeBoxModel):
 	all_vars_d.update( (w,None) for v,w,e in edges )
         #print all_vars_d.keys()
         vars_d, sources_s, sinks_s = OrderedDict(), Set(), Set()
-        sources = reduce( lambda x,y: x | y, (m._sources for m in models), Set() )
-        sinks = reduce( lambda x,y: x | y, (m._sinks for m in models), Set() )
+        sources = reduce( lambda x,y: x | y, (m._sources for m in self._models), Set() )
+        sinks = reduce( lambda x,y: x | y, (m._sinks for m in self._models), Set() )
         for t in all_vars_d.keys():
             if any( v in sources for v in t.operands() ):
                 sources_s = sources_s | Set( [ t ] )
@@ -653,47 +632,11 @@ class BoxModelProduct(CompositeBoxModel):
         #print sources_s
         #print sinks_s
 
-        #print 'make vars from tuples'
-	# are vertices from product of graphs?
-	#representative_tuple = self._tuple_graph.vertex_iterator().next().operands()
-        if False:
-            ## don't do this, for now
-            if all( len( tup.operands() ) == len( models ) and all( v in m._vars for v,m in zip( tup.operands(), models ) ) for tup in graph.vertex_iterator() ):
-                # make list of variables, in order, by taking product
-                import itertools
-                varset = Set()
-                self._vars = []
-                self._tuples = []
-                for vs in itertools.product( *(m._vars for m in models) ):
-                    t = compartment_renaming( *vs )
-                    v = vertex_namer( *t )
-                    if v not in varset:
-                        varset.add(v)
-                        self._vars.append(v)
-                        self._tuples.append( bm_state( *t ) )
-                #print 'made tuples:', self._tuples
-                print 'vars is:', self._vars
-            else:
-                # no - the edge generator gave us some other set of vertices
-                def bmize(ex):
-                    # extract operands # from what?
-                    ooo = ex.operands()
-                    if ooo: return bm_state(*ooo)
-                    else: return ex
-                self._tuples = [ bmize(t) for t in graph.vertices() ]
-                #print 'sorted tuples:', self._tuples
-                self._vars = [ t.substitute_function(bm_state,vertex_namer) for t in self._tuples ]
-                print 'gives vars:', self._vars
-
         ## suppress edges between source/sink compartments
         edges = [ (v,w,e) for v,w,e in edges if v in vars_d or w in vars_d ]
 
 	#print 'edges for product graph:', edges; sys.stdout.flush()
 	tuple_graph = DiGraph( edges, multiedges=True )
-
-        print 'vertex_positioner'
-	# graphical positions of graph vertices
-	tuple_graph.set_pos( vertex_positioner( tuple_graph, models, raw_tuples ) )
 
         print 'super'
 	super(BoxModelProduct,self).__init__(
@@ -702,12 +645,25 @@ class BoxModelProduct(CompositeBoxModel):
             var_tuples=vars_d.keys(),
             source_tuples=sources_s,
             sink_tuples=sinks_s,
-            vertex_namer=vertex_namer,
-            param_namer=param_namer
+            vertex_namer = self._vertex_namer,
+            param_namer = self._param_namer
 	)
-	#print 'edges of flow graph:', self._flow_graph.edges(); sys.stdout.flush()
-        self._param_relabeling = param_relabeling
 
+        print 'vertex_positioner'
+	# graphical positions of graph vertices
+        print 'raw tuples', self._raw_tuples
+        print 'tuple graph vertices', self._tuple_graph.vertices()
+	self._tuple_graph.set_pos( self._vertex_positioner( self, tuple_graph ) )
+        print 'tuple graph pos', self._tuple_graph.get_pos()
+        print 'graph vertices', self._graph.vertices()
+        vsubs = SubstituteFunctionByName( 'bm_state', lambda *x: self._vertex_namer(self,x) )
+        self._graph.set_pos( {
+            vsubs(vc):p
+            for vc,p in self._tuple_graph.get_pos().iteritems()
+        } )
+        print 'graph pos', self._graph.get_pos()
+
+	#print 'edges of flow graph:', self._flow_graph.edges(); sys.stdout.flush()
         print 'inclusion bindings'
 	self._inclusion_tuples = {}
 	for vbm in self._tuple_graph.vertex_iterator():
@@ -718,7 +674,7 @@ class BoxModelProduct(CompositeBoxModel):
 
 	#print self._inclusion_tuples
 	self._inclusion_variables = {
-	    k:[vertex_namer(*v) for v in vl]
+	    k:[self._vertex_namer(self,v) for v in vl]
 	    for k,vl in self._inclusion_tuples.iteritems()
 	}
         ## don't put them into the bindings by default because of
@@ -732,10 +688,10 @@ class BoxModelProduct(CompositeBoxModel):
         self._variable_marginals = {}
         ## given a bm_params() structure, add all its marginals to the dict
         def insert_marginals( *tup ):
-            v = self._vertex_namer( *tup )
+            v = self._vertex_namer( self, tup )
             for ss in subsets( tup ):
                 if len(ss) > 0:
-                    vss = self._vertex_namer( *ss )
+                    vss = self._vertex_namer( self, ss )
                     if vss != v:
                         self._variable_marginals.setdefault( vss, [] ).append( v )
             return v
@@ -745,11 +701,13 @@ class BoxModelProduct(CompositeBoxModel):
         print 'marginal parameters'
         self._parameter_marginals = {}
         ## given a bm_params() structure, add all its marginals to the dict
+        import itertools
         def insert_marginals( *psubs ):
             p, subs = ( psubs[0], psubs[1:] )
-            param = self._param_namer( *psubs )
+            param = self._param_namer( self, psubs )
             for ss in subsets( subs ):
-                pss = self._param_namer( p, *ss )
+                ## todo: no good
+                pss = self._param_namer( self, tuple(itertools.chain([p],ss)) )
                 if pss != param:
                     self._parameter_marginals.setdefault( pss, [] ).append( param )
             return param
@@ -758,13 +716,13 @@ class BoxModelProduct(CompositeBoxModel):
         #print self._tuple_graph.edges()
         #print self._parameter_marginals
 
-def default_sop_strong( s_tuple, iset, eis ):
+def default_sop_strong( self, s_tuple, iset, eis ):
     # return set of t_tuples
     #print 'sop', s_tuple, eis
     tl = list(s_tuple)
     for (v,w,r),i in eis: tl[i] = w
     return Set( [ tuple(tl) ] )
-def default_bop_strong( s_tuple, iset, c_tuple, i_set, eis ):
+def default_bop_strong( self, s_tuple, iset, c_tuple, i_set, eis ):
     # return set of t_tuples
     tl = list(s_tuple)
     for (v,w,r),i in eis: tl[i] = w
@@ -778,12 +736,9 @@ def default_bop_strong( s_tuple, iset, c_tuple, i_set, eis ):
 # TODO: much duplication with the regular single_edge_generator.
 # maybe merge
 def default_strong_edge_bundle_generator(
-	eis, models,
-	seed_set, vertex_namer, param_relabeling, compartment_renaming,
+	self, eis, seed_set,
 	old_set=Set(), cross_interactions=True,
-        within_compartment_interactions=True,
-	unary_operation=default_sop_strong, binary_operation=default_bop,
-	inclusions=tuple_inclusions
+        within_compartment_interactions=True
     ):
     if len(eis) == 0: return
     print 'old set', old_set, '/ seed set', seed_set, '/ edges', eis
@@ -799,19 +754,19 @@ def default_strong_edge_bundle_generator(
     # else: do the replacement in the one rate
     (source,target,rate),i = eis[0]
     # list the compartments involved in the transition
-    rate_comps = [ x for x in rate.variables() if x in models[i]._vars ]
+    rate_comps = [ x for x in rate.variables() if x in self._models[i]._vars ]
     rate_params = Set( rate.variables() ) - Set( rate_comps )
     # we can handle linear or bilinear transitions
     if rate_comps == [source] or rate_comps == []:
 	for V in seed_set:
-	    if all( i in inclusions( v, V, i ) for (v,w,r),i in eis ):
-                Vc = compartment_renaming(*V)
+	    if all( i in self._inclusions( self, v, V, i ) for (v,w,r),i in eis ):
+                Vc = self._compartment_renaming(self, V)
 		c_repl = { s: Vc for s in rate_comps }
-	        for W in unary_operation( V, [i for e,i in eis], eis ):
-                    Wc = compartment_renaming(*W)
+	        for W in self._unary_operation( self, V, [i for e,i in eis], eis ):
+                    Wc = self._compartment_renaming(self,W)
                     if Wc != Vc:
                         # TODO: param_namer
-                        p_repl = { p: param_relabeling( p, V, [i for e,i in eis], W ) for p in rate_params }
+                        p_repl = { p: self._param_relabeling( self, p, (V, [i for e,i in eis]), None, W ) for p in rate_params }
                         #print V, eis, '=>', W, repl, r.subs(repl)
                         yield ( Vc, Wc, (rate,c_repl,p_repl) )
     elif len(rate_comps) == 2 and source in rate_comps:
@@ -821,19 +776,17 @@ def default_strong_edge_bundle_generator(
 	    #print 'consider', V, '+', C, 'at', eis
 	    # does V have the relevant compartments?
 	    # only consider the one inclusion in V, the one given by eis
-	    if not all( i in inclusions( v, V, i ) for (v,w,r),i in eis ):
+	    if not all( i in self._inclusions( self, v, V, i ) for (v,w,r),i in eis ):
 		print V, 'does not have the inclusions in', eis
 	        continue
 	    iota = [ i for e,i in eis ]
 	    # in general case, it's all the ways to include the 
 	    # rate's catalyst compartment in C
 	    # in simple case, those are the inclusions for C as well
-            #for e,i in eis:
-            #    print 'inclusions', catalyst, C, i, ':', inclusions( catalyst, C, i )
 	    if not cross_interactions:
                 ## simple case: use each level of C at the level where the
                 ## edge is given
-	        c_inclusions = Set( [ tuple( [ i for e,i in eis ] ) ] ) if all( i in inclusions( catalyst, C, i ) for e,i in eis ) else Set()
+	        c_inclusions = Set( [ tuple( [ i for e,i in eis ] ) ] ) if all( i in self._inclusions( self, catalyst, C, i ) for e,i in eis ) else Set()
 	        #print catalyst, 'in C:', list( c_inclusions )
 	    else:
                 ## crossing case: each edge can go at each level where
@@ -843,59 +796,56 @@ def default_strong_edge_bundle_generator(
                 ## iota_[i] is the level at which the catalyst of the ith
                 ## edge is included in C
                 import itertools
-                c_inclusions = Set( itertools.product( *(inclusions( catalyst, C, i ) for e,i in eis ) ) )
+                c_inclusions = Set( itertools.product( *(self._inclusions( self, catalyst, C, i ) for e,i in eis ) ) )
 	    #print 'inclusions of', eis, 'in', C, ':', list( c_inclusions )
 	    for iota_ in c_inclusions:
                 #print 'do edges for', V, iota, C, iota_
-                Vc = compartment_renaming(*V)
+                Vc = self._compartment_renaming(self,V)
     	        c_repl = {
     		    source: Vc,
-    		    catalyst: compartment_renaming( *C )
+    		    catalyst: self._compartment_renaming( self,C )
     	        }
-    	        ts = binary_operation( V, list( iota ), C, list( iota_ ), eis )
+    	        ts = self._binary_operation( self, V, list( iota ), C, list( iota_ ), eis )
 		#print 'bop returns', ts
 		# TODO: check if in-compartment interaction is right
     	        for W in ts:
-                    Wc = compartment_renaming(*W)
+                    Wc = self._compartment_renaming(self,W)
                     if Wc != Vc:
-                        p_repl = { p: param_relabeling( p, V, iota, C, iota_, W ) for p in rate_params }
+                        p_repl = { p: self._param_relabeling( self, p, (V, iota), (C, iota_), W ) for p in rate_params }
                         #print V, iota, C, iota_, ':', compartment_renaming( *W )
                         yield ( Vc, Wc, (rate,c_repl,p_repl) )
                         if within_compartment_interactions and (V == C) and list(iota) != list(iota_):
                             # TODO: is this within-class case right in general?
-                            p_repl = { p: param_relabeling( p, V, iota, iota_, W ) for p in rate_params }
+                            p_repl = { p: self._param_relabeling( p, (V, iota), (None, iota_), W ) for p in rate_params }
                             #print V, iota, iota_, (iota != iota_), '::', compartment_renaming( *W )
                             yield( Vc, Wc, (rate/catalyst,c_repl,p_repl) )
     else: # wrong variables in rate
 	raise BoxModelProductException, "Can't stratify rate {0}".format(rate)
 
 def strong_edge_generator(
-	models,
-	vertex_namer, param_relabeling, compartment_renaming,
+        self,
 	single_edge_generator=None,
 	seed_set=None, cross_interactions=True,
-        within_compartment_interactions=True,
-	unary_operation=default_sop_strong, binary_operation=default_bop,
-	inclusions=tuple_inclusions
+        within_compartment_interactions=True
     ):
     if single_edge_generator is None:
 	single_edge_generator = default_strong_edge_bundle_generator
     # TODO: hacky, fix
     if (
-	(param_relabeling is default_param_relabeling) and
+	(self._param_relabeling is default_param_relabeling) and
 	cross_interactions and
-	any( not Set(m1._vars).intersection( Set(m2._vars) ).is_empty() for m1 in models for m2 in models if m2 is not m1 )
+	any( not Set(m1._vars).intersection( Set(m2._vars) ).is_empty() for m1 in self._models for m2 in self._models if m2 is not m1 )
     ):
-	param_relabeling = full_param_relabeling
+	self._param_relabeling = full_param_relabeling
     import itertools
     if seed_set is None:
-	seed_set = Set( compartment_renaming(*V) for V in ( itertools.product( *((m._vars + list(m._sources)) for m in models) ) ) )
+	seed_set = Set( self._compartment_renaming(self,V) for V in ( itertools.product( *((m._vars + list(m._sources)) for m in self._models) ) ) )
     else:
         seed_set = Set( seed_set )
     print 'seed set', seed_set
     edges = []
     old_vertices = Set()
-    sourcesinks = reduce( lambda x,y:x|y, (m._sources | m._sinks for m in models), Set() )
+    sourcesinks = reduce( lambda x,y:x|y, (m._sources | m._sinks for m in self._models), Set() )
     while not seed_set.is_empty():
         # for each edge of each model, we generate a set of derived edges
         # in the product model
@@ -904,17 +854,13 @@ def strong_edge_generator(
 	    # in fact more generally once for each tuple ( (e1,i1), (ex,ix), ... )
 	    # where ei is an edge in model i for some set of the models
 	    single_edge_generator(
-	        eis, models, seed_set,
-	        vertex_namer, param_relabeling, compartment_renaming,
+	        self, eis, seed_set,
 		old_set=old_vertices,
-	        unary_operation=unary_operation,
-		binary_operation=binary_operation,
 		cross_interactions=cross_interactions,
-		inclusions=inclusions,
                 within_compartment_interactions=within_compartment_interactions
 	    )
-	    for iset in Subsets( Set( range(len(models)) ) )
-	    for eis in itertools.product( *([(e,i) for e in models[i]._graph.edge_iterator()] for i in iset) )
+	    for iset in Subsets( Set( range(len(self._models)) ) )
+	    for eis in itertools.product( *([(e,i) for e in self._models[i]._graph.edge_iterator()] for i in iset) )
         ] ) )
 	edges += new_edges
         print 'new edges', new_edges
@@ -928,8 +874,8 @@ def strong_edge_generator(
         # but not vertices made from source and sink compartments
         seed_set = Set( [ t for t in seed_set if Set(t) & sourcesinks == Set() ] )
         print 'or actually', seed_set
-	if len(old_vertices) + len(seed_set) > 100 * reduce( lambda a,b:a*b, ( len(m._vars) for m in models ) ):
-            #print len(old_vertices) + len(seed_set), ', more than ', 100 * product( len(m._vars) for m in models ), ' compartments'; sys.stdout.flush()
+	if len(old_vertices) + len(seed_set) > 100 * reduce( lambda a,b:a*b, ( len(m._vars) for m in self._models ) ):
+            #print len(old_vertices) + len(seed_set), ', more than ', 100 * product( len(m._vars) for m in self._models ), ' compartments'; sys.stdout.flush()
 	    raise RuntimeError, 'Recursion produces too many compartments'
     return edges
     #return [ ( bm_state( *compartment_renaming( *V ) ), bm_state( *compartment_renaming( *W ) ), r ) for V,W,r in edges ]
@@ -937,14 +883,14 @@ def strong_edge_generator(
 def cross( *models ):
     return BoxModelProduct( *models )
 
-def union_edge_generator( models, vertex_namer, param_namer, compartment_renaming, **whatever ):
+def union_edge_generator( self, **whatever ):
     import itertools
-    return itertools.chain( *(m._tuple_graph.edge_iterator() for m in models) )
+    return itertools.chain( *(m._tuple_graph.edge_iterator() for m in self._models) )
 
-def union_positioner( graph, models, raw_tuples, compartment_renaming=None ):
+def union_positioner( self, graph ):
     return {
 	v:(x,-i)
-	for i,pos in enumerate( m._graph.get_pos() for m in models )
+	for i,pos in enumerate( m._graph.get_pos() for m in self._models )
 	for v,(x,y) in pos.iteritems()
     }
 
@@ -966,9 +912,9 @@ def strong_product( *models, **kwargs ):
     within_compartment_interactions = kwargs.pop( 'within_compartment_interactions', True )
     seed_set =          kwargs.pop( 'seed_set', None )
     compartment_renaming =  kwargs.pop( 'compartment_renaming',  default_compartment_renaming )
-    compartment_wrapper = kwargs.pop( 'compartment_wrapper', bm_state )
+    compartment_wrapper = kwargs.pop( 'compartment_wrapper', lambda self, x:bm_state )
     vertex_namer =      kwargs.pop( 'vertex_namer',      default_vertex_namer )
-    param_namer =       kwargs.pop( 'param_namer',       default_vertex_namer )
+    param_namer =       kwargs.pop( 'param_namer',       default_param_namer )
     param_relabeling =  kwargs.pop( 'param_relabeling',  full_param_relabeling )
     vertex_positioner = kwargs.pop( 'vertex_positioner', default_vertex_positioner )
     unary_operation =   kwargs.pop( 'unary_operation',   default_sop_strong )
@@ -991,7 +937,7 @@ def strong_product( *models, **kwargs ):
         binary_operation = binary_operation
     )
 
-def power( model, i, compartment_renaming=lambda *x:x, param_relabeling=default_param_relabeling, vertex_namer=x_namer ):
+def power( model, i, compartment_renaming=lambda self,x:x, param_relabeling=default_param_relabeling, vertex_namer=x_namer ):
     return BoxModelProduct(
 	*([model] * i),
 	vertex_namer = vertex_namer,
@@ -999,7 +945,7 @@ def power( model, i, compartment_renaming=lambda *x:x, param_relabeling=default_
 	param_relabeling=param_relabeling
     )
 
-def bmpower( model, i, compartment_renaming=lambda *x:x, param_relabeling=default_param_relabeling, vertex_namer=x_namer ):
+def bmpower( model, i, compartment_renaming=lambda self,x:x, param_relabeling=default_param_relabeling, vertex_namer=x_namer ):
     return power( model, i, compartment_renaming=compartment_renaming, param_relabeling=param_relabeling, vertex_namer=vertex_namer )
 
 def write_product_formula( M1, M2, M12, tfnm, op=r'\times', size1=(3,1), size2=(1,4), size12=(4,4) ):

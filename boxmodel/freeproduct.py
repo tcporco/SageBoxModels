@@ -19,10 +19,39 @@ from boxmodelproduct import *
 ##  of c in transitions.
 ## free_inclusions lets all free model compartments play all roles,
 ##  though it doesn't cross levels like the pair model does.
-def free_inclusions( c, tup, i ):
+def free_inclusions( self, c, tup, i ):
     return [i]
 
-def free_uop( s_tuple, iset, eis, transition_filter=lambda *x:True, edge_names={} ):
+## smarter inclusions for a limited free product that
+## only allows sensible sequences of transitions
+## it's not trivial - classify each node of the free product
+## to a vertex of the Cartesian product graph, and
+## allow the arrows that leave that vertex
+def make_cartesian_inclusions( *models ):
+    exclude = Set( v for m in models for v in m._vars )
+    edge_names = {
+        next( p for p in r.variables() if p not in exclude ):(v,w,r)
+        for m in models for v,w,r in m._graph.edge_iterator()
+    }
+    def cartesian_inclusions( self, c, tup, i ):
+        def classify_vertex( t ):
+            try:
+                c = list( t[0] )
+            except TypeError: ## shorthand replacing [x] by x
+                c = [ t[0] ]
+            for eis,cs in t[1:]:
+                for e,i in eis:
+                    v,w,r = edge_names[e]
+                    if v == c[i]:
+                        c[i] = w
+                    else:
+                        print "Error in free vertex", tup
+            return c
+        tc = classify_vertex( tup )
+        return [i] if tc[i] == c else []
+    return cartesian_inclusions
+
+def free_uop( self, s_tuple, iset, eis, transition_filter=lambda self,*x:True, edge_names={} ):
     def edge_name( r, exclude=() ):
         if r in edge_names: return edge_names[r]
         pp = [ p for p in r.variables() if p not in exclude ]
@@ -30,12 +59,12 @@ def free_uop( s_tuple, iset, eis, transition_filter=lambda *x:True, edge_names={
     s_eis = tuple( (edge_name(r,(v,w)),i) for (v,w,r),i in eis )
     #print 'uop', s_tuple, '+', (s_eis,())
     n_tuple = s_tuple + ( (s_eis,()), )
-    if transition_filter( s_tuple, iset, eis, n_tuple ):
+    if transition_filter( self, s_tuple, iset, eis, n_tuple ):
 	#print ': ', n_tuple
 	return [ n_tuple ]
     return []
 
-def free_bop( s_tuple, iset, c_tuple, i_set, eis, transition_filter=lambda *x:True, edge_names={} ):
+def free_bop( self, s_tuple, iset, c_tuple, i_set, eis, transition_filter=lambda self,*x:True, edge_names={} ):
     def edge_name( r, exclude=() ):
         if r in edge_names: return edge_names[r]
         pp = [ p for p in r.variables() if p not in exclude ]
@@ -44,14 +73,28 @@ def free_bop( s_tuple, iset, c_tuple, i_set, eis, transition_filter=lambda *x:Tr
     #print 'bop', s_tuple, '+', (s_eis,(c_tuple,)) 
     n_tuple = s_tuple + ( (s_eis,(c_tuple,)), )
     if ( all( e == beta for e,i_ in s_eis ) and
-         transition_filter( s_tuple, iset, c_tuple, i_set, s_eis, n_tuple )
+         transition_filter( self, s_tuple, iset, c_tuple, i_set, s_eis, n_tuple )
        ):
 	#print ': (', n_tuple, ')'
 	return [ n_tuple ]
     return []
 
 fw_memo_names={} 
-def free_wrapper( *xx ):
+def fw_memoize( tup, v ):
+    ## this is not at all elegant, but at least one outside variant
+    ## of free_wrapper exists, and calls this, because free_wrapper
+    ## stores info here that other functions use
+    ## TO DO: put the data in the model where it belongs
+    fw_memo_names[tup] = v
+def fw_memo( tup ):
+    return fw_memo_names[tup]
+
+## give vertices names by concatenating start compartment with transitions.
+## transition names are subscripted according to which of the factor models
+## is in play.
+def free_wrapper( self, xx ):
+    if len(self._models) == 1:
+        return free_wrapper_simple( self, xx )
     try: v = fw_memo_names[xx]
     except KeyError:
 	## xx[0] is S/I_0/I_1
@@ -77,28 +120,48 @@ def free_wrapper( *xx ):
 	    v = SR.symbol()
 	    v = SR.symbol( str(v), latex_name=lname )
 	    #print 'is', lname
-	fw_memo_names[xx] = v
+	fw_memoize( xx, v )
     return v
 
-def free_param_relabel( *xx ):
+## simplified vertex wrapper that concatenates start compartment with
+## transitions but doesn't subscript the transitions
+def free_wrapper_simple( self, xx ):
+    try:
+        v = fw_memo(tup)
+    except KeyError:
+        if len(tup) == 1:
+            v = tup[0]
+        else:
+            lname = ''.join( [
+                latex( tup[0] )
+            ] + [
+                latex( eis[0][0] )
+                for eis,cs in tup[1:]
+            ] )
+            v = SR.symbol()
+            v = SR.symbol( str(v), latex_name=lname )
+        fw_memoize(tup, v)
+    return v
+
+def free_param_relabel( self, xx ):
     ## p, V, iota, W
     ## p, V, iota, C, iota_, W
     ## p, V, iota, iota_, W
     if len(xx) == 4:
         ## unary interaction with source compartment
         p, V, iota, W = xx
-        return bm_param( p, *(iota + [free_wrapper(*V)]) )
+        return bm_param( p, *(iota + [self._compartment_wrapper(self,V)]) )
     elif len(xx) == 5:
         ## binary interaction with interaction within source compartment
         p, V, iota, iota_, W = xx
-        return bm_param( p, *(iota + [free_wrapper(*V)]) )
+        return bm_param( p, *(iota + [self._compartment_wrapper(self,V)]) )
     elif len(xx) == 6:
         ## binary interaction with source interacting with catalyst
         p, V, iota, C, iota_, W = xx
-        return bm_param( p, *(iota + [free_wrapper(*V), free_wrapper(*C)]) )
+        return bm_param( p, *(iota + [self._compartment_wrapper(self,V), self._compartment_wrapper(self,C)]) )
 
 p_names = {}
-def free_param_namer( *xx ):
+def free_param_namer( self, xx ):
     try: v = p_names[xx]
     except KeyError:
         #print 'param namer', xx
@@ -124,7 +187,10 @@ var('I_01, I_10')
 memo_pos_base={}
 memo_pos={}
 memo_pos_places={}
-def free_pos( graph, models, raw_tuples, init_pos={} ):
+def free_pos( self, graph, init_pos={} ):
+    if len(self._models) == 1:
+        ## case of a single factor graph is different, simpler
+        return free_pos_1( self, graph, init_pos=init_pos )
     ## how to position these compartments.
     ## initial boxes are positioned somewhat smartly
     ## every transition in level 0 adds 1 to x, and
@@ -132,7 +198,7 @@ def free_pos( graph, models, raw_tuples, init_pos={} ):
     ## overlapping locations are shifted by (0.1,0.1) until unique.
     x_init_pos = {}
     angle = { 0:(0,-1), 1:(1,0), 2:(sqrt(3)/2,1/2), 3:(0,-3) }
-    for i,m in enumerate(models):
+    for i,m in enumerate(self._models):
         for v,mp in m._graph.get_pos().iteritems():
             x_init_pos[ (v,) ] = tuple( [ mx*ax for mx,ax in zip(mp,angle[i]) ] )
     x_init_pos.update( init_pos )
@@ -170,24 +236,34 @@ def free_pos( graph, models, raw_tuples, init_pos={} ):
 	    memo_pos[xx] = p
 	    memo_pos_places[ p ] = 1
 	return p
-    return { free_wrapper(*xx) : free_pos_compartment(xx) for xx in raw_tuples }
+    return { self._compartment_wrapper(*xx) : free_pos_compartment(xx) for xx in self._raw_tuples }
+
+def free_pos_1( self, graph, init_pos={} ):
+    ## the factor model's boxes should be laid out horizontally
+    ## in the free model they'll be transposed to vertical, and
+    ## history will proceed to the right from each.
+    yd = { v:x for v,(x,y) in self._models[0]._graph.get_pos().iteritems() }
+    return {
+        self._compartment_wrapper(*xx) : (len(xx),yd[xx[0]])
+        for xx in self._raw_tuples
+    }
 
 def limited_uop( st, transition_filter=lambda *x:True ):
-    def llu( s_tuple, iset, eis ):
-        if s_tuple in st: return free_uop( s_tuple, iset, eis, transition_filter=transition_filter )
+    def llu( self, s_tuple, iset, eis ):
+        if s_tuple in st: return free_uop( self, s_tuple, iset, eis, transition_filter=transition_filter )
         else: return []
     return llu
 
 def limited_bop( st, transition_filter=lambda *x:True ):
-    def llb( s_tuple, iset, c_tuple, i_set, eis ):
-        if s_tuple in st and c_tuple in st: return free_bop( s_tuple, iset, c_tuple, i_set, eis, transition_filter=transition_filter )
+    def llb( self, s_tuple, iset, c_tuple, i_set, eis ):
+        if s_tuple in st and c_tuple in st: return free_bop( self, s_tuple, iset, c_tuple, i_set, eis, transition_filter=transition_filter )
         else: return []
     return llb
 
 ## for use as a transition filter
-def limit_to_iteration( n ):
+def limit_to_iteration( max_iteration, ellipsis_iteration ):
     iteration_dict = {}
-    def lim_it( *xx ):
+    def lim_it( self, xx ):
         ## s_tuple, iset, c_tuple, i_set, s_eis, t_tuple
         s_tuple = xx[0]
         t_tuple = xx[-1]
@@ -198,15 +274,19 @@ def limit_to_iteration( n ):
             iteration_dict[s_tuple] = s_it
         t_it = s_it + 1
         iteration_dict[t_tuple] = t_it
-        return ( t_it <= n )
-    return lim_it
+        return ( t_it <= max_iteration )
+    def ell_it( self, tup ):
+        #print 'seek', tup, 'in', iteration_dict
+        return ( iteration_dict[tup] == ellipsis_iteration )
+    return lim_it, ell_it
 
 def free_product( *models, **kwargs ):
     inclusions =        kwargs.pop( 'inclusions', free_inclusions )
     transition_filter = kwargs.pop( 'transition_filter', None )
     max_iteration =     kwargs.pop( 'max_iteration', None )
     if transition_filter is None and max_iteration is not None:
-        transition_filter = limit_to_iteration( max_iteration )
+        ellipsis_iteration = kwargs.pop( 'ellipsis_iteration', None )
+        transition_filter, ellipsis_filter = limit_to_iteration( max_iteration, ellipsis_iteration )
     unary_operation =   kwargs.pop( 'unary_operation', lambda *x: free_uop(*x, transition_filter=transition_filter) )
     binary_operation =  kwargs.pop( 'binary_operation', lambda *x: free_bop(*x, transition_filter=transition_filter) )
     seed_set =          kwargs.pop( 'seed_set', None )
@@ -217,6 +297,8 @@ def free_product( *models, **kwargs ):
     param_namer =       kwargs.pop( 'param_namer', free_param_namer )
     vertex_positioner = kwargs.pop( 'vertex_positioner', free_pos )
     if seed_set is not None:
+        ## like, in case there's one model and there's a seed set of
+        ## bare vertices instead of singleton tuples, convert them
         def mktuple( s ):
             try:
                 s[0]
@@ -224,7 +306,7 @@ def free_product( *models, **kwargs ):
                 s = (s,)
             return s
         seed_set = [ mktuple(s) for s in seed_set ]
-    return strong_product( *models,
+    PM = strong_product( *models,
         inclusions = inclusions,
         unary_operation = unary_operation,
         binary_operation = binary_operation,
@@ -235,8 +317,12 @@ def free_product( *models, **kwargs ):
         param_relabeling = param_relabeling,
         param_namer = param_namer,
         vertex_positioner = vertex_positioner,
-	single_edge_generator = lambda eis, *a, **g: default_strong_edge_bundle_generator( eis, *a, **g ) if len( Set( (r for (v,w,r),i in eis) ) ) == 1 else []
+	single_edge_generator = lambda self, eis, *a, **g: default_strong_edge_bundle_generator( self, eis, *a, **g ) if len( Set( (r for (v,w,r),i in eis) ) ) == 1 else []
     )
+    PM._ellipsis_tuples = tuple( [ v for v in PM._raw_tuples if ellipsis_filter( *v ) ] )
+    PM._ellipsis_vars = tuple( [ vertex_namer( compartment_wrapper( *v ) ) for v in PM._ellipsis_tuples ] )
+    print 'ellipses at', PM._ellipsis_vars
+    return PM
 
 ## to do: redo for general case
 # vertex coloring in pair model allows four colors
