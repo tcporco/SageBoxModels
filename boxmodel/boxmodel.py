@@ -17,8 +17,9 @@ from sage.symbolic.function_factory import function
 class deps:
     index, sumover = range(0,2)
 
-def plot_boxmodel_graph( g, filename=None, inline=False, figsize=(6,6), empty_vertices=(), **options ):
-    #print 'empty vertices:', empty_vertices
+def plot_boxmodel_graph( g, filename=None, inline=False, figsize=(6,6), empty_vertices=(), ellipsis_vertices=(), **options ):
+    import itertools
+    print 'ellipsis vertices:', ellipsis_vertices
     lopts = {
         'graphic_size': figsize,
         'edge_labels': True,
@@ -28,7 +29,7 @@ def plot_boxmodel_graph( g, filename=None, inline=False, figsize=(6,6), empty_ve
         #'edge_thickness': 0.05
         'vertex_shape': 'rectangle',
         'vertices_empty': { x:True for x in empty_vertices },
-        #'vertex_colors': { x:'white' for x in self._sources | self._sinks },
+        'vertex_colors': { x:'white' for x in ellipsis_vertices },
         #'vertex_label_colors': { x:'white' for x in self._sources | self._sinks }
     }
     graph_latex_patched.setup_latex_preamble()
@@ -216,13 +217,31 @@ class BoxModel(SageObject):
 	    return ex
     def __repr__(self):
         return '(BoxModel with compartments ' + str(tuple(self._vars)) + ')'
-    def plot_boxes( self, filename=None, inline=False, figsize=(6,6), transform_graph=None, **options ):
+    def plot_boxes( self, filename=None, inline=False, figsize=(6,6), transform_graph=None, ellipsis_vertices=(), **options ):
 	g = self._graph
 	## apply the user-supplied transform if any
         ## for example, use transform_graph=per_capita_rates to
         ## plot using per capita rather than absolute flow rates
         if transform_graph is not None:
             g = transform_graph(g)
+        try:
+            ## free_product may assign this member
+            ellipsis_vertices = Set( self._ellipsis_vars )
+            def ellipsize( g ):
+                def ellipsize_vertex( v ):
+                    if v in ellipsis_vertices:
+                        return SR.symbol( str(v), latex_name='\ldots' )
+                    else:
+                        return v
+                return DiGraph( [
+                        ( ellipsize_vertex(v), ellipsize_vertex(w), r )
+                        for v,w,r in g.edge_iterator()
+                    ],
+                    pos = { ellipsize_vertex(v):p for v, p in g.get_pos().iteritems() }
+                )
+            g = ellipsize(g)
+        except AttributeError:
+            ellipsis_vertices = ()
 	## tweak the latex representation of the rates
 	g = DiGraph(
 	    [ g.vertices(), [ (v,w,self.reorder_latex_variables(e)) for v,w,e in g.edge_iterator() ] ],
@@ -231,7 +250,14 @@ class BoxModel(SageObject):
 	    pos = g.get_pos()
 	)
         print 'plot_boxes, sources', self._sources, ', sinks', self._sinks
-	return plot_boxmodel_graph( g, filename=filename, inline=inline, figsize=figsize, empty_vertices=self._sources | self._sinks, **options )
+	return plot_boxmodel_graph( g,
+            filename=filename,
+            inline=inline,
+            figsize=figsize,
+            empty_vertices=self._sources | self._sinks,
+            ellipsis_vertices=ellipsis_vertices,
+            **options
+        )
     def plot( self, *args, **aargs ):
 	def lx(s): return '$%s$'%latex(s)
 	lfg = DiGraph(
