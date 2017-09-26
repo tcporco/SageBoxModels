@@ -20,6 +20,7 @@ from boxmodelproduct import *
 ## free_inclusions lets all free model compartments play all roles,
 ##  though it doesn't cross levels like the pair model does.
 def free_inclusions( self, c, tup, i ):
+    #print 'free inclusions', c, 'in', tup, ':', [i]
     return [i]
 
 ## smarter inclusions for a limited free product that
@@ -27,29 +28,32 @@ def free_inclusions( self, c, tup, i ):
 ## it's not trivial - classify each node of the free product
 ## to a vertex of the Cartesian product graph, and
 ## allow the arrows that leave that vertex
-def make_cartesian_inclusions( *models ):
-    exclude = Set( v for m in models for v in m._vars )
-    edge_names = {
-        next( p for p in r.variables() if p not in exclude ):(v,w,r)
-        for m in models for v,w,r in m._graph.edge_iterator()
-    }
-    def cartesian_inclusions( self, c, tup, i ):
-        def classify_vertex( t ):
-            try:
-                c = list( t[0] )
-            except TypeError: ## shorthand replacing [x] by x
-                c = [ t[0] ]
-            for eis,cs in t[1:]:
-                for e,i in eis:
-                    v,w,r = edge_names[e]
-                    if v == c[i]:
-                        c[i] = w
-                    else:
-                        print "Error in free vertex", tup
-            return c
-        tc = classify_vertex( tup )
-        return [i] if tc[i] == c else []
-    return cartesian_inclusions
+def classify_vertex( self, t, edge_names={} ):
+    try:
+        var_key = tuple(tuple(m._vars) for m in self._models)
+        edge_names[var_key]
+    except KeyError:
+        edge_names[var_key] = {
+            next( p for p in r.variables() if p not in m._vars ):(v,w,r)
+            for m in self._models
+            for v,w,r in m._graph.edge_iterator()
+        }
+    try:
+        c = list( t[0] )
+    except TypeError: ## shorthand replacing [x] by x
+        c = [ t[0] ]
+    for eis,cs in t[1:]:
+        for e,i in eis:
+            v,w,r = edge_names[var_key][e]
+            if v == c[i]:
+                c[i] = w
+            else:
+                print "Error in classify_vertex", tup
+    return tuple(c)
+
+def cartesian_inclusions( self, c, tup, i ):
+    tc = classify_vertex( self, tup )
+    return [i] if tc[i] == c else []
 
 def free_uop( self, s_tuple, iset, eis, transition_filter=lambda self,*x:True, edge_names={} ):
     def edge_name( r, exclude=() ):
@@ -59,7 +63,7 @@ def free_uop( self, s_tuple, iset, eis, transition_filter=lambda self,*x:True, e
     s_eis = tuple( (edge_name(r,(v,w)),i) for (v,w,r),i in eis )
     #print 'uop', s_tuple, '+', (s_eis,())
     n_tuple = s_tuple + ( (s_eis,()), )
-    if transition_filter( self, s_tuple, iset, eis, n_tuple ):
+    if transition_filter( self, (s_tuple, iset), None, eis, n_tuple ):
 	#print ': ', n_tuple
 	return [ n_tuple ]
     return []
@@ -72,8 +76,9 @@ def free_bop( self, s_tuple, iset, c_tuple, i_set, eis, transition_filter=lambda
     s_eis = tuple( (edge_name(r,(v,w)),i) for (v,w,r),i in eis )
     #print 'bop', s_tuple, '+', (s_eis,(c_tuple,)) 
     n_tuple = s_tuple + ( (s_eis,(c_tuple,)), )
-    if ( all( e == beta for e,i_ in s_eis ) and
-         transition_filter( self, s_tuple, iset, c_tuple, i_set, s_eis, n_tuple )
+    ## allow only one kind of transition per arrow
+    if ( len( set( e for e,i_ in s_eis ) ) == 1 and
+         transition_filter( self, (s_tuple, iset), (c_tuple, i_set), s_eis, n_tuple )
        ):
 	#print ': (', n_tuple, ')'
 	return [ n_tuple ]
@@ -88,14 +93,18 @@ def fw_memoize( tup, v ):
     fw_memo_names[tup] = v
 def fw_memo( tup ):
     return fw_memo_names[tup]
+symbol_by_latex_memo = {}
+def sl_memoize( v ):
+    symbol_by_latex_memo[latex(v)] = v
+def sl_memo( lx ):
+    return symbol_by_latex_memo[lx]
 
 ## give vertices names by concatenating start compartment with transitions.
 ## transition names are subscripted according to which of the factor models
-## is in play.
+## is in play if there are more than one factor model.
+## pairwise transitions are marked by the name of the interacting compartment.
 def free_wrapper( self, xx ):
-    if len(self._models) == 1:
-        return free_wrapper_simple( self, xx )
-    try: v = fw_memo_names[xx]
+    try: v = fw_memo(xx)
     except KeyError:
 	## xx[0] is S/I_0/I_1
 	## all the rest of xx is (eis,cs) pairs.
@@ -107,7 +116,10 @@ def free_wrapper( self, xx ):
 	    lname = ''.join(
 	        [ latex( xx[0] ) ] +
 	        [ ''.join(
-		        [ latex( subscriptedsymbol( eis[0][0], *(i for _,i in eis) ) ) ] +
+		        [ latex( subscriptedsymbol( eis[0][0], *(i for _,i in eis) )
+                                if len(self._models > 1)
+                                else eis[0][0]
+                        ) ] +
 		        [ '('+latex(free_wrapper(*c))+')'
                             if len(c) > 1 else
                             ' '+latex(free_wrapper(*c))
@@ -117,15 +129,21 @@ def free_wrapper( self, xx ):
                     for eis,cs in xx[1:]
 	        ]
 	    )
-	    v = SR.symbol()
-	    v = SR.symbol( str(v), latex_name=lname )
+            try: v = sl_memo(lname)
+            except KeyError:
+                v = SR.symbol()
+                v = SR.symbol( str(v), latex_name=lname )
+                sl_memoize(v)
 	    #print 'is', lname
 	fw_memoize( xx, v )
     return v
 
 ## simplified vertex wrapper that concatenates start compartment with
 ## transitions but doesn't subscript the transitions
-def free_wrapper_simple( self, xx ):
+## and doesn't mark interacting compartments.
+## to avoid unfortunate duplicate edges, use this with
+## rename_boxes_without_catalysts(), below, as compartment renaming.
+def free_wrapper_simple( self, tup ):
     try:
         v = fw_memo(tup)
     except KeyError:
@@ -135,18 +153,25 @@ def free_wrapper_simple( self, xx ):
             lname = ''.join( [
                 latex( tup[0] )
             ] + [
-                latex( eis[0][0] )
-                for eis,cs in tup[1:]
+                latex( eis[0][0] ) for eis,cs in tup[1:]
             ] )
-            v = SR.symbol()
-            v = SR.symbol( str(v), latex_name=lname )
+            try: v = sl_memo(lname)
+            except:
+                v = SR.symbol()
+                v = SR.symbol( str(v), latex_name=lname )
+                sl_memoize(v)
         fw_memoize(tup, v)
     return v
 
-def free_param_relabel( self, xx ):
-    ## p, V, iota, W
-    ## p, V, iota, C, iota_, W
-    ## p, V, iota, iota_, W
+def rename_boxes_without_catalysts(self, xx):
+    return tuple( [ xx[0] ] + [ (eis,()) for eis,cs in xx[1:] ] )
+
+def free_param_relabel( self, p, si, ci, t ):
+    return bm_param( *(
+        [p] +
+        (si[1] + [self._compartment_wrapper(self,si[0])] if si is not None else []) +
+        ([ci[0]] if ci is not None and ci[0] is not None else [])
+    ) )
     if len(xx) == 4:
         ## unary interaction with source compartment
         p, V, iota, W = xx
@@ -203,11 +228,11 @@ def free_pos( self, graph, init_pos={} ):
             x_init_pos[ (v,) ] = tuple( [ mx*ax for mx,ax in zip(mp,angle[i]) ] )
     x_init_pos.update( init_pos )
     init_pos = x_init_pos
-    print 'init_pos', init_pos
+    #print 'init_pos', init_pos
     def free_pos_compartment( xx ):
 	try: p = memo_pos[xx]
 	except KeyError:
-	    print 'pos', xx
+	    #print 'pos', xx
 	    if len(xx) == 1:
 		#p = { S:(0,0), I_0:(1,0), I_1:(0,-1), I_01:(1,-1), I_10:(1,-1) }[ xx[0] ]
                 p = init_pos[ (xx[0],) ]
@@ -217,22 +242,22 @@ def free_pos( self, graph, init_pos={} ):
 		free_pos_compartment( yx )
 		p = vector( memo_pos_base[yx] )
 		side = p[1] + p[0]
-		print ' from', yx, 'at', p
+		#print ' from', yx, 'at', p
 		for _,i in eiscs[0]:
                     step = vector( ( (1,0), (0,-1) )[i] )
 		    p = p + step
 		    if p[0] + p[1] != 0:
                         side = p[0] + p[1]
-		    print ' shift to', p
+		    #print ' shift to', p
                 p = tuple(p)
-	    print ' base', p
+	    #print ' base', p
 	    memo_pos_base[xx] = p
 	    while p in memo_pos_places:
 		if side > 0:
 	            p = ( p[0] + 0.1, p[1] + 0.15 )
 		else:
 	            p = ( p[0] - 0.1, p[1] - 0.15 )
-	    print 'is', p
+	    #print 'is', p
 	    memo_pos[xx] = p
 	    memo_pos_places[ p ] = 1
 	return p
@@ -243,10 +268,21 @@ def free_pos_1( self, graph, init_pos={} ):
     ## in the free model they'll be transposed to vertical, and
     ## history will proceed to the right from each.
     yd = { v:x for v,(x,y) in self._models[0]._graph.get_pos().iteritems() }
-    return {
-        self._compartment_wrapper(*xx) : (len(xx),yd[xx[0]])
-        for xx in self._raw_tuples
+    pd = {
+        self._compartment_wrapper(self, xx) : (len(xx),yd[xx[0]])
+        for xx in reversed(self._raw_tuples)
     }
+    #print 'free_pos_1 from', pd
+    #print 'raw tuples', self._raw_tuples
+    ## that dict will have overlapping boxes, they should be spaced out vertically
+    dp = { p:[] for p in pd.itervalues() }
+    for c,p in pd.iteritems():
+        dp[p].append( c )
+    for p,cl in dp.iteritems():
+        cn = len(cl)
+        for i,c in enumerate(sorted(cl,key=lambda v:latex(v))):
+            pd[c] = (p[0],p[1] + i*1.0/cn)
+    return pd
 
 def limited_uop( st, transition_filter=lambda *x:True ):
     def llu( self, s_tuple, iset, eis ):
@@ -263,16 +299,24 @@ def limited_bop( st, transition_filter=lambda *x:True ):
 ## for use as a transition filter
 def limit_to_iteration( max_iteration, ellipsis_iteration ):
     iteration_dict = {}
-    def lim_it( self, xx ):
+    def lim_it( self, si, ci, eis, t_tuple ):
         ## s_tuple, iset, c_tuple, i_set, s_eis, t_tuple
-        s_tuple = xx[0]
-        t_tuple = xx[-1]
+        s_tuple = si[0]
         try:
             s_it = iteration_dict[s_tuple]
         except KeyError:
             s_it = 0
             iteration_dict[s_tuple] = s_it
-        t_it = s_it + 1
+        if ci is not None and ci[0] is not None:
+            c_tuple = ci[0]
+            try:
+                c_it = iteration_dict[c_tuple]
+            except KeyError:
+                c_it = 0
+                iteration_dict[c_tuple] = c_it
+        else:
+            c_it = -1
+        t_it = max(s_it,c_it) + 1
         iteration_dict[t_tuple] = t_it
         return ( t_it <= max_iteration )
     def ell_it( self, tup ):
@@ -284,15 +328,19 @@ def free_product( *models, **kwargs ):
     inclusions =        kwargs.pop( 'inclusions', free_inclusions )
     transition_filter = kwargs.pop( 'transition_filter', None )
     max_iteration =     kwargs.pop( 'max_iteration', None )
-    if transition_filter is None and max_iteration is not None:
-        ellipsis_iteration = kwargs.pop( 'ellipsis_iteration', None )
-        transition_filter, ellipsis_filter = limit_to_iteration( max_iteration, ellipsis_iteration )
+    if transition_filter is None:
+        if max_iteration is not None:
+            ellipsis_iteration = kwargs.pop( 'ellipsis_iteration', None )
+            transition_filter, ellipsis_filter = limit_to_iteration( max_iteration, ellipsis_iteration )
+        else:
+            transition_filter = lambda *x:True
+            ellipsis_filter = lambda *x:False
     unary_operation =   kwargs.pop( 'unary_operation', lambda *x: free_uop(*x, transition_filter=transition_filter) )
     binary_operation =  kwargs.pop( 'binary_operation', lambda *x: free_bop(*x, transition_filter=transition_filter) )
     seed_set =          kwargs.pop( 'seed_set', None )
-    compartment_renaming = kwargs.pop( 'compartment_renaming', lambda *x: x )
+    compartment_renaming = kwargs.pop( 'compartment_renaming', lambda self,x: x )
     compartment_wrapper = kwargs.pop( 'compartment_wrapper', free_wrapper )
-    vertex_namer =      kwargs.pop( 'vertex_namer', lambda x:x )
+    vertex_namer =      kwargs.pop( 'vertex_namer', lambda self,x:x )
     param_relabeling =  kwargs.pop( 'param_relabeling', free_param_relabel )
     param_namer =       kwargs.pop( 'param_namer', free_param_namer )
     vertex_positioner = kwargs.pop( 'vertex_positioner', free_pos )
@@ -319,8 +367,8 @@ def free_product( *models, **kwargs ):
         vertex_positioner = vertex_positioner,
 	single_edge_generator = lambda self, eis, *a, **g: default_strong_edge_bundle_generator( self, eis, *a, **g ) if len( Set( (r for (v,w,r),i in eis) ) ) == 1 else []
     )
-    PM._ellipsis_tuples = tuple( [ v for v in PM._raw_tuples if ellipsis_filter( *v ) ] )
-    PM._ellipsis_vars = tuple( [ vertex_namer( compartment_wrapper( *v ) ) for v in PM._ellipsis_tuples ] )
+    PM._ellipsis_tuples = tuple( [ v for v in PM._raw_tuples if ellipsis_filter( PM, v ) ] )
+    PM._ellipsis_vars = tuple( [ vertex_namer( compartment_wrapper( PM, v ) ) for v in PM._ellipsis_tuples ] )
     print 'ellipses at', PM._ellipsis_vars
     return PM
 

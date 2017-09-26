@@ -19,7 +19,7 @@ class deps:
 
 def plot_boxmodel_graph( g, filename=None, inline=False, figsize=(6,6), empty_vertices=(), ellipsis_vertices=(), **options ):
     import itertools
-    print 'ellipsis vertices:', ellipsis_vertices
+    #print 'ellipsis vertices:', ellipsis_vertices
     lopts = {
         'graphic_size': figsize,
         'edge_labels': True,
@@ -111,9 +111,9 @@ class BoxModel(SageObject):
 	    except AttributeError: return []
 	if parameters is None:
 	    # avoid namespace confusion with boxmodelproduct.union
-            print 'make parameters'; sys.stdout.flush()
+            #print 'make parameters'; sys.stdout.flush()
 	    parameters = list( reduce( lambda x,y: x.union(y), (Set(getvars(r)) for f,t,r in graph.edges()), Set() ) - self._vars - self._aggregate_names )
-            print 'made parameters'; sys.stdout.flush()
+            #print 'made parameters'; sys.stdout.flush()
 	self._parameters = parameters
 	#print 'parameters:', parameters
         if False:
@@ -168,19 +168,19 @@ class BoxModel(SageObject):
 	# We take BoxModel to be an immutable object, so this operation
 	# returns a new BoxModel.  trs is a list of (source,target,rate)
 	# tuples suitable for adding to self._graph
-	print 'add_transitions', trs
-	print 'parameters before', self._parameters
+	#print 'add_transitions', trs
+	#print 'parameters before', self._parameters
 	nbm = deepcopy(self)
 	nbm._graph.add_edges( trs )
-	print self._vars
+	#print self._vars
 	for f,t,r in trs:
 	    try:
-		print r
-		print r.variables()
-		print Set( r.variables() ).difference( Set( self._vars ) )
+		#print r
+		#print r.variables()
+		#print Set( r.variables() ).difference( Set( self._vars ) )
 		nbm._parameters.update( Set( r.variables() ) - self._vars - self._aggregate_names )
 	    except AttributeError: pass
-	print 'parameters after', nbm._parameters
+	#print 'parameters after', nbm._parameters
 	return nbm 
     def reorder_latex_variables( self, ex ):
         #return ex
@@ -216,7 +216,10 @@ class BoxModel(SageObject):
 	except AttributeError: # ex is not an expression
 	    return ex
     def __repr__(self):
-        return '(BoxModel with compartments ' + str(tuple(self._vars)) + ')'
+        try:
+            return '(BoxModel with compartments ' + str(tuple(self._vars)) + ')'
+        except AttributeError: # _vars not assigned yet
+            return '(BoxModel)'
     def plot_boxes( self, filename=None, inline=False, figsize=(6,6), transform_graph=None, ellipsis_vertices=(), **options ):
 	g = self._graph
 	## apply the user-supplied transform if any
@@ -249,7 +252,7 @@ class BoxModel(SageObject):
 	    multiedges=True,
 	    pos = g.get_pos()
 	)
-        print 'plot_boxes, sources', self._sources, ', sinks', self._sinks
+        #print 'plot_boxes, sources', self._sources, ', sinks', self._sinks
 	return plot_boxmodel_graph( g,
             filename=filename,
             inline=inline,
@@ -369,15 +372,16 @@ class BoxModel(SageObject):
             #print 'making BoxModel JumpProcess'
             nvars = self._sources | self._sinks
             vars = [ v for v in self._vars if v not in nvars ]
-            #print 'vars:',vars
             var_index = { v:i for i,v in enumerate(vars) }
-            for x in self._sources.union( self._sinks ):
-                var_index[x] = None
+            #var_index.update( { v:None for v in nvars } )
+            #for x in self._sources.union( self._sinks ):
+            #    var_index[x] = None
+            #print 'var_index:',var_index
             def to_r( s, t ):
                 r = [ 0 for v in vars ]
-                if var_index[s] is not None:
+                if s in var_index:
                     r[var_index[s]] = -1
-                if var_index[t] is not None:
+                if t in var_index:
                     r[var_index[t]] = 1
                 return r
             self._jump_process = dynamicalsystems.JumpProcess(
@@ -409,7 +413,7 @@ class BoxModel(SageObject):
 	for source, target, rate in self._graph.edge_iterator():
 	    mu = MakeMicro( self, source )
 	    ut = mu( rate )
-	    print str(ut); sys.stdout.flush()
+	    #print str(ut); sys.stdout.flush()
 	    lines += [ r'  & ' + latex(mu.sigma_fn(SR('x'))) + r'\to' + latex(target)
 		+ r' \quad\text{ at rate } '
 		+ latex( ut )
@@ -463,15 +467,15 @@ class MakeMicro(IdentityConverter):
 	# leave multiplications as is, except in the case of a
 	# parameter dependency marked "sumover": convert that from
 	# a regular multiplication to an inner product.
-	print 'processing product', args
+	#print 'processing product', args
 	margs = list(args)
 	sumover = []
 	dummy_list = ['y', 'z', 'u', 'v', 'w', 's', 't', 'p', 'q', 'r']
 	for p,pd in self._model._parameter_dependencies.items():
 	    if p in margs:
-		print 'found', p, 'in factors:', args
+		#print 'found', p, 'in factors:', args
 		if all( d in margs + [self._source] for d,x in pd ):
-		    print 'found all of its deps', [d for d,x in pd], 'as well'
+		    #print 'found all of its deps', [d for d,x in pd], 'as well'
 		    indices_for_p = []
 		    p_times = SR(1)
 		    for d,ss in pd:
@@ -479,10 +483,10 @@ class MakeMicro(IdentityConverter):
 			    dummy_var = SR.symbol( dummy_list.pop(0) )
 			    indices_for_p.append( dummy_var )
 			    sumover.append( dummy_var )
-			    print 'will sum over', dummy_var, 'in', d; sys.stdout.flush()
+			    #print 'will sum over', dummy_var, 'in', d; sys.stdout.flush()
 			    margs[margs.index(d)] = 1
 			    p_times *= self.bm_indicator( self.sigma_fn( dummy_var ) == self._tags[d] )
-			    print 'made it through equality'; sys.stdout.flush()
+			    #print 'made it through equality'; sys.stdout.flush()
 			elif d == self._source:
 			    indices_for_p += [SR('x')]
 			else:
@@ -495,7 +499,7 @@ class MakeMicro(IdentityConverter):
 			self.bm_index_param,
 			lambda *args: dynamicalsystems.subscriptedsymbol( *args )
 		    )
-		    print margs
+		    #print margs
 		else:
 		    raise RuntimeError, (
 			"Missing parameter dependencies in expression " +
@@ -507,14 +511,14 @@ class MakeMicro(IdentityConverter):
 
 class sort_latex_variables(sage.symbolic.expression_conversions.ExpressionTreeWalker):
     def __init__(self, sort_order_map, order_numbers_as=-oo, order_unknown_as=oo):
-        print 'sort_order_map is', sort_order_map
+        #print 'sort_order_map is', sort_order_map
 	self._map = sort_order_map
 	self._number_order = order_numbers_as
 	self._unknown_order = order_unknown_as
 	return super(sort_latex_variables,self).__init__(SR(0))
     def arithmetic(self, ex, operator):
         if operator == (2*SR.symbol('x')).operator():
-            print 'reorder latex product of', ex.operands()
+            #print 'reorder latex product of', ex.operands()
             ## sort the factors in a multiplication
 	    def keyfn(x):
 	        try:
@@ -532,7 +536,7 @@ class sort_latex_variables(sage.symbolic.expression_conversions.ExpressionTreeWa
                 ## there will only be one -1
                 ll = [ e for e in ll if e != -1 ]
                 rev = rev[:1]
-                print 'will reverse', rev
+                #print 'will reverse', rev
             ## if there are factors of y^-1
             ## we will put those as y in a denominator
             denom = [ d for d in ll if
@@ -553,7 +557,7 @@ class sort_latex_variables(sage.symbolic.expression_conversions.ExpressionTreeWa
                         #return ''.join( (r'\left(',latex(ex),r'\right)') )
                 ## write additions
                 if ex.operator() == (SR.symbol('x')+1).operator() and within:
-                    print 'add () to', ex
+                    #print 'add () to', ex
                     return r'\left({}\right)'.format(latex(ex))
                 ## if it's a compound symbol, put it in parens
                 if ex.is_symbol():
@@ -562,33 +566,33 @@ class sort_latex_variables(sage.symbolic.expression_conversions.ExpressionTreeWa
                     while lxinner[0] == '{' and lxinner[-1] == '}':
                         lxinner = lxinner[1:-1]
                     if len(lxinner) > 1 and '_' not in lxinner and '^' not in lxinner and not( lxinner[0] == '\\' and lxinner[1:].isalpha() ):
-                        print 'add () to', lxinner
+                        #print 'add () to', lxinner
                         return r'\left({}\right)'.format(lxinner)
                     else:
-                        print 'a symbol:', lx
+                        #print 'a symbol:', lx
                         return lx
                 ## anything else, use default latex rendering
-                print ' default latex,', latex(ex)
+                #print ' default latex,', latex(ex)
                 return latex(ex)
             ## combine the factors in the numerator
-            print ll
+            #print ll
             lname = ' '.join(to_lx(v, len(ll)>1) for v in ll)
             ## if any factors in denominator, combine them and make fraction
             if len(denom) > 0:
-                print '/', denom
+                #print '/', denom
                 lden = ' '.join(to_lx(d, len(denom)>1) for d in denom)
                 lname = r'\frac{'+lname+'}{'+lden+'}'
-            print latex(ex), ' ==> ', lname
+            #print latex(ex), ' ==> ', lname
 	    Msym = SR.symbol( 'M_{}'.format( ZZ.random_element(1e+10) ), latex_name=lname )
             return Msym
         elif ( operator == (2+SR.symbol('x')).operator() and
             ex.operands()[0].operator() == (2*SR.symbol('x')).operator() and
             SR(-1) in ex.operands()[0].operands() and
             ex.operands()[1] == 1):
-            print 'normalise', latex(ex), 'to 1-x form'
+            #print 'normalise', latex(ex), 'to 1-x form'
             lname = latex(ex.operands()[1])+'-'+latex(-ex.operands()[0])
 	    Msym = SR.symbol( 'M_{}'.format( ZZ.random_element(1e+10) ), latex_name=lname )
             return Msym
-        print 'typeset', latex(ex), 'as is'
-        print 'operator is', str(ex.operator())
+        #print 'typeset', latex(ex), 'as is'
+        #print 'operator is', str(ex.operator())
         return super(sort_latex_variables,self).arithmetic(ex,operator)

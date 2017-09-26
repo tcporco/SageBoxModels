@@ -46,3 +46,25 @@ def R_inclusions_fn( self, name='observations', inclusions=None, extras=Bindings
     return code
 
 BoxModelProduct.R_inclusions_fn = R_inclusions_fn
+
+def R_marginal_names( self, name='marginals' ):
+    """R_marginal_names_fn: provide for R the names of compartments
+    indexed by compartments of the factor models"""
+    code = '#!/usr/bin/R\n'
+    code += name + ' <- c(\n'
+    if len(self._variable_marginals):
+        code += ',\n'.join(
+            '  ' + str(v) + ' = c("' + '", "'.join( str(vt) for vt in ll ) + '")'
+            for v, ll in self._variable_marginals.iteritems()
+            if ll != [v]
+        ) + '\n'
+    if len(self._parameter_marginals):
+        code += ',\n'.join(
+            '  ' + str(v) + ' = c("' + '", "'.join( str(vt) for vt in ll ) + '")'
+            for v, ll in self._parameter_marginals.iteritems()
+            if ll != [v]
+        ) + '\n'
+    code += ')\n'
+    return code
+
+BoxModelProduct.R_marginal_names = R_marginal_names
