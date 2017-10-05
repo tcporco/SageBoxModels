@@ -412,7 +412,7 @@ class BoxModel(SageObject):
     def ode(self, time_variable=SR.symbol('t'), bindings=dynamicalsystems.Bindings()):
 	return self.jump_process().deterministic_ode(time_variable, bindings)
     def difference_equation(self,
-            step=1., time_variable=SR.symbol('t'), bindings=dynamicalsystems.Bindings()):
+            step=1, time_variable=SR.symbol('t'), bindings=dynamicalsystems.Bindings()):
         return self.jump_process().approximate_deterministic_difference_equation(
             step=step, time_variable=time_variable, bindings=bindings
         )
