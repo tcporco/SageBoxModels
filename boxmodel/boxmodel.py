@@ -106,16 +106,25 @@ class BoxModel(SageObject):
 	if vars is None:
 	    vars = Set( graph.vertices() ) - self._sources - self._sinks
 	self._vars = list(vars)
+        print 'vars', self._vars, 'sources', self._sources, 'sinks', self._sinks
 	def getvars(r):
 	    try: return r.variables()
 	    except AttributeError: return []
 	if parameters is None:
 	    # avoid namespace confusion with boxmodelproduct.union
             #print 'make parameters'; sys.stdout.flush()
-	    parameters = list( reduce( lambda x,y: x.union(y), (Set(getvars(r)) for f,t,r in graph.edges()), Set() ) - self._vars - self._aggregate_names )
+	    parameters = list(
+                reduce(
+                    lambda x,y: x.union(y),
+                    (set(getvars(r)) for f,t,r in graph.edges()),
+                    set()
+                ).difference(
+                    self._vars, self._sources, self._sinks, self._aggregate_names
+                )
+            )
             #print 'made parameters'; sys.stdout.flush()
 	self._parameters = parameters
-	#print 'parameters:', parameters
+	print 'parameters:', parameters
         if False:
             self._parameter_dependencies = parameter_dependencies
             for p in self._parameters:
@@ -143,7 +152,10 @@ class BoxModel(SageObject):
             #print 'parameter dependencies:', self._parameter_dependencies
 	self._bindings = bindings
 	if self._graph.get_pos() is None:
-	    self._graph.set_pos( { v:(i,0) for i,v in enumerate(self._vars) } )
+            pos = { v:(i,0) for i,v in enumerate(self._vars) }
+            pos.update( { v:(-1,i) for i,v in enumerate(self._sources) } )
+            pos.update( { v:(xx,i) for i,v in enumerate(self._sinks) for xx in (max(x for x,y in pos.itervalues()),) } )
+	    self._graph.set_pos( pos )
     def bind(self, *args, **vargs):
 	bindings = dynamicalsystems.Bindings( *args, **vargs )
 	bound_graph = DiGraph( [
