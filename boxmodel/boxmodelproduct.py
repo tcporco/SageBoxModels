@@ -373,7 +373,7 @@ class CompositeBoxModel(boxmodel.BoxModel):
                 print 'here is bindings:', bindings
                 for v, w, e in edges:
                     print e
-                    be = bindings(p_subs(v_subs(e)))
+                    be = bindings(p_subs(v_subs(SR(e))))
                     print be
                     if be != 0: yield ( vertex_labels[v], vertex_labels[w], be )
             flow_edges = list( bind_edges( self._tuple_graph.edge_iterator(), bindings ) )
@@ -718,21 +718,35 @@ class BoxModelProduct(CompositeBoxModel):
 
         print 'marginal parameters'
         self._parameter_marginals = {}
-        ## given a bm_params() structure, add all its marginals to the dict
-        import itertools
-        def insert_marginals( *psubs ):
-            p, subs = ( psubs[0], psubs[1:] )
-            param = self._param_namer( self, psubs )
-            for ss in subsets( subs ):
-                ## todo: no good
-                pss = self._param_namer( self, tuple(itertools.chain([p],ss)) )
-                if pss != param:
-                    self._parameter_marginals.setdefault( pss, [] ).append( param )
-            return param
-        for v,w,e in self._tuple_graph.edge_iterator():
-            e.substitute_function( bm_param, insert_marginals )
+        ## use all the p_repl dicts in the raw edges to list product
+        ## parameters that are made from factor parameters
+        for V,W,(r,c_repl,p_repl) in raw_edges:
+            for fp,pp in p_repl.iteritems():
+                ps = pp.substitute_function( bm_param, lambda *x: self._param_namer(self,x) )
+                if ps != fp and (fp not in self._parameter_marginals or ps not in self._parameter_marginals[fp]):
+                    self._parameter_marginals.setdefault( fp, [] ).append( ps )
+        if False:
+            ## given a bm_params() structure, add all its marginals to the dict
+            import itertools
+            def insert_marginals( *psubs ):
+                p, subs = ( psubs[0], psubs[1:] )
+                param = self._param_namer( self, psubs )
+                for ss in subsets( subs ):
+                    ## todo: no good
+                    pss = self._param_namer( self, tuple(itertools.chain([p],ss)) )
+                    if pss != param:
+                        self._parameter_marginals.setdefault( pss, [] ).append( param )
+                return param
+            for v,w,e in self._tuple_graph.edge_iterator():
+                e.substitute_function( bm_param, insert_marginals )
         #print self._tuple_graph.edges() # very slow
         print self._parameter_marginals
+    def variable_marginals( self, var ):
+        if var in self._vars or var in self._sources or var in self._sinks:
+            return [ var ]
+        else:# if var in self._variable_marginals:
+            return self._variable_marginals[var]
+        # if not in marginals, raise a KeyError
     def parameter_marginals( self, param ):
         if param in self._parameters:
             return [ param ]
