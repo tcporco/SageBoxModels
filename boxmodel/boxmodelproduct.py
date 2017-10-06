@@ -413,7 +413,7 @@ class CompositeBoxModel(boxmodel.BoxModel):
 	def getvars(r):
 	    try: return r.variables()
 	    except AttributeError: return []
-	self._parameters = reduce( lambda x,y: set(x).union(y), (set(getvars(r)) for f,t,r in self._graph.edges()), set() ).difference( set( self._vars ) )
+	self._parameters = sorted( list( reduce( lambda x,y: set(x).union(y), (set(getvars(r)) for f,t,r in self._graph.edges()), set() ).difference( self._vars, self._sources, self._sinks ) ), key=str )
 	#print 'parameters:', self._parameters
     def bind(self, *args, **vargs):
         b = dynamicalsystems.Bindings( *args, **vargs )

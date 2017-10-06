@@ -113,7 +113,7 @@ class BoxModel(SageObject):
 	if parameters is None:
 	    # avoid namespace confusion with boxmodelproduct.union
             #print 'make parameters'; sys.stdout.flush()
-	    parameters = list(
+	    parameters = sorted( list(
                 reduce(
                     lambda x,y: x.union(y),
                     (set(getvars(r)) for f,t,r in graph.edges()),
@@ -121,7 +121,7 @@ class BoxModel(SageObject):
                 ).difference(
                     self._vars, self._sources, self._sinks, self._aggregate_names
                 )
-            )
+            ), key=str )
             #print 'made parameters'; sys.stdout.flush()
 	self._parameters = parameters
 	print 'parameters:', parameters
