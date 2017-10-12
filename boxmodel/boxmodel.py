@@ -111,7 +111,7 @@ class BoxModel(SageObject):
 	    try: return r.variables()
 	    except AttributeError: return []
 	if parameters is None:
-	    # avoid namespace confusion with boxmodelproduct.union
+	    # avoid namespace confusion with product.union
             #print 'make parameters'; sys.stdout.flush()
 	    parameters = sorted( list(
                 reduce(

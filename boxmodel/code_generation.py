@@ -6,7 +6,7 @@
 #*****************************************************************************
 
 #from sage.all import *
-from boxmodelproduct import *
+from product import *
 from dynamicalsystems import *
 
 ## code evaluating categories of compartments in R

@@ -7,7 +7,7 @@
 
 #!/usr/bin/python
 from boxmodel import *
-from boxmodelproduct import *
+from product import *
 from freeproduct import *
 from boxkolmogorov import *
 #from boxmarkov import *

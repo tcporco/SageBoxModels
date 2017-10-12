@@ -8,7 +8,7 @@
 from sage.all import *
 from dynamicalsystems import *
 from boxmodel import *
-from boxmodelproduct import *
+from product import *
 
 ## inclusions:
 ##  given compartment 'c' of the i'th factor model,
