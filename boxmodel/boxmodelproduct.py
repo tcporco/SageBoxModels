@@ -717,14 +717,28 @@ class BoxModelProduct(CompositeBoxModel):
             v.substitute_function( bm_state, insert_marginals )
 
         print 'marginal parameters'
+        self._parameter_names = {}
+        self._parameter_tuples = {}
         self._parameter_marginals = {}
-        ## use all the p_repl dicts in the raw edges to list product
+        self._parameter_marginal_tuples = {}
+        ## use all the p_repl dicts in the raw edges to enumerate product
         ## parameters that are made from factor parameters
+        def record_params( ptup, fp ):
+            #print 'bm_param operands:', ptup, ',' , fp
+            try:
+                ps = self._parameter_names[ ptup ]
+            except KeyError:
+                ps = self._param_namer(self, ptup)
+                self._parameter_names[ ptup ] = ps
+                self._parameter_tuples[ ps ] = ptup
+                for ss in subsets( ptup[1:] ):
+                    self._parameter_marginal_tuples.setdefault( (ptup[0],)+tuple(ss), [] ).append( ptup )
+            if ps != fp and (fp not in self._parameter_marginals or ps not in self._parameter_marginals[fp]):
+                self._parameter_marginals.setdefault( fp, [] ).append( ps )
         for V,W,(r,c_repl,p_repl) in raw_edges:
             for fp,pp in p_repl.iteritems():
-                ps = pp.substitute_function( bm_param, lambda *x: self._param_namer(self,x) )
-                if ps != fp and (fp not in self._parameter_marginals or ps not in self._parameter_marginals[fp]):
-                    self._parameter_marginals.setdefault( fp, [] ).append( ps )
+                ps = pp.substitute_function( bm_param, lambda *x: record_params(x,fp) )
+
         if False:
             ## given a bm_params() structure, add all its marginals to the dict
             import itertools
