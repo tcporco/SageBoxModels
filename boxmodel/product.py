@@ -702,15 +702,24 @@ class BoxModelProduct(CompositeBoxModel):
 	#    self._bindings.merge_in_place( { k : sum( vl ) } )
 
         print 'marginal variables'
+        self._variable_names = {}
+        self._variable_tuples = {}
         self._variable_marginals = {}
+        self._variable_marginal_tuples = {}
         ## given a bm_state() structure, add all its marginals to the dict
         def insert_marginals( *tup ):
-            v = self._vertex_namer( self, tup )
-            if v not in self._sources and v not in self._sinks:
-                for ss in subsets( tup ):
+            try:
+                v = self._variable_names[ tup ]
+            except KeyError:
+                v = self._vertex_namer( self, tup )
+                self._variable_names[ tup ] = v
+                self._variable_tuples[ v ] = tup
+                #if v not in self._sources and v not in self._sinks:
+                for ss in map( tuple, subsets( tup ) ):
                     if len(ss) > 0:
+                        self._variable_marginal_tuples.setdefault( ss, [] ).append( tup )
                         vss = self._vertex_namer( self, ss )
-                        if vss != v:
+                        if len(ss) == 1 and vss != v:
                             self._variable_marginals.setdefault( vss, [] ).append( v )
             return v
         for v in self._tuple_graph.vertex_iterator():
