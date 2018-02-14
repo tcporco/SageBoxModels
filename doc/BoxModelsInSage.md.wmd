@@ -1,0 +1,343 @@
+---
+layout: page
+title: Box Models in Sage
+wmd_project: BoxModels
+---
+
+This is a preliminary stab at automating construction of compartment (box)
+models in Sage.
+
+## Test by making an SIR model
+
+<source-file filename="SIR.sage.step">
+# produces: SIR.sage.out.tex SIR.boxes.tex SIR.trajectory.png SIR.sobj
+from boxmodel import *
+from dynamicalsystems import *
+
+S, I, R, mu, alpha = SR.var( 'S I R mu alpha' )
+
+SIR = BoxModel( DiGraph( { S:{ I:alpha*S*I }, I:{ R:mu*I } } ), [S,I,R] )
+
+save_session( 'SIR.sobj' )
+
+ltx = latex_output( "SIR.sage.out.tex" )
+
+SIRode = SIR.ode()
+
+ltx.write( SIRode )
+
+ltx.close()
+
+SIR.plot_boxes( 'SIR.boxes.tex', figsize=(5,5) )
+
+epsilon = 0.01 # initial infectious pop
+trajectory = SIRode.bind( { mu:0.1, alpha:1 } ).solve( [1-epsilon,epsilon,0], end_time=80 )
+#trajectory.plot( 't', [S,I,R], filename='SIR.trajectory.png', figsize=(5,5) )
+P = ( trajectory.plot( 't', S, color='blue', legend_label='$S$' )
+    + trajectory.plot( 't', I, color='red', legend_label='$I$' )
+    + trajectory.plot( 't', R, color='green', legend_label='$R$' )
+)
+P.save( filename='SIR.trajectory.png', figsize=(5,4), legend_loc='upper right' )
+
+sys.exit(0r)
+</source-file>
+
+<latex>\newpage</latex>
+<project-file filename="SIR.boxes.crop.svg"/>
+
+<project-file filename="SIR.sage.out.tex"/>
+
+<project-file filename="SIR.trajectory.png"/>
+
+## test the cross product
+
+<source-file filename=cross.sage.step lang=sage>
+# produces: cross.sage.out.tex classes.boxes.crop.svg SIR2.boxes.tex
+from boxmodel import *
+from dynamicalsystems import latex_output
+
+#print 'make SIR model'
+sys.stdout.flush()
+
+S, I, R, mu, alpha = SR.var( 'S I R mu alpha' )
+SIR = BoxModel( DiGraph( { S:{ I:alpha*S*I }, I:{ R:mu*I } } ), [S,I,R] )
+
+#print 'make classes model'
+sys.stdout.flush()
+
+A, B, a, b = SR.var( 'A B a b' )
+classes = BoxModel( DiGraph( { A:{ B:A*a }, B:{ A:B*b } } ), [A,B] )
+
+#print 'write latex'
+sys.stdout.flush()
+
+ltx = latex_output( "cross.sage.out.tex" )
+
+ltx.write( 'SIR model:\n', SIR.ode() )
+
+ltx.write( 'classes:\n', classes.ode() ) 
+
+SIR2 = BoxModelProduct( SIR, classes )
+
+ltx.write( 'cross:\n', SIR2.ode() )
+
+ltx.close()
+
+#print 'write tikz boxes'
+sys.stdout.flush()
+
+#classes.plot_boxes( 'classes.boxes.tex', figsize=(5,5) )
+classes.plot().save( filename='classes.boxes.crop.svg', figsize=(5,5) )
+
+try:
+    SIR2.plot_boxes( 'SIR2.boxes.tex', figsize=(5,5) )
+except NotImplementedError:
+    SIR2.plot().save( filename='SIR2.boxes.crop.svg', figsize=(5,5) )
+</source-file>
+
+<project-file filename=cross.sage.out.tex/>
+
+<project-file filename=classes.boxes.crop.svg/>
+
+<project-file filename=SIR2.boxes.crop.svg/>
+
+## The $$\beta$$ problem
+
+<source-file filename=beta.sage.step lang=sage>
+# produces: beta.sage.out.tex beta.boxes.tex SI.sobj
+from boxmodel import *
+from dynamicalsystems import latex_output
+
+#print 'make SI model'
+sys.stdout.flush()
+
+S, I, beta = SR.var( 'S I beta' )
+SI = BoxModel( DiGraph( { S:{ I:beta*S*I } } ), [S,I] )
+
+save_session( 'SI.sobj' )
+
+#print 'make classes model'
+sys.stdout.flush()
+
+a, b, rho, sigma = SR.var( 'a b rho sigma' )
+classes = BoxModel( DiGraph( { a:{ b:rho }, b:{ a:sigma } } ), [a,b] )
+
+#print 'write latex'
+sys.stdout.flush()
+
+ltx = latex_output( "beta.sage.out.tex" )
+
+ltx.write( 'SI model:\n', SI.ode() )
+
+ltx.write( 'classes:\n', classes.ode() ) 
+
+SIcross = BoxModelProduct( SI, classes )
+
+ltx.write( 'cross:\n', SIcross.ode() )
+
+SI2 = BoxModel( DiGraph( { S:{ I:beta*S*I } } ), [S,I],
+	parameter_dependencies={ beta:[S,I] } )
+SI2cross = BoxModelProduct( SI2, classes )
+
+ltx.write( 'cross with double-indexing:', SI2cross.ode() )
+
+SIx = BoxModel( DiGraph( { S:{ I:beta*S*I } } ), [S,I],
+	parameter_dependencies={ beta:[(S,deps.index),(I,deps.sumover)] } )
+SIxcross = BoxModelProduct( SIx, classes )
+
+ltx.write( 'and the cross with correct double-indexing:', SIxcross.ode() )
+
+ltx.close()
+
+#print 'write tikz boxes'
+sys.stdout.flush()
+
+try:
+    SIxcross.plot_boxes( 'beta.boxes.tex', figsize=(5,5) )
+except NotImplementedError:
+    SIxcross.plot().save( filename='beta.boxes.crop.svg', figsize=(5,5) )
+</source-file>
+
+<project-file filename=beta.sage.out.tex/>
+
+<project-file filename=beta.boxes.crop.svg/>
+
+## The Adler averaging result
+
+Fred Adler ([1992](http://www.sciencedirect.com/science/article/pii/002555649290080G)) has studied an SI model:
+
+$$\frac{dI_i}{dt} = (\beta\sum_{j=1}^n \lambda_{ij}I_j) S_i$$
+
+$$S_i = T_i - I_i$$
+
+(which is in fact the Rushton-Mautner model, seen in the $$\beta$$ section above).
+
+Adler's result is that removing structure by averaging classes $$i$$ together
+can only decrease or preserve the reproduction ration $$R_0$$, that is, that
+$$R_0$$ is nondecreasing with diversity of the box model.  I'd like to
+reproduce that result in our cross-product framework.
+
+So we begin with a basic SI model, as the horizontal structure for our crosses:
+
+<source-file filename=adler-SI.sage.step display=adler-SI.boxes.crop.svg>
+# produces: adler-SI.boxes.tex adler-SI.sobj
+import boxmodel
+
+S, I, beta = SR.var( 'S I beta' )
+lb = SR.symbol( 'lmbda', latex_name='lambda' )
+SI = boxmodel.BoxModel( DiGraph( { S:{ I:lb*beta*S*I } } ), [S,I],
+	parameter_dependencies={ beta:[], lb:[(S,boxmodel.deps.index), (I,boxmodel.deps.sumover)] } )
+
+SI.plot_boxes( 'adler-SI.boxes.tex', figsize=(5,5) )
+
+save_session( 'adler-SI' )
+</source-file>
+
+and cross with a given mixing matrix $$\Lambda$$:
+
+<source-file filename=adler_mixing.py.step lang=py>
+# produces:
+from sage.all import *
+import dynamicalsystems
+import boxmodel
+
+def mixing_model( Lambda ):
+    # Lambda must be a square matrix;
+    # or a number of states, in case we want to provide the mixing rates later
+    try:
+	dim = Lambda.ncols()
+	if not Lambda.is_square():
+	    # note is_square() actually succeeds if Lambda is a number
+	    # but ncols() doesn't
+	    raise ValueError( "matrix in mixing_model() must be square" )
+        l_in = dynamicalsystems.indexer_2d( 'lambda' )
+	bindings = dynamicalsystems.Bindings( {
+	    l_in[i][j] : Lambda[i, j] for i in range(dim) for j in range(dim)
+	} )
+    except AttributeError: # not a matrix
+	dim = Lambda
+	bindings = dynamicalsystems.Bindings()
+    # create disconnected graph of that many vertices
+    # and bind the lambda values
+    return boxmodel.BoxModel(
+	DiGraph( { i:[] for i in range(dim) } ),
+	bindings = bindings
+    )
+</source-file>
+
+For example:
+
+<source-file filename=adler-example.sage.step display=adler-example.boxes.crop.svg>
+# requires: adler_mixing.py
+# requires: adler-SI.sobj
+# produces: adler-example.boxes.tex adler-example.sobj
+import boxmodel, dynamicalsystems
+import adler_mixing
+
+load_session( 'adler-SI' )
+
+L2 = adler_mixing.mixing_model( 2 )
+
+example = boxmodel.BoxModelProduct( SI, L2 )
+
+try:
+    example.plot_boxes( 'adler-example.boxes.tex', figsize=(5,5) )
+except NotImplementedError:
+    example.plot().save( filename='adler-example.boxes.crop.svg', figsize=(5,5) )
+save_session( 'adler-example' )
+</source-file>
+
+In this class of models, the total size of each mixing class
+$$T_i=S_i+I_i$$ is conserved.
+
+An average over mixing classes $$i$$ is defined by replacing the groups of
+the vertical model, $$G_i$$, by some smaller set of groups with
+
+$$\bar{G}_s = \cup_{i\in\sigma_s}G_i$$,
+
+where $$\{\sigma_s\}$$ is a partition of the non-averaged groups
+$$\{1,\ldots,i,\ldots,n\}$$.
+
+In the averaged model, the mixing rates $$\lambda_{ij}$$ are replaced by
+
+$$b_{st} = \frac{\sum_{i\in\sigma_s}\sum_{j\in\sigma_t}T_i\lambda_{ij}T_j}{\bar{T}_s\bar{T}_t}$$.
+
+The result is that
+
+* _If the mixing matrix is symmetric and primitive, then the leading eigenvalue
+of the Jacobian matrix associated with the combined system is less than or
+equal to that associated with the full system._
+
+This eigenvalue is closely related to the value of $$R_0$$, so it defines
+the direction of change of the initial rate of infection.
+
+We should be able to study the infection rate more or less directly...
+
+<source-file filename=adler-R0.sage.step display=adler-R0.sage.out.tex>
+# requires: adler-example.sobj
+# produces: adler-R0.sage.out.tex adler-R0.sobj
+import dynamicalsystems
+import boxmodel
+#import adler_mixing
+
+# pickling bug
+lb = SR.symbol( 'lmbda', latex_name=r'\lambda' )
+[ dynamicalsystems.subscriptedsymbol( lb, i, j ) for i in (0,1) for j in (0,1) ]
+
+load_session( 'adler-example' )
+
+ltx = dynamicalsystems.latex_output( "adler-R0.sage.out.tex" )
+
+ODE2 = example.ode()
+
+ltx.write( ODE2 )
+
+#ltx.write( 'equilibria are:' )
+#ltx.write_block( ODE2.equilibria() )
+ltx.write( 'We are interested in the rate of infection near the boundary state' )
+
+dfeq = dict( [
+	( s, SR.symbol( str(s).replace('S','T') ) )
+	for s in example._inclusion_variables[SR('S')]
+    ] + [
+	( i, SR(0) )
+	for i in example._inclusion_variables[SR('I')]
+    ] )
+print dfeq
+
+ltx.write_equality( vector( ODE2._vars ), vector( [ dfeq[v] for v in ODE2._vars ] ) )
+
+dfjac = ODE2.jacobian_matrix( at=dfeq )
+
+ltx.write( 'The Jacobian there is' )
+ltx.write_block( dfjac )
+
+dfepss = dict( [
+	( s, - SR.symbol( str(s).replace('S','\epsilon') ) )
+	for s in example._inclusion_variables[SR('S')]
+    ] + [
+	( i, SR.symbol( str(i).replace('I','\epsilon') ) )
+	for i in example._inclusion_variables[SR('I')]
+    ] )
+dfeps = vector( [ dfepss[v] for v in ODE2._vars ] )
+
+ltx.write( 'In the linearization there, the growth rate in the direction' )
+ltx.write_block( dfeps )
+
+ltx.write( 'is' )
+
+growth_vector = (dfjac * dfeps).simplify()
+ltx.write_block( growth_vector )
+
+gr_dict = { v:gv for v,gv in zip(ODE2._vars, growth_vector) }
+gr_I = reduce( lambda x,y: x+y, (gr_dict[i] for i in example._inclusion_variables[SR('I')]) )
+ltx.write( 'so that the growth rate of $I = I_0+I_1$ is $', gr_I, '$.' )
+
+ltx.write( '\n\nMeanwhile, the eigenvalues of the Jacobian there are' )
+ltx.write_block( dfjac.eigenvalues() )
+
+ltx.close()
+
+save_session( 'adler-R0' )
+</source-file>
+
