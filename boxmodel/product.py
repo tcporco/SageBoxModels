@@ -245,7 +245,7 @@ def default_edge_generator(
     if (
 	(self._param_relabeling is default_param_relabeling) and
 	cross_interactions and
-	any( not set(m1._vars).is_disjoint( set(m2._vars) ) for m1 in self._models for m2 in self._models if m2 is not m1 )
+	any( not set(m1._vars).isdisjoint( set(m2._vars) ) for m1 in self._models for m2 in self._models if m2 is not m1 )
     ):
 	self._param_relabeling = full_param_relabeling
     if within_compartment_interactions:
@@ -898,7 +898,7 @@ def strong_edge_generator(
     if (
 	(self._param_relabeling is default_param_relabeling) and
 	cross_interactions and
-	any( not set(m1._vars).is_disjoint( set(m2._vars) ) for m1 in self._models for m2 in self._models if m2 is not m1 )
+	any( not set(m1._vars).isdisjoint( set(m2._vars) ) for m1 in self._models for m2 in self._models if m2 is not m1 )
     ):
 	self._param_relabeling = full_param_relabeling
     import itertools
